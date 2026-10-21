@@ -8,12 +8,27 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public final class Shapes {
   private static final String NAMESPACE = "minecraft:";
   private static final int DEPTH = 12;
+  private static final int STATES = 10;
+  private static final Set<String> SKIPPED =
+      Set.of(
+          "facing",
+          "axis",
+          "rotation",
+          "waterlogged",
+          "distance",
+          "persistent",
+          "face",
+          "half",
+          "hinge",
+          "open");
 
   private final Assets assets;
   private final Map<String, JsonObject> models = new HashMap<>(256);
@@ -22,14 +37,60 @@ public final class Shapes {
     this.assets = assets;
   }
 
-  public Shape block(String name) {
+  public List<Entry.State> states(String name) {
+    List<Entry.State> out = new ArrayList<>(2);
     try {
       JsonObject state = json("blockstates/" + name + ".json");
-      String model = stateModel(state);
-      return model == null ? null : resolve(model);
-    } catch (IOException | RuntimeException e) {
-      return null;
+      if (state.has("variants")) {
+        Set<String> seen = new HashSet<>();
+        JsonObject variants = state.getAsJsonObject("variants");
+        for (Map.Entry<String, JsonElement> entry : variants.entrySet()) {
+          if (out.size() >= STATES) {
+            break;
+          }
+          Shape shape = resolve(modelOf(entry.getValue()));
+          if (shape != null && !shape.empty() && seen.add(String.join("|", shape.textures()))) {
+            out.add(new Entry.State(label(entry.getKey()), shape));
+          }
+        }
+      }
+      if (out.isEmpty()) {
+        String model = stateModel(state);
+        Shape shape = model == null ? null : resolve(model);
+        if (shape != null) {
+          out.add(new Entry.State("", shape));
+        }
+      }
+    } catch (IOException | RuntimeException ignored) {
+      out.clear();
     }
+    return out;
+  }
+
+  private static String label(String variant) {
+    StringBuilder out = new StringBuilder();
+    for (String part : variant.split(",")) {
+      int split = part.indexOf('=');
+      if (split <= 0) {
+        continue;
+      }
+      String key = part.substring(0, split);
+      String value = part.substring(split + 1);
+      if (SKIPPED.contains(key)) {
+        continue;
+      }
+      if (!out.isEmpty()) {
+        out.append(", ");
+      }
+      if (value.equals("true")) {
+        out.append(Entry.pretty(key));
+      } else if (value.equals("false")) {
+        out.append("Not ").append(Entry.pretty(key).toLowerCase(java.util.Locale.ROOT));
+      } else {
+        out.append(Entry.pretty(key)).append(' ').append(Entry.pretty(value));
+      }
+    }
+    return out.toString();
   }
 
   private static String stateModel(JsonObject state) {

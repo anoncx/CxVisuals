@@ -14,7 +14,7 @@ import net.minecraft.server.packs.resources.IoSupplier;
 final class VanillaAssets implements Assets {
   private static final String NAMESPACE = "minecraft";
   private static final String[] ROOTS = {
-    "blockstates", "models/block", "textures/block", "textures/item"
+    "blockstates", "models/block", "textures/block", "textures/item", "textures/entity"
   };
 
   private final VanillaPackResources resources;

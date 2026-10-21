@@ -81,7 +81,8 @@ public final class Pack {
       return null;
     }
     try {
-      Pixels decoded = Pixels.decode(assets.read(TEXTURES + key + PNG));
+      boolean strip = key.startsWith("block/") || key.startsWith("item/");
+      Pixels decoded = Pixels.decode(assets.read(TEXTURES + key + PNG), meta(key), strip);
       synchronized (cache) {
         cache.put(key, decoded);
       }

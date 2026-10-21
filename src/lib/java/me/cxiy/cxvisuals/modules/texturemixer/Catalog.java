@@ -5,7 +5,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class Catalog {
@@ -13,6 +15,8 @@ public final class Catalog {
   private static final String ITEMS = "textures/item/";
   private static final String JSON = ".json";
   private static final String PNG = ".png";
+  private static final Pattern VARIANT =
+      Pattern.compile("(.+)_(pulling_\\d|standby|arrow|firework|cast|broken|open|filled)");
   private static final Pattern FRAME = Pattern.compile("(_pulling_\\d|_\\d\\d)$");
   private static final Set<String> HIDDEN =
       Set.of(
@@ -48,10 +52,12 @@ public final class Catalog {
 
   private final List<Entry> blocks;
   private final List<Entry> items;
+  private final List<Entry> entities;
 
-  private Catalog(List<Entry> blocks, List<Entry> items) {
+  private Catalog(List<Entry> blocks, List<Entry> items, List<Entry> entities) {
     this.blocks = blocks;
     this.items = items;
+    this.entities = entities;
   }
 
   public List<Entry> blocks() {
@@ -62,8 +68,16 @@ public final class Catalog {
     return items;
   }
 
+  public List<Entry> entities() {
+    return entities;
+  }
+
   public List<Entry> of(Entry.Kind kind) {
-    return kind == Entry.Kind.BLOCK ? blocks : items;
+    return switch (kind) {
+      case BLOCK -> blocks;
+      case ITEM -> items;
+      case ENTITY -> entities;
+    };
   }
 
   public static Catalog build(Assets vanilla) {
@@ -85,12 +99,12 @@ public final class Catalog {
       if (hidden(name)) {
         continue;
       }
-      Shape shape = shapes.block(name);
-      if (shape == null || shape.empty()) {
+      List<Entry.State> states = shapes.states(name);
+      if (states.isEmpty() || states.get(0).shape().empty()) {
         continue;
       }
-      String signature = String.join("|", shape.textures());
-      Entry made = new Entry(name, Entry.Kind.BLOCK, shape);
+      String signature = String.join("|", states.get(0).shape().textures());
+      Entry made = new Entry(name, Entry.Kind.BLOCK, states, 1.0F);
       Integer slot = bySignature.get(signature);
       if (slot == null) {
         bySignature.put(signature, blocks.size());
@@ -99,14 +113,29 @@ public final class Catalog {
         blocks.set(slot, made);
       }
     }
+    Map<String, List<Entry.State>> variants = new TreeMap<>();
+    for (String name : sprites) {
+      Matcher match = VARIANT.matcher(name);
+      if (match.matches() && sprites.contains(match.group(1))) {
+        variants
+            .computeIfAbsent(match.group(1), key -> new ArrayList<>())
+            .add(new Entry.State(Entry.pretty(match.group(2)), Shape.sprite("item/" + name)));
+      }
+    }
     List<Entry> items = new ArrayList<>(sprites.size());
     for (String name : sprites) {
-      if (FRAME.matcher(name).find()) {
+      Matcher match = VARIANT.matcher(name);
+      boolean variant = match.matches() && sprites.contains(match.group(1));
+      if (variant || FRAME.matcher(name).find()) {
         continue;
       }
-      items.add(new Entry(name, Entry.Kind.ITEM, Shape.sprite("item/" + name)));
+      List<Entry.State> states = new ArrayList<>();
+      states.add(new Entry.State("", Shape.sprite("item/" + name)));
+      states.addAll(variants.getOrDefault(name, List.of()));
+      items.add(new Entry(name, Entry.Kind.ITEM, states, 1.0F));
     }
-    return new Catalog(List.copyOf(blocks), List.copyOf(items));
+    return new Catalog(
+        List.copyOf(blocks), List.copyOf(items), Entities.build(vanilla));
   }
 
   private static boolean better(Entry candidate, Entry current) {

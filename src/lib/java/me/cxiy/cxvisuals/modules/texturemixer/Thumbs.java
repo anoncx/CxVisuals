@@ -143,7 +143,7 @@ public final class Thumbs {
             Raster.tint(entry.id(), ""),
             EDGE,
             SAMPLES,
-            item ? ZOOM_ITEM : ZOOM_BLOCK,
+            item ? ZOOM_ITEM : ZOOM_BLOCK * entry.zoom(),
             item ? 0.0F : Raster.TURN,
             item ? 0.0F : Raster.TILT,
             false,

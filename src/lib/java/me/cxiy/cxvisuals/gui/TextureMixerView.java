@@ -58,7 +58,8 @@ public final class TextureMixerView {
   private final Supplier<WindowMotion> motion;
   private final Presence presence = new Presence();
   private final WindowFrame frame = new WindowFrame();
-  private final Pick kinds = new Pick(Lang.tr("Blocks"), Lang.tr("Items"));
+  private final Pick kinds =
+      new Pick(Lang.tr("Blocks"), Lang.tr("Items"), Lang.tr("Entities"));
   private final Pick sorts = new Pick(Lang.tr("Popular"), Lang.tr("Newest"), Lang.tr("Updated"));
   private final Segmented kindBar = new Segmented(kinds);
   private final Segmented sortBar = new Segmented(sorts);
@@ -135,6 +136,10 @@ public final class TextureMixerView {
   private float stageY;
   private float perspectiveX;
   private float perspectiveW;
+  private final float[] stateX = new float[12];
+  private final float[] stateY = new float[12];
+  private final float[] stateW = new float[12];
+  private int stateCount;
   private long typedAt;
   private long clock;
 
@@ -249,7 +254,11 @@ public final class TextureMixerView {
   }
 
   private Entry.Kind kind() {
-    return kinds.index() == 1 ? Entry.Kind.ITEM : Entry.Kind.BLOCK;
+    return switch (kinds.index()) {
+      case 1 -> Entry.Kind.ITEM;
+      case 2 -> Entry.Kind.ENTITY;
+      default -> Entry.Kind.BLOCK;
+    };
   }
 
   private boolean inside(float mx, float my) {
@@ -429,15 +438,16 @@ public final class TextureMixerView {
 
   private void drawList(Canvas c, Theme t, float mx, float my, float dt) {
     float top = originY + PAD;
-    search.draw(c, t, leftX, top, LEFT, dt);
-    float tabsY = top + Field.HEIGHT + 10.0F;
-    kindBar.measure(c);
-    kindBar.place(leftX, tabsY);
-    kindBar.draw(c, t, mx, my, dt);
     String label = Lang.tr("Changed");
     changedW = chipWidth(c, label);
     changedX = leftX + LEFT - changedW;
-    chip(c, t, label, changedX, tabsY + (kindBar.h - CHIP_HEIGHT) * 0.5F, onlyChanged, mx, my);
+    search.draw(c, t, leftX, top, LEFT - changedW - 8.0F, dt);
+    chip(c, t, label, changedX, top + (Field.HEIGHT - CHIP_HEIGHT) * 0.5F, onlyChanged, mx, my);
+    float tabsY = top + Field.HEIGHT + 10.0F;
+    kindBar.limit(LEFT);
+    kindBar.measure(c);
+    kindBar.place(leftX, tabsY);
+    kindBar.draw(c, t, mx, my, dt);
     listTop = tabsY + kindBar.h + 12.0F;
     listHeight = originY + HEIGHT - PAD - FOOT - listTop;
     float total = rows.size() * ROW;
@@ -1025,6 +1035,7 @@ public final class TextureMixerView {
     chip(c, t, mode, perspectiveX, stageY + 10.0F, false, mx, my);
     Mix mix = studio.mix();
     float y = stageY + STAGE + 14.0F;
+    y = drawStates(c, t, y, mx, my);
     int shown = 0;
     for (String texture : selected.textures()) {
       if (shown++ >= 5) {
@@ -1052,6 +1063,31 @@ public final class TextureMixerView {
           t.ink2());
       y += line + 3.0F;
     }
+  }
+
+  private float drawStates(Canvas c, Theme t, float top, float mx, float my) {
+    List<Entry.State> states = selected.states();
+    stateCount = 0;
+    if (states.size() < 2) {
+      return top;
+    }
+    float x = sideLeft;
+    float y = top;
+    for (int i = 0; i < states.size() && i < stateX.length; i++) {
+      String label = states.get(i).label().isEmpty() ? Lang.tr("Default") : states.get(i).label();
+      float width = chipWidth(c, label);
+      if (x + width > sideLeft + SIDE) {
+        x = sideLeft;
+        y += CHIP_HEIGHT + 6.0F;
+      }
+      chip(c, t, label, x, y, i == stage.state(), mx, my);
+      stateX[i] = x;
+      stateY[i] = y;
+      stateW[i] = width;
+      stateCount = i + 1;
+      x += width + 6.0F;
+    }
+    return y + CHIP_HEIGHT + 12.0F;
   }
 
   private void drawFooter(Canvas c, Theme t, float mx, float my) {
@@ -1102,7 +1138,7 @@ public final class TextureMixerView {
     float mx = localX(rawX);
     float my = localY(rawY);
     float top = originY + PAD;
-    boolean onSearch = in(mx, my, leftX, top, LEFT, Field.HEIGHT);
+    boolean onSearch = in(mx, my, leftX, top, LEFT - changedW - 8.0F, Field.HEIGHT);
     search.focus(onSearch);
     float fieldX = centerLeft + chipAW + 10.0F;
     boolean onRemote =
@@ -1130,8 +1166,7 @@ public final class TextureMixerView {
     if (kindBar.mouseDown(mx, my) || (browsing && sortBar.mouseDown(mx, my))) {
       return true;
     }
-    float tabsY = top + Field.HEIGHT + 10.0F;
-    if (in(mx, my, changedX, tabsY + (kindBar.h - CHIP_HEIGHT) * 0.5F, changedW, CHIP_HEIGHT)) {
+    if (in(mx, my, changedX, top + (Field.HEIGHT - CHIP_HEIGHT) * 0.5F, changedW, CHIP_HEIGHT)) {
       onlyChanged = !onlyChanged;
       Sound.play(Sound.Cue.TAB);
       return true;
@@ -1214,6 +1249,13 @@ public final class TextureMixerView {
   }
 
   private boolean stageDown(float mx, float my) {
+    for (int i = 0; i < stateCount; i++) {
+      if (in(mx, my, stateX[i], stateY[i], stateW[i], CHIP_HEIGHT)) {
+        stage.state(i);
+        Sound.play(Sound.Cue.TAB);
+        return true;
+      }
+    }
     if (in(mx, my, perspectiveX, stageY + 10.0F, perspectiveW, CHIP_HEIGHT)) {
       perspective = !perspective;
       Sound.play(Sound.Cue.TAB);
