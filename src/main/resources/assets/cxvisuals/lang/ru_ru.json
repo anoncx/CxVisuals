@@ -1,6 +1,7 @@
 {
   "key.category.cxvisuals.main": "CxVisuals",
   "key.cxvisuals.open": "Открыть настройки",
+  "key.cxvisuals.texturemixer.open": "Открыть микшер текстур",
   "key.cxvisuals.idle_camera.toggle": "Переключить: Камера простоя",
   "key.cxvisuals.idle_camera.start": "Запустить кинематограф",
   "key.cxvisuals.motion_blur.toggle": "Переключить: Размытие в движении",

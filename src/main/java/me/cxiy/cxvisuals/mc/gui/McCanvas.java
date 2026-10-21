@@ -8,6 +8,7 @@ import me.cxiy.cxvisuals.gui.Canvas;
 import me.cxiy.cxvisuals.gui.FontStyle;
 import me.cxiy.cxvisuals.gui.Hsv;
 import me.cxiy.cxvisuals.gui.StyledText;
+import me.cxiy.cxvisuals.gui.TileSheet;
 import me.cxiy.cxvisuals.gui.spatial.Warp;
 import me.cxiy.cxvisuals.gui.text.FontFace;
 import me.cxiy.cxvisuals.gui.text.TextEngine;
@@ -51,6 +52,7 @@ public final class McCanvas implements Canvas {
   private static final FontTextures TEXTURES = new FontTextures();
   private static final FaceTextures FACES = new FaceTextures();
   private static final IconTextures ICONS = new IconTextures();
+  private static final TileTextures TILES = new TileTextures();
   private static final ChatLines CHAT = new ChatLines();
   private static final FontStyle[] FONTS = FontStyle.values();
   private static ItemStack[] held;
@@ -454,6 +456,10 @@ public final class McCanvas implements Canvas {
 
   @Override
   public void text(FontStyle style, String text, float x, float y, int argb) {
+    if (text.indexOf(StyledText.MARK) >= 0) {
+      styled(style, StyledText.of(text), x, y, argb);
+      return;
+    }
     int color = tint(argb);
     if ((color >>> 24) < 4) {
       return;
@@ -702,6 +708,41 @@ public final class McCanvas implements Canvas {
   }
 
   @Override
+  public boolean tile(
+      TileSheet sheet, int cell, float x, float y, float w, float h, float radius) {
+    if (!shapes || alpha <= 0.002F || cell < 0 || !TilePipeline.usable()) {
+      return false;
+    }
+    Matrix3x2f matrix = pose();
+    ScreenRectangle bounds = bounds(matrix, x, y, x + w, y + h);
+    if (bounds == null) {
+      return true;
+    }
+    TextureSetup setup = TILES.setup(sheet);
+    ScreenRectangle scissor = clipDepth > 0 ? clips[clipDepth - 1] : null;
+    int color = (Math.round(255.0F * Math.min(1.0F, alpha)) << 24) | 0x00FFFFFF;
+    int grid = (sheet.width() / sheet.edge()) | ((sheet.height() / sheet.edge()) << 8);
+    state.addGuiElement(
+        new TileRenderState(
+            matrix,
+            x,
+            y,
+            w,
+            h,
+            radius,
+            cell,
+            grid,
+            color,
+            TilePipeline.TILE,
+            setup,
+            scissor,
+            bounds,
+            depth(),
+            cut(matrix)));
+    return true;
+  }
+
+  @Override
   public int styleKey() {
     return Float.floatToIntBits(nameScale());
   }
@@ -755,6 +796,9 @@ public final class McCanvas implements Canvas {
 
   @Override
   public float textWidth(FontStyle style, String text) {
+    if (text.indexOf(StyledText.MARK) >= 0) {
+      return styledWidth(style, StyledText.of(text));
+    }
     return ENGINE.face(style).width(text);
   }
 

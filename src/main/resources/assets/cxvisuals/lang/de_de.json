@@ -1,6 +1,7 @@
 {
   "key.category.cxvisuals.main": "CxVisuals",
   "key.cxvisuals.open": "Einstellungen öffnen",
+  "key.cxvisuals.texturemixer.open": "Textur-Mixer öffnen",
   "key.cxvisuals.idle_camera.toggle": "Leerlaufkamera umschalten",
   "key.cxvisuals.idle_camera.start": "Kinosequenz starten",
   "key.cxvisuals.motion_blur.toggle": "Bewegungsunschärfe umschalten",

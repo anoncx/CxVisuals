@@ -1,6 +1,7 @@
 {
   "key.category.cxvisuals.main": "CxVisuals",
   "key.cxvisuals.open": "Open settings",
+  "key.cxvisuals.texturemixer.open": "Open Texture Mixer",
   "key.cxvisuals.idle_camera.toggle": "Toggle Idle Camera",
   "key.cxvisuals.idle_camera.start": "Start cinematic",
   "key.cxvisuals.motion_blur.toggle": "Toggle Motion Blur",

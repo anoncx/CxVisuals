@@ -119,6 +119,11 @@ public interface Canvas {
 
   void model(int handle, float x, float y, float w, float h, float yaw, boolean live, int audition);
 
+  default boolean tile(
+      TileSheet sheet, int cell, float x, float y, float w, float h, float radius) {
+    return false;
+  }
+
   default boolean stage(
       int scene,
       float x,

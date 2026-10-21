@@ -28,6 +28,7 @@ public final class Splash {
   private static final float OUTRO_DISSOLVE = 0.6F;
   private static final float OUTRO_VEIL_FROM = 0.3F;
   private static final float OUTRO_TOTAL = 1.1F;
+  private static final float HIDDEN_TOTAL = 0.3F;
   private static final float MAX_FRAME_SECONDS = 0.1F;
   private static final float SMOOTHING = 5.5F;
   private static final float DISSOLVE_PAD = 90.0F;
@@ -56,6 +57,18 @@ public final class Splash {
       float intro,
       float outro,
       String version) {
+    return draw(graphics, mc, progress, fadeIn, intro, outro, version, false);
+  }
+
+  public static int draw(
+      GuiGraphicsExtractor graphics,
+      Minecraft mc,
+      float progress,
+      boolean fadeIn,
+      float intro,
+      float outro,
+      String version,
+      boolean hidden) {
     if (CxVisuals.registry() == null) {
       return UNAVAILABLE;
     }
@@ -81,6 +94,12 @@ public final class Splash {
     float height = window.getHeight() / scale;
 
     boolean outroing = outro >= 0.0F;
+    if (hidden) {
+      if (mc.gui.screen() != null) {
+        mc.gui.screen().extractRenderStateWithTooltipAndSubtitles(graphics, 0, 0, 0.0F);
+      }
+      return outroing && outro >= HIDDEN_TOTAL ? FINISHED : RUNNING;
+    }
     float veil =
         outroing
             ? 1.0F - smooth((outro - OUTRO_VEIL_FROM) / (OUTRO_TOTAL - OUTRO_VEIL_FROM))

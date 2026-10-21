@@ -1,0 +1,146 @@
+package me.cxiy.cxvisuals.modules.texturemixer;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.regex.Pattern;
+
+public final class Catalog {
+  private static final String STATES = "blockstates/";
+  private static final String ITEMS = "textures/item/";
+  private static final String JSON = ".json";
+  private static final String PNG = ".png";
+  private static final Pattern FRAME = Pattern.compile("(_pulling_\\d|_\\d\\d)$");
+  private static final Set<String> HIDDEN =
+      Set.of(
+          "air",
+          "barrier",
+          "light",
+          "structure_void",
+          "void_air",
+          "cave_air",
+          "moving_piston",
+          "piston_head",
+          "jigsaw",
+          "structure_block",
+          "command_block",
+          "chain_command_block",
+          "repeating_command_block");
+  private static final String[] HIDDEN_PARTS = {
+    "potted_", "wall_", "_wall_sign", "_wall_hanging", "attached_", "test_"
+  };
+  private static final String[] SECONDARY = {
+    "_slab",
+    "_stairs",
+    "_wall",
+    "_fence",
+    "_gate",
+    "_button",
+    "_pressure_plate",
+    "_carpet",
+    "_pane",
+    "_trapdoor",
+    "_door"
+  };
+
+  private final List<Entry> blocks;
+  private final List<Entry> items;
+
+  private Catalog(List<Entry> blocks, List<Entry> items) {
+    this.blocks = blocks;
+    this.items = items;
+  }
+
+  public List<Entry> blocks() {
+    return blocks;
+  }
+
+  public List<Entry> items() {
+    return items;
+  }
+
+  public List<Entry> of(Entry.Kind kind) {
+    return kind == Entry.Kind.BLOCK ? blocks : items;
+  }
+
+  public static Catalog build(Assets vanilla) {
+    Shapes shapes = new Shapes(vanilla);
+    TreeSet<String> names = new TreeSet<>();
+    TreeSet<String> sprites = new TreeSet<>();
+    for (String path : vanilla.paths()) {
+      if (path.startsWith(STATES) && path.endsWith(JSON)) {
+        names.add(path.substring(STATES.length(), path.length() - JSON.length()));
+      } else if (path.startsWith(ITEMS)
+          && path.endsWith(PNG)
+          && path.indexOf('/', ITEMS.length()) < 0) {
+        sprites.add(path.substring(ITEMS.length(), path.length() - PNG.length()));
+      }
+    }
+    Map<String, Integer> bySignature = new HashMap<>();
+    List<Entry> blocks = new ArrayList<>(names.size());
+    for (String name : names) {
+      if (hidden(name)) {
+        continue;
+      }
+      Shape shape = shapes.block(name);
+      if (shape == null || shape.empty()) {
+        continue;
+      }
+      String signature = String.join("|", shape.textures());
+      Entry made = new Entry(name, Entry.Kind.BLOCK, shape);
+      Integer slot = bySignature.get(signature);
+      if (slot == null) {
+        bySignature.put(signature, blocks.size());
+        blocks.add(made);
+      } else if (better(made, blocks.get(slot))) {
+        blocks.set(slot, made);
+      }
+    }
+    List<Entry> items = new ArrayList<>(sprites.size());
+    for (String name : sprites) {
+      if (FRAME.matcher(name).find()) {
+        continue;
+      }
+      items.add(new Entry(name, Entry.Kind.ITEM, Shape.sprite("item/" + name)));
+    }
+    return new Catalog(List.copyOf(blocks), List.copyOf(items));
+  }
+
+  private static boolean better(Entry candidate, Entry current) {
+    boolean a = candidate.shape().cube();
+    boolean b = current.shape().cube();
+    if (a != b) {
+      return a;
+    }
+    boolean c = secondary(candidate.id());
+    boolean d = secondary(current.id());
+    if (c != d) {
+      return !c;
+    }
+    return candidate.id().length() < current.id().length();
+  }
+
+  private static boolean secondary(String name) {
+    for (String suffix : SECONDARY) {
+      if (name.endsWith(suffix)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean hidden(String name) {
+    if (HIDDEN.contains(name)) {
+      return true;
+    }
+    for (String part : HIDDEN_PARTS) {
+      if (name.contains(part)) {
+        return true;
+      }
+    }
+    return false;
+  }
+}

@@ -2,6 +2,7 @@ package me.cxiy.cxvisuals.mc.mixin;
 
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
 import me.cxiy.cxvisuals.mc.gui.Splash;
+import me.cxiy.cxvisuals.mc.modules.texturemixer.TextureMixer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.LoadingOverlay;
@@ -52,7 +53,8 @@ public abstract class LoadingOverlayMixin {
             fadeIn,
             intro,
             outro,
-            CxVisualsClient.version());
+            CxVisualsClient.version(),
+            TextureMixer.quiet());
     if (state == Splash.UNAVAILABLE) {
       return;
     }

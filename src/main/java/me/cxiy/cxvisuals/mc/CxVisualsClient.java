@@ -47,6 +47,7 @@ import me.cxiy.cxvisuals.mc.modules.nametags.Nametags;
 import me.cxiy.cxvisuals.mc.modules.shaders.EntityTrails;
 import me.cxiy.cxvisuals.mc.modules.shaders.JumpCircles;
 import me.cxiy.cxvisuals.mc.modules.shaders.Shaders;
+import me.cxiy.cxvisuals.mc.modules.texturemixer.TextureMixer;
 import me.cxiy.cxvisuals.mc.modules.social.FriendsLink;
 import me.cxiy.cxvisuals.mc.modules.social.Social;
 import me.cxiy.cxvisuals.mc.modules.waypoints.Markers;
@@ -130,6 +131,7 @@ public final class CxVisualsClient implements ClientModInitializer {
     registry.add(Chat.create(keys));
     registry.add(Inventory.create(keys, registry.client()));
     registry.add(DonutSMP.create(keys, registry.client()));
+    registry.add(TextureMixer.create(keys, registry.client()));
     waypoints = Markers.create(keys);
     registry.add(waypoints);
     social = Social.create(keys);
@@ -184,6 +186,7 @@ public final class CxVisualsClient implements ClientModInitializer {
     ClientLifecycleEvents.CLIENT_STOPPING.register(
         client -> {
           MenuStage.savePlaytime();
+          TextureMixer.shutdown();
           flush();
           Media.shutdown();
         });
@@ -331,6 +334,7 @@ public final class CxVisualsClient implements ClientModInitializer {
     DeathEffects.tick(mc);
     Inventory.tick(mc);
     DonutSMP.tick(mc);
+    TextureMixer.tick(mc);
     Social.tick(mc);
     FriendsLink.tick(mc);
     Markers.tick(mc);
