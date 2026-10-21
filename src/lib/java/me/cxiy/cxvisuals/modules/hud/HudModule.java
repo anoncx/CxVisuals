@@ -3,6 +3,7 @@ package me.cxiy.cxvisuals.modules.hud;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import me.cxiy.cxvisuals.core.i18n.Lang;
 import me.cxiy.cxvisuals.core.module.KeyBinder;
 import me.cxiy.cxvisuals.core.module.Module;
@@ -13,6 +14,7 @@ import me.cxiy.cxvisuals.core.settings.Group;
 import me.cxiy.cxvisuals.core.settings.KeySetting;
 import me.cxiy.cxvisuals.core.settings.NumberSetting;
 import me.cxiy.cxvisuals.core.settings.Page;
+import me.cxiy.cxvisuals.core.settings.PickSetting;
 import me.cxiy.cxvisuals.modules.hud.elements.AchievementsElement;
 import me.cxiy.cxvisuals.modules.hud.elements.ChatFeedElement;
 import me.cxiy.cxvisuals.modules.hud.elements.ClockElement;
@@ -21,6 +23,7 @@ import me.cxiy.cxvisuals.modules.hud.elements.GearElement;
 import me.cxiy.cxvisuals.modules.hud.elements.KeystrokesElement;
 import me.cxiy.cxvisuals.modules.hud.elements.LyricsElement;
 import me.cxiy.cxvisuals.modules.hud.elements.MediaElement;
+import me.cxiy.cxvisuals.modules.hud.elements.MirrorElement;
 import me.cxiy.cxvisuals.modules.hud.elements.NetworkElement;
 import me.cxiy.cxvisuals.modules.hud.elements.PlayersElement;
 import me.cxiy.cxvisuals.modules.hud.elements.PositionElement;
@@ -29,6 +32,8 @@ import me.cxiy.cxvisuals.modules.hud.elements.SessionElement;
 import me.cxiy.cxvisuals.modules.hud.elements.StatElement;
 import me.cxiy.cxvisuals.modules.hud.elements.TargetElement;
 import me.cxiy.cxvisuals.modules.hud.elements.ToastElement;
+import me.cxiy.cxvisuals.modules.hud.mirror.MirrorHub;
+import me.cxiy.cxvisuals.modules.hud.mirror.MirrorWindow;
 
 public final class HudModule extends Module {
   public enum PingSource {
@@ -69,6 +74,8 @@ public final class HudModule extends Module {
   public final KeySetting playKey;
   public final KeySetting nextKey;
   public final KeySetting previousKey;
+  public final PickSetting mirrorWindow;
+  public final MirrorHub mirrorHub;
   public final HudData data = new HudData();
 
   public final StatElement fps;
@@ -95,6 +102,7 @@ public final class HudModule extends Module {
   public final ChatFeedElement feed;
   public final MediaElement media;
   public final LyricsElement lyrics;
+  public final MirrorElement mirror;
 
   public final HostedElement scoreboard;
   public final HostedElement bossBars;
@@ -109,10 +117,16 @@ public final class HudModule extends Module {
   public final BoolSetting font;
 
   private final List<HudElement> elements = new ArrayList<>(28);
+  private List<String> mirrorIds = List.of();
   private final List<HudElement> elementsView = Collections.unmodifiableList(elements);
 
   public HudModule(KeyBinder keys, Runnable edit) {
+    this(keys, edit, new MirrorHub(() -> null, message -> {}));
+  }
+
+  public HudModule(KeyBinder keys, Runnable edit, MirrorHub mirrorHub) {
     super(ID, "HUD", false, keys);
+    this.mirrorHub = mirrorHub;
     action("edit", "Edit layout", ActionSetting.Kind.QUIET, edit);
 
     Page page = section("layout", "Layout");
@@ -191,6 +205,27 @@ public final class HudModule extends Module {
             "media_previous",
             "Previous track",
             keys.bind(PREVIOUS_KEY, "Media previous track", KeyBinder.UNBOUND));
+
+    Group mirrorGroup = page.group("Window mirror");
+    mirrorGroup.showWhen(() -> !mirrorHub.chooser());
+    mirrorWindow =
+        mirrorGroup
+            .picks("mirror_window", "Window")
+            .single()
+            .refresher(this::refreshWindows)
+            .describe(
+                "Shows a live copy of this window in the Window element. Minimized windows freeze on their last frame.");
+    Group chooser = page.group("Window mirror");
+    chooser.showWhen(mirrorHub::chooser);
+    chooser.action(
+        "mirror_choose",
+        "Window",
+        "Choose",
+        ActionSetting.Kind.PRIMARY,
+        () -> {
+          mirrorWindow.set(Set.of(MirrorHub.PORTAL));
+          mirrorHub.choose();
+        });
 
     toured = settings.toggle("toured", "Tour seen", false);
 
@@ -350,6 +385,7 @@ public final class HudModule extends Module {
     feed = add(new ChatFeedElement(settings));
     media = add(new MediaElement(settings));
     lyrics = add(new LyricsElement(settings));
+    mirror = add(new MirrorElement(settings, mirrorHub.store(), mirrorWindow));
     toasts = add(new ToastElement(settings));
     achievements = add(new AchievementsElement(settings));
     compass = add(new CompassElement(settings));
@@ -363,6 +399,24 @@ public final class HudModule extends Module {
     chat = add(new HostedElement(settings, "chat", "Chat", false, false));
     tabList = add(new HostedElement(settings, "tab_list", "Player list", true, false));
     itemName = add(new HostedElement(settings, "item_name", "Item name", false, false));
+  }
+
+  private void refreshWindows() {
+    mirrorHub.refresh();
+    List<MirrorWindow> windows = mirrorHub.windows();
+    List<String> ids = new ArrayList<>(windows.size());
+    for (int i = 0; i < windows.size(); i++) {
+      ids.add(windows.get(i).key());
+    }
+    if (ids.equals(mirrorIds)) {
+      return;
+    }
+    mirrorIds = ids;
+    List<String> labels = new ArrayList<>(windows.size());
+    for (int i = 0; i < windows.size(); i++) {
+      labels.add(windows.get(i).label());
+    }
+    mirrorWindow.options(ids, labels);
   }
 
   public List<HudElement> elements() {

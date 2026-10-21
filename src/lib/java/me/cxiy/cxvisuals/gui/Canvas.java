@@ -1,5 +1,7 @@
 package me.cxiy.cxvisuals.gui;
 
+import me.cxiy.cxvisuals.modules.hud.mirror.FrameStore;
+
 public interface Canvas {
   int CIRCLES = 0;
   int TRAILS = 1;
@@ -121,6 +123,11 @@ public interface Canvas {
 
   default boolean tile(
       TileSheet sheet, int cell, float x, float y, float w, float h, float radius) {
+    return false;
+  }
+
+  default boolean feed(
+      FrameStore frames, float x, float y, float w, float h, float radius, float dim) {
     return false;
   }
 

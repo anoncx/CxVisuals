@@ -89,7 +89,7 @@ public final class Hud {
   private Hud() {}
 
   public static HudModule create(McKeyBinder keys, ClientSettings client) {
-    module = new HudModule(keys, Hud::openEditor);
+    module = new HudModule(keys, Hud::openEditor, Mirror.hub());
     module.registerExtraElement(new DonutSmpValueElement(module.settings));
     module.registerExtraElement(new DonutSmpSessionElement(module.settings));
     module.registerExtraElement(new DonutSmpWatchElement(module.settings));
@@ -233,6 +233,7 @@ public final class Hud {
     if (!live) {
       if (module != null) {
         Media.rest(module.data);
+        Mirror.rest(module);
       }
       return;
     }
@@ -252,6 +253,7 @@ public final class Hud {
     }
     frame++;
     stage.place(window.getWidth() / uiScale, window.getHeight() / uiScale);
+    Mirror.frame(module, uiScale);
     Probe.frame(mc, module);
   }
 

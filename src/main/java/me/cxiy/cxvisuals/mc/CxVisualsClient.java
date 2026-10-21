@@ -40,6 +40,7 @@ import me.cxiy.cxvisuals.mc.modules.fullbright.Fullbright;
 import me.cxiy.cxvisuals.mc.modules.hands.Hands;
 import me.cxiy.cxvisuals.mc.modules.hud.Hud;
 import me.cxiy.cxvisuals.mc.modules.hud.Media;
+import me.cxiy.cxvisuals.mc.modules.hud.Mirror;
 import me.cxiy.cxvisuals.mc.modules.idlecamera.IdleCamera;
 import me.cxiy.cxvisuals.mc.modules.inventory.Inventory;
 import me.cxiy.cxvisuals.mc.modules.motionblur.MotionBlur;
@@ -189,6 +190,7 @@ public final class CxVisualsClient implements ClientModInitializer {
           TextureMixer.shutdown();
           flush();
           Media.shutdown();
+          Mirror.shutdown();
         });
     LOG.info("CxVisuals {} loaded with {} module(s)", version, toggled.length);
   }

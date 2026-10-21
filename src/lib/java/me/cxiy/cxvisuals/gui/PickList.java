@@ -21,15 +21,17 @@ public final class PickList extends Widget {
   private static final int NONE = -1;
   private static final int ALL = -2;
   private static final int CLEAR = -3;
+  private static final long REFRESH_NANOS = 1_500_000_000L;
 
   private final PickSetting setting;
   private final Field field = new Field(Lang.key("Search"), SEARCH_LIMIT);
   private final List<Integer> shown = new ArrayList<>();
   private final List<String> matches = new ArrayList<>();
   private String query;
-  private int options = -1;
+  private List<String> seen;
   private float scroll;
   private int pressed = NONE;
+  private long refreshed;
 
   public PickList(PickSetting setting) {
     this.setting = setting;
@@ -70,16 +72,17 @@ public final class PickList extends Widget {
   }
 
   private float fieldWidth() {
-    return w - LEFT - RIGHT - (PILL + GAP) * 2.0F;
+    return w - LEFT - RIGHT - (PILL + GAP) * (setting.isSingle() ? 1.0F : 2.0F);
   }
 
   private void filter() {
     String text = field.text().trim().toLowerCase(Locale.ROOT);
-    if (text.equals(query) && options == setting.ids().size()) {
+    if (text.equals(query) && seen == setting.ids()) {
       return;
     }
     query = text;
-    options = setting.ids().size();
+    seen = setting.ids();
+    int options = seen.size();
     shown.clear();
     matches.clear();
     for (int i = 0; i < options; i++) {
@@ -99,11 +102,19 @@ public final class PickList extends Widget {
 
   @Override
   public void draw(Canvas c, Theme t, float mouseX, float mouseY, float dt) {
+    long now = System.nanoTime();
+    if (now - refreshed > REFRESH_NANOS) {
+      refreshed = now;
+      setting.refresh();
+    }
     filter();
     scroll = Math.max(0.0F, Math.min(overflow(), scroll));
     c.text(
         FontStyle.ROW, setting.title(), x + LEFT, centered(c, FontStyle.ROW, y, HEADER), t.ink());
-    String count = setting.get().size() + " " + Lang.tr("selected");
+    String count =
+        setting.isSingle()
+            ? c.fit(FontStyle.SMALL, current(), w * 0.55F)
+            : setting.get().size() + " " + Lang.tr("selected");
     c.text(
         FontStyle.SMALL,
         count,
@@ -113,7 +124,9 @@ public final class PickList extends Widget {
 
     float barTop = y + HEADER;
     field.draw(c, t, x + LEFT, barTop, fieldWidth(), dt);
-    pill(c, t, allX(), barTop, Lang.tr("All"), pressed == ALL, mouseX, mouseY);
+    if (!setting.isSingle()) {
+      pill(c, t, allX(), barTop, Lang.tr("All"), pressed == ALL, mouseX, mouseY);
+    }
     pill(c, t, noneX(), barTop, Lang.tr("None"), pressed == CLEAR, mouseX, mouseY);
 
     float top = listTop();
@@ -162,6 +175,15 @@ public final class PickList extends Widget {
     }
   }
 
+  private String current() {
+    String chosen = setting.chosen();
+    if (chosen.isEmpty()) {
+      return Lang.tr("None");
+    }
+    int at = setting.ids().indexOf(chosen);
+    return at < 0 ? chosen.replace("|", " · ") : setting.labels().get(at);
+  }
+
   private void pill(
       Canvas c,
       Theme t,
@@ -203,7 +225,7 @@ public final class PickList extends Widget {
   private int target(float mx, float my) {
     float barTop = y + HEADER;
     if (my >= barTop && my < barTop + Field.HEIGHT) {
-      if (Math.abs(mx - allX()) <= PILL * 0.5F) {
+      if (!setting.isSingle() && Math.abs(mx - allX()) <= PILL * 0.5F) {
         return ALL;
       }
       if (Math.abs(mx - noneX()) <= PILL * 0.5F) {

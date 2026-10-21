@@ -16,6 +16,7 @@ import me.cxiy.cxvisuals.gui.text.TextRun;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
 import me.cxiy.cxvisuals.mc.mixin.GuiGraphicsExtractorAccessor;
 import me.cxiy.cxvisuals.mc.modules.inventory.Stacks;
+import me.cxiy.cxvisuals.modules.hud.mirror.FrameStore;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.User;
 import net.minecraft.client.gui.ActiveTextCollector;
@@ -53,6 +54,7 @@ public final class McCanvas implements Canvas {
   private static final FaceTextures FACES = new FaceTextures();
   private static final IconTextures ICONS = new IconTextures();
   private static final TileTextures TILES = new TileTextures();
+  private static final FeedTextures FEEDS = new FeedTextures();
   private static final ChatLines CHAT = new ChatLines();
   private static final FontStyle[] FONTS = FontStyle.values();
   private static ItemStack[] held;
@@ -734,6 +736,43 @@ public final class McCanvas implements Canvas {
             grid,
             color,
             TilePipeline.TILE,
+            setup,
+            scissor,
+            bounds,
+            depth(),
+            cut(matrix)));
+    return true;
+  }
+
+  @Override
+  public boolean feed(
+      FrameStore frames, float x, float y, float w, float h, float radius, float dim) {
+    if (!shapes || alpha <= 0.002F || !FeedPipeline.usable()) {
+      return false;
+    }
+    TextureSetup setup = FEEDS.setup(frames);
+    if (setup == null) {
+      return false;
+    }
+    Matrix3x2f matrix = pose();
+    ScreenRectangle bounds = bounds(matrix, x, y, x + w, y + h);
+    if (bounds == null) {
+      return true;
+    }
+    ScreenRectangle scissor = clipDepth > 0 ? clips[clipDepth - 1] : null;
+    int level = Math.round(255.0F * Math.max(0.0F, Math.min(1.0F, dim)));
+    int color =
+        (Math.round(255.0F * Math.min(1.0F, alpha)) << 24) | (level << 16) | (level << 8) | level;
+    state.addGuiElement(
+        new FeedRenderState(
+            matrix,
+            x,
+            y,
+            w,
+            h,
+            radius,
+            color,
+            FeedPipeline.FEED,
             setup,
             scissor,
             bounds,

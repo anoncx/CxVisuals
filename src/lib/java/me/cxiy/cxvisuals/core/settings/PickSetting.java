@@ -11,9 +11,29 @@ import java.util.TreeSet;
 public final class PickSetting extends Setting<Set<String>> {
   private List<String> ids = List.of();
   private List<String> labels = List.of();
+  private Runnable refresher = () -> {};
+  private boolean single;
 
   PickSetting(String id, String title) {
     super(id, title, Set.of());
+  }
+
+  public PickSetting single() {
+    single = true;
+    return this;
+  }
+
+  public boolean isSingle() {
+    return single;
+  }
+
+  public PickSetting refresher(Runnable refresher) {
+    this.refresher = refresher;
+    return this;
+  }
+
+  public void refresh() {
+    refresher.run();
   }
 
   public void options(List<String> ids, List<String> labels) {
@@ -37,7 +57,15 @@ public final class PickSetting extends Setting<Set<String>> {
   }
 
   public void toggle(String option) {
+    if (single) {
+      set(picked(option) ? Set.of() : Set.of(option));
+      return;
+    }
     mark(List.of(option), !picked(option));
+  }
+
+  public String chosen() {
+    return get().isEmpty() ? "" : get().iterator().next();
   }
 
   public void mark(Collection<String> options, boolean on) {
