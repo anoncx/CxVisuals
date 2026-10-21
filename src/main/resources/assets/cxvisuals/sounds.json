@@ -1,0 +1,79 @@
+{
+  "menu.tick": {
+    "sounds": [
+      {
+        "name": "cxvisuals:menu/tick"
+      }
+    ]
+  },
+  "menu.thock": {
+    "sounds": [
+      {
+        "name": "cxvisuals:menu/thock"
+      }
+    ]
+  },
+  "menu.launch": {
+    "sounds": [
+      {
+        "name": "cxvisuals:menu/launch"
+      }
+    ]
+  },
+  "menu.back": {
+    "sounds": [
+      {
+        "name": "cxvisuals:menu/back"
+      }
+    ]
+  },
+  "menu.turn": {
+    "sounds": [
+      {
+        "name": "cxvisuals:menu/turn"
+      }
+    ]
+  },
+  "ui.on": {
+    "sounds": [
+      {
+        "name": "cxvisuals:ui/on"
+      }
+    ]
+  },
+  "ui.off": {
+    "sounds": [
+      {
+        "name": "cxvisuals:ui/off"
+      }
+    ]
+  },
+  "ui.tab": {
+    "sounds": [
+      {
+        "name": "cxvisuals:ui/tab"
+      }
+    ]
+  },
+  "ui.step": {
+    "sounds": [
+      {
+        "name": "cxvisuals:ui/step"
+      }
+    ]
+  },
+  "ui.open": {
+    "sounds": [
+      {
+        "name": "cxvisuals:ui/open"
+      }
+    ]
+  },
+  "ui.close": {
+    "sounds": [
+      {
+        "name": "cxvisuals:ui/close"
+      }
+    ]
+  }
+}

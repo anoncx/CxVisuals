@@ -1,0 +1,12 @@
+.gradle/
+build/
+run/
+.idea/
+*.iml
+.vscode/
+out/
+bin/
+docs/
+cloud/
+src/gametest/
+src/test/

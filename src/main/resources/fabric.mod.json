@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "cxvisuals",
+  "version": "${version}",
+  "name": "CxVisuals",
+  "description": "Visual modules for Minecraft, starting with a cinematic idle camera.",
+  "authors": ["cxiy"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["me.cxiy.cxvisuals.mc.CxVisualsClient"]
+  },
+  "mixins": ["cxvisuals.mixins.json", "cxvisuals-sodium.mixins.json"],
+  "depends": {
+    "java": ">=${jdk_version}",
+    "minecraft": "~26.2",
+    "fabricloader": ">=${loader_version}",
+    "fabric-api": "*"
+  }
+}

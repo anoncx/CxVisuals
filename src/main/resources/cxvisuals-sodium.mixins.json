@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "package": "me.cxiy.cxvisuals.mc.mixin.sodium",
+  "compatibilityLevel": "JAVA_21",
+  "plugin": "me.cxiy.cxvisuals.mc.mixin.sodium.SodiumMixinPlugin",
+  "client": [
+    "LevelSliceMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}

@@ -1,0 +1,29 @@
+package me.cxiy.cxvisuals.modules.environment.particles;
+
+public enum Tint {
+  FIREFLY(0xFFFFF2B0, 0xFFB8F05C),
+  CHERRY(0xFFFFE4EE, 0xFFF59BC0),
+  PALE(0xFFF4F2EC, 0xFFBDB8B0),
+  FROST(0xFFFFFFFF, 0xFFCFE0FF),
+  ASH(0xFFC4BEB8, 0xFF6E6964),
+  EMBER(0xFFFFE6A6, 0xFFFF5A18),
+  CRIMSON(0xFFFFB896, 0xFFE8302A),
+  WARPED(0xFFCCFFF6, 0xFF22CDBA),
+  SOUL(0xFFE2FAFF, 0xFF48B8F2),
+  SUNLIT(0xFFFFF6DC, 0xFFFFC874),
+  SPORE(0xFFF0FFD2, 0xFF8EDC64),
+  VOID(0xFFF4E4FF, 0xFFA46CFF),
+  WINGS(0xFFFFFFFF, 0xFFFFFFFF),
+  FILM(0xFFFFFFFF, 0xFFDCEBFF),
+  SPIRIT(0xFFEFFFFF, 0xFF5FE0FF),
+  GHOST(0xFFFFFFFF, 0xFFB4C4E4),
+  SCULK(0xFFC8FFF8, 0xFF0FAABA);
+
+  public final int core;
+  public final int edge;
+
+  Tint(int core, int edge) {
+    this.core = core;
+    this.edge = edge;
+  }
+}
