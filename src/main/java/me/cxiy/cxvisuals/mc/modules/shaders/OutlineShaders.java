@@ -18,6 +18,7 @@ import java.nio.ByteBuffer;
 import java.util.Optional;
 import me.cxiy.cxvisuals.core.settings.Palette;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
+import me.cxiy.cxvisuals.mc.modules.animations.BlockPopEffects;
 import me.cxiy.cxvisuals.modules.shaders.ShadersModule;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
@@ -35,6 +36,8 @@ public final class OutlineShaders {
   private static final int UNIFORM_SIZE =
       new Std140SizeCalculator()
           .putMat4f()
+          .putVec4()
+          .putVec4()
           .putVec4()
           .putVec4()
           .putVec4()
@@ -59,6 +62,8 @@ public final class OutlineShaders {
   private static final Matrix4f LENS = new Matrix4f();
   private static final Matrix4f UNPROJECT = new Matrix4f();
   private static final Vector4f CORNER = new Vector4f();
+  private static final float[] POSE = new float[4];
+  private static final float[] SPAN = new float[6];
 
   private static GpuBuffer uniforms;
   private static int passes;
@@ -105,6 +110,41 @@ public final class OutlineShaders {
       broken = true;
       CxVisualsClient.LOG.error(
           "Outline shader failed, the vanilla outline is back for this session", e);
+    }
+  }
+
+  private static void span(
+      float lowX,
+      float lowY,
+      float lowZ,
+      float highX,
+      float highY,
+      float highZ,
+      float pivotX,
+      float pivotY,
+      float pivotZ) {
+    float cos = POSE[1];
+    float sin = POSE[2];
+    float scale = POSE[3];
+    SPAN[0] = Float.MAX_VALUE;
+    SPAN[1] = Float.MAX_VALUE;
+    SPAN[2] = Float.MAX_VALUE;
+    SPAN[3] = -Float.MAX_VALUE;
+    SPAN[4] = -Float.MAX_VALUE;
+    SPAN[5] = -Float.MAX_VALUE;
+    for (int corner = 0; corner < 8; corner++) {
+      float x = ((corner & 1) == 0 ? lowX : highX) - pivotX;
+      float y = ((corner & 2) == 0 ? lowY : highY) - pivotY;
+      float z = ((corner & 4) == 0 ? lowZ : highZ) - pivotZ;
+      float worldX = pivotX + (cos * x + sin * z) * scale;
+      float worldY = pivotY + POSE[0] + y * scale;
+      float worldZ = pivotZ + (cos * z - sin * x) * scale;
+      SPAN[0] = Math.min(SPAN[0], worldX);
+      SPAN[1] = Math.min(SPAN[1], worldY);
+      SPAN[2] = Math.min(SPAN[2], worldZ);
+      SPAN[3] = Math.max(SPAN[3], worldX);
+      SPAN[4] = Math.max(SPAN[4], worldY);
+      SPAN[5] = Math.max(SPAN[5], worldZ);
     }
   }
 
@@ -179,7 +219,18 @@ public final class OutlineShaders {
     float highZ = (float) (state.pos().getZ() + box.maxZ - camera.pos.z);
     Matrix4f projection = EntityShaders.lens();
     LENS.set(projection).mul(camera.viewRotationMatrix);
-    if (!frame(main, lowX, lowY, lowZ, highX, highY, highZ)) {
+    float pivotX = (float) (state.pos().getX() + 0.5 - camera.pos.x);
+    float pivotY = (float) (state.pos().getY() + 0.5 - camera.pos.y);
+    float pivotZ = (float) (state.pos().getZ() + 0.5 - camera.pos.z);
+    boolean popping = BlockPopEffects.outlinePose(state.pos().asLong(), POSE);
+    boolean visible;
+    if (popping) {
+      span(lowX, lowY, lowZ, highX, highY, highZ, pivotX, pivotY, pivotZ);
+      visible = frame(main, SPAN[0], SPAN[1], SPAN[2], SPAN[3], SPAN[4], SPAN[5]);
+    } else {
+      visible = frame(main, lowX, lowY, lowZ, highX, highY, highZ);
+    }
+    if (!visible) {
       return;
     }
     UNPROJECT.set(LENS).invert();
@@ -205,6 +256,12 @@ public final class OutlineShaders {
               .putVec4(zeroToOne ? 1.0F : 2.0F, zeroToOne ? 0.0F : -1.0F, 0.0F, 0.0F)
               .putVec4(red(first), green(first), blue(first), 1.0F)
               .putVec4(red(second), green(second), blue(second), 1.0F)
+              .putVec4(pivotX, pivotY, pivotZ, 0.0F)
+              .putVec4(
+                  popping ? POSE[1] : 1.0F,
+                  popping ? POSE[2] : 0.0F,
+                  popping ? POSE[3] : 0.0F,
+                  popping ? POSE[0] : 0.0F)
               .get();
       encoder.writeToBuffer(uniforms.slice(), data);
     }

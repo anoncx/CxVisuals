@@ -23,6 +23,7 @@ import net.minecraft.world.phys.Vec3;
 public final class BlockPopEffects {
   private static final double RANGE_SQ = 64.0 * 64.0;
   private static final long NO_MINING = Long.MIN_VALUE;
+  private static final float MIN_SCALE = 0.02F;
 
   private static final BlockPops POPS = new BlockPops();
   private static final MovingBlockRenderState[] MOVING =
@@ -39,6 +40,23 @@ public final class BlockPopEffects {
 
   public static int count() {
     return POPS.count();
+  }
+
+  public static boolean outlinePose(long key, float[] pose) {
+    if (!Animations.on()) {
+      return false;
+    }
+    for (int i = 0; i < POPS.count(); i++) {
+      if (POPS.pos(i) == key) {
+        float angle = POPS.spin(i) * spinRadians();
+        pose[0] = POPS.lift(i);
+        pose[1] = (float) Math.cos(angle);
+        pose[2] = (float) Math.sin(angle);
+        pose[3] = Math.max(POPS.scale(i), MIN_SCALE);
+        return true;
+      }
+    }
+    return false;
   }
 
   public static void selfAction(boolean active) {

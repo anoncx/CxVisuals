@@ -37,19 +37,29 @@ public final class BlockPops {
   }
 
   public boolean start(long pos, Kind kind, Object state, Source filter, boolean self) {
+    int index = find(pos);
     if (filter == Source.SELF && !self) {
+      if (index >= 0 && entries[index].kind != kind) {
+        remove(index);
+      }
       return false;
     }
-    for (int i = 0; i < count; i++) {
-      if (entries[i].pos == pos) {
-        if (entries[i].kind == kind) {
-          entries[i].phase = 0.0F;
-          entries[i].state = state;
-          return true;
-        }
-        remove(i);
+    if (index >= 0) {
+      Entry entry = entries[index];
+      if (entry.kind == kind) {
+        entry.phase = 0.0F;
+        entry.state = state;
+        return true;
+      }
+      if (kind == Kind.BREAK) {
+        remove(index);
         return false;
       }
+      entry.kind = kind;
+      entry.state = state;
+      entry.phase = 0.0F;
+      publish();
+      return true;
     }
     if (count >= CAPACITY) {
       return false;
@@ -77,8 +87,7 @@ public final class BlockPops {
         done.pos = entry.pos;
         done.kind = entry.kind;
         done.state = entry.state;
-        entries[i] = entries[count - 1];
-        count--;
+        drop(i);
         i--;
         expired = true;
       }
@@ -164,9 +173,24 @@ public final class BlockPops {
     return finished[index].kind;
   }
 
-  private void remove(int index) {
-    entries[index] = entries[count - 1];
+  private int find(long pos) {
+    for (int i = 0; i < count; i++) {
+      if (entries[i].pos == pos) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  private void drop(int index) {
+    Entry last = entries[count - 1];
+    entries[count - 1] = entries[index];
+    entries[index] = last;
     count--;
+  }
+
+  private void remove(int index) {
+    drop(index);
     publish();
   }
 

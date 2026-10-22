@@ -25,7 +25,7 @@ public abstract class MultiPlayerGameModeMixin {
     BlockPopEffects.selfAction(true);
   }
 
-  @Inject(method = "useItemOn", at = @At("TAIL"))
+  @Inject(method = "useItemOn", at = @At("RETURN"))
   private void cxvisuals$ownActionEnd(
       LocalPlayer player,
       InteractionHand hand,
@@ -39,7 +39,7 @@ public abstract class MultiPlayerGameModeMixin {
     BlockPopEffects.selfAction(true);
   }
 
-  @Inject(method = "destroyBlock", at = @At("TAIL"))
+  @Inject(method = "destroyBlock", at = @At("RETURN"))
   private void cxvisuals$ownBreakEnd(BlockPos pos, CallbackInfoReturnable<Boolean> cir) {
     BlockPopEffects.selfAction(false);
   }

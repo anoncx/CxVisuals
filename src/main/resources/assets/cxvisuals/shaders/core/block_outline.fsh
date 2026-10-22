@@ -8,6 +8,8 @@ layout(std140) uniform Outline {
     vec4 Lens;
     vec4 First;
     vec4 Second;
+    vec4 Pivot;
+    vec4 Pop;
 };
 
 uniform sampler2D DepthSampler;
@@ -21,12 +23,23 @@ void main() {
     vec4 point = Unproject * vec4(texCoord * 2.0 - 1.0, depth * Lens.x + Lens.y, 1.0);
     vec3 at = point.xyz / point.w;
     float range = length(at);
+    vec3 view = at;
+    float unit = 1.0;
+    if (Pop.z > 0.0) {
+        unit = Pop.z;
+        vec3 offset = at - Pivot.xyz - vec3(0.0, Pop.w, 0.0);
+        at = Pivot.xyz + vec3(Pop.x * offset.x - Pop.y * offset.z, offset.y, Pop.y * offset.x + Pop.x * offset.z) / unit;
+        view = vec3(Pop.x * view.x - Pop.y * view.z, view.y, Pop.y * view.x + Pop.x * view.z);
+    }
     float slack = 0.0015 + range * 0.001;
+    float reach = slack / unit;
     vec3 below = at - Low.xyz;
     vec3 above = High.xyz - at;
-    if (any(lessThan(below, vec3(-slack))) || any(lessThan(above, vec3(-slack)))) {
+    if (any(lessThan(below, vec3(-reach))) || any(lessThan(above, vec3(-reach)))) {
         discard;
     }
+    below *= unit;
+    above *= unit;
     vec3 gap = min(abs(below), abs(above));
     if (min(gap.x, min(gap.y, gap.z)) > slack) {
         discard;
@@ -36,13 +49,13 @@ void main() {
     float facing;
     if (gap.x <= gap.y && gap.x <= gap.z) {
         rim = gap.yz;
-        facing = at.x;
+        facing = view.x;
     } else if (gap.y <= gap.z) {
         rim = gap.xz;
-        facing = at.y;
+        facing = view.y;
     } else {
         rim = gap.xy;
-        facing = at.z;
+        facing = view.z;
     }
     float edge = min(rim.x, rim.y);
     float along = max(rim.x, rim.y);
@@ -59,7 +72,7 @@ void main() {
         line *= keep;
         glow *= keep;
     } else if (style == 2) {
-        float tall = High.y - Low.y;
+        float tall = (High.y - Low.y) * unit;
         float sweep = fract(time * 0.45) * (tall + 0.6) - 0.3;
         fill += exp(-abs(below.y - sweep) * 12.0) * 0.4;
     }
