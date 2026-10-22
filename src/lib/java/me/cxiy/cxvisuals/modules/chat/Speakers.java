@@ -62,6 +62,17 @@ public final class Speakers {
     return out.toString();
   }
 
+  public static boolean isSelf(String speaker, String self) {
+    if (speaker == null || self == null || self.isEmpty()) {
+      return false;
+    }
+    String bare = self.startsWith(".") ? self.substring(1) : self;
+    return speaker.equalsIgnoreCase(self)
+        || speaker.equalsIgnoreCase(bare)
+        || speaker.equalsIgnoreCase("you")
+        || speaker.equalsIgnoreCase("me");
+  }
+
   public static String speaker(String text) {
     Matcher match = LINE.matcher(text.length() > LOOKAHEAD ? text.substring(0, LOOKAHEAD) : text);
     if (!match.find()) {

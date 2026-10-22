@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.UUID;
 import me.cxiy.cxvisuals.mc.McKeyBinder;
 import me.cxiy.cxvisuals.modules.chat.ChatModule;
+import me.cxiy.cxvisuals.modules.chat.Echoes;
 import me.cxiy.cxvisuals.modules.chat.Speakers;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
@@ -23,6 +24,7 @@ public final class Chat {
 
   private static final long ROSTER_NANOS = 2_000_000_000L;
   private static final Map<String, UUID> ROSTER = new HashMap<>();
+  private static final Echoes ECHOES = new Echoes();
 
   private static ChatModule module;
   private static ClientPacketListener rosterOwner;
@@ -45,6 +47,14 @@ public final class Chat {
     sender = id;
   }
 
+  public static void sent(String text, boolean command) {
+    if (command) {
+      ECHOES.command(text, System.nanoTime());
+    } else {
+      ECHOES.chat(text, System.nanoTime());
+    }
+  }
+
   public static boolean hides(Component message, GuiMessageSource source) {
     if (module == null || !module.live() || source == GuiMessageSource.SYSTEM_CLIENT) {
       return false;
@@ -56,18 +66,21 @@ public final class Chat {
       return false;
     }
     String text = Speakers.plain(message.getString());
-    UUID from = sender != null ? sender : scan(connection, text);
-    int origin = ChatModule.SERVER;
-    double distance = Double.POSITIVE_INFINITY;
+    String name = self.getGameProfile().name();
+    long now = System.nanoTime();
+    UUID from = sender;
+    String speaker = null;
     if (from == null) {
-      String speaker = Speakers.speaker(text);
+      speaker = Speakers.speaker(text);
       if (speaker != null) {
-        origin = ChatModule.PLAYER;
         from = roster(connection).get(speaker.toLowerCase(Locale.ROOT));
-      } else if (source == GuiMessageSource.PLAYER) {
-        origin = ChatModule.PLAYER;
+      }
+      if (from == null) {
+        from = scan(connection, text);
       }
     }
+    int origin = ChatModule.SERVER;
+    double distance = Double.POSITIVE_INFINITY;
     if (from != null) {
       if (from.equals(self.getUUID())) {
         origin = ChatModule.OWN;
@@ -78,10 +91,18 @@ public final class Chat {
           distance = self.distanceTo(other);
         }
       }
+    } else if (speaker != null || source == GuiMessageSource.PLAYER) {
+      origin = ChatModule.PLAYER;
+    }
+    if (origin != ChatModule.OWN
+        && (Speakers.isSelf(speaker, name)
+            || ECHOES.echoes(text, now)
+            || origin == ChatModule.SERVER && ECHOES.feedback(now))) {
+      origin = ChatModule.OWN;
     }
     ChatModule.Verdict verdict =
         module.judge(
-            text, self.getGameProfile().name(), origin, distance, System.currentTimeMillis());
+            text, name, origin, distance, System.currentTimeMillis());
     if (verdict == ChatModule.Verdict.MATCH && module.ping.get()) {
       minecraft
           .getSoundManager()

@@ -1,9 +1,11 @@
 package me.cxiy.cxvisuals.mc.mixin;
 
 import me.cxiy.cxvisuals.mc.modules.animations.Animations;
+import me.cxiy.cxvisuals.mc.modules.chat.Chat;
 import me.cxiy.cxvisuals.mc.modules.hud.PingProbe;
 import me.cxiy.cxvisuals.mc.modules.hud.Probe;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.network.protocol.game.ClientboundAwardStatsPacket;
 import net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket;
@@ -52,5 +54,20 @@ public abstract class ClientPacketListenerMixin {
   @Inject(method = "handleAwardStats", at = @At("TAIL"))
   private void cxvisuals$stats(ClientboundAwardStatsPacket packet, CallbackInfo ci) {
     PingProbe.stats();
+  }
+
+  @Inject(method = "sendChat", at = @At("HEAD"))
+  private void cxvisuals$sentChat(String message, CallbackInfo ci) {
+    Chat.sent(message, false);
+  }
+
+  @Inject(method = "sendCommand", at = @At("HEAD"))
+  private void cxvisuals$sentCommand(String command, CallbackInfo ci) {
+    Chat.sent(command, true);
+  }
+
+  @Inject(method = "sendUnattendedCommand", at = @At("HEAD"))
+  private void cxvisuals$sentUnattended(String command, Screen screen, CallbackInfo ci) {
+    Chat.sent(command, true);
   }
 }
