@@ -67,6 +67,28 @@ vec3 nearby(ivec2 here) {
     return vec3(0.0, 0.0, -1.0);
 }
 
+bool bodyHidden(ivec2 probe) {
+    ivec2 low = ivec2(Region.xy);
+    ivec2 high = ivec2(Region.xy + Region.zw) - 1;
+    ivec2 body = clamp(probe, low, high);
+    bool found = texelFetch(MaskSampler, body, 0).a > 0.0;
+    for (int i = 0; i < 4 && !found; i++) {
+        ivec2 step = i == 0 ? ivec2(2, 0) : i == 1 ? ivec2(-2, 0) : i == 2 ? ivec2(0, 2) : ivec2(0, -2);
+        ivec2 at = clamp(body + step, low, high);
+        if (texelFetch(MaskSampler, at, 0).a > 0.0) {
+            body = at;
+            found = true;
+        }
+    }
+    if (!found) {
+        return false;
+    }
+    vec2 centre = vec2(body) + 0.5;
+    float own = viewDistance(centre, texelFetch(MaskDepthSampler, body, 0).r);
+    float scene = viewDistance(centre, texelFetch(SceneDepthSampler, body, 0).r);
+    return scene < own * 0.98 - 0.05;
+}
+
 bool surface(out Surface s) {
     vec2 pixel = gl_FragCoord.xy;
     ivec2 here = ivec2(pixel);
@@ -78,6 +100,7 @@ bool surface(out Surface s) {
     vec2 outward = dot(slope, slope) > 1.0e-14 ? -normalize(slope) : vec2(0.0);
     s.inside = texelFetch(MaskSampler, here, 0).a > 0.0;
     float range = 0.0;
+    ivec2 probe = here;
     if (s.inside) {
         range = max(viewDistance(pixel, texelFetch(MaskDepthSampler, here, 0).r), 0.001);
         float span = fieldSpan(field.b);
@@ -92,6 +115,8 @@ bool surface(out Surface s) {
         if (span < 0.0 && hit.z < 0.0) {
             return false;
         }
+        vec2 toward = hit.z >= 0.0 ? hit.xy : (span >= 0.0 ? -outward * span : vec2(0.0));
+        probe = here + ivec2(round(toward));
         vec2 away = dot(hit.xy, hit.xy) > 0.0 ? -normalize(hit.xy) : outward;
         if (hit.z < 0.0) {
             s.edge = span;
@@ -119,6 +144,9 @@ bool surface(out Surface s) {
                 return false;
             }
         } else {
+            if (bodyHidden(probe)) {
+                return false;
+            }
             float slack = Origin.w;
             shown = clamp((scene - range * 0.98 + slack) / (slack * 0.5 + 0.02), 0.0, 1.0);
             if (shown <= 0.0) {
