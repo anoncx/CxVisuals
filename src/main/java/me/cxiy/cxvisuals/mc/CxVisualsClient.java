@@ -18,6 +18,7 @@ import me.cxiy.cxvisuals.gui.ConfigPanel;
 import me.cxiy.cxvisuals.gui.ConfirmRow;
 import me.cxiy.cxvisuals.gui.ContourPad;
 import me.cxiy.cxvisuals.gui.FriendsPanel;
+import me.cxiy.cxvisuals.gui.IdentityPanel;
 import me.cxiy.cxvisuals.gui.ModulesView;
 import me.cxiy.cxvisuals.gui.Motion;
 import me.cxiy.cxvisuals.gui.PlayerList;
@@ -236,6 +237,9 @@ public final class CxVisualsClient implements ClientModInitializer {
           }
           if (setting == friends.chat) {
             return new ChatPanel(friends.friends, host);
+          }
+          if (setting == friends.link) {
+            return new IdentityPanel(friends.identity);
           }
           if (setting == social.profile) {
             return new AccountCard(social.account);

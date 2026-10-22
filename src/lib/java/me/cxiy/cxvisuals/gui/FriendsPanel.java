@@ -16,7 +16,7 @@ public final class FriendsPanel extends Widget {
   public static final int FIELD = 7;
 
   private static final String EMPTY =
-      Lang.key("No friends yet. Add someone by their Minecraft name.");
+      Lang.key("No friends yet. Add someone by their username or Minecraft name.");
   private static final float LEFT = 8.0F;
   private static final float RIGHT = 6.0F;
   private static final float TOP = 44.0F;
@@ -34,7 +34,7 @@ public final class FriendsPanel extends Widget {
   private final Friends friends;
   private final PanelHost host;
   private final Hits hits = new Hits(160);
-  private final Field field = new Field(Lang.key("Add by Minecraft name"), NAME_LIMIT);
+  private final Field field = new Field(Lang.key("Add by username or name"), NAME_LIMIT);
   private float addWidth = -1.0F;
 
   public FriendsPanel(Friends friends, PanelHost host) {

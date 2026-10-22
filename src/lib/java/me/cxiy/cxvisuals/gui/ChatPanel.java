@@ -39,6 +39,8 @@ public final class ChatPanel extends Widget {
   private static final int WAYPOINTS = 4;
   private static final String NOBODY =
       Lang.key("Pick a friend on the Friends tab to start talking.");
+  private static final String SEALED =
+      Lang.key("Your chats are locked on this device. Unlock them on the You tab.");
   private static final String HELLO = Lang.key("No messages yet. Say hi, or send a wave.");
   private static final String[] CELLS =
       Lang.keys("Wave", "Invite", "Location", "Avatar", "Config", "Waypoint");
@@ -200,6 +202,16 @@ public final class ChatPanel extends Widget {
           x + (w - c.textWidth(FontStyle.SMALL, Lang.tr(NOBODY))) * 0.5F,
           y + (h - c.lineHeight(FontStyle.SMALL)) * 0.5F,
           t.grey());
+      return;
+    }
+    if (friends.locked()) {
+      c.text(
+          FontStyle.SMALL,
+          Lang.tr(SEALED),
+          x + (w - c.textWidth(FontStyle.SMALL, Lang.tr(SEALED))) * 0.5F,
+          y + (h - c.lineHeight(FontStyle.SMALL)) * 0.5F,
+          t.grey());
+      field.focus(false);
       return;
     }
     if (!friend.uuid.equals(shown)) {

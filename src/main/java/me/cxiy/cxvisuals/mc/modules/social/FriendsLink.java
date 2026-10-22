@@ -10,9 +10,11 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import me.cxiy.cxvisuals.core.i18n.Lang;
@@ -32,6 +34,8 @@ import me.cxiy.cxvisuals.modules.avatar.format.RawModel;
 import me.cxiy.cxvisuals.modules.avatar.library.AvatarEntry;
 import me.cxiy.cxvisuals.modules.friends.Friends;
 import me.cxiy.cxvisuals.modules.friends.FriendsModule;
+import me.cxiy.cxvisuals.modules.friends.Identity;
+import me.cxiy.cxvisuals.modules.friends.LinkCode;
 import me.cxiy.cxvisuals.modules.friends.Note;
 import me.cxiy.cxvisuals.modules.friends.Sealer;
 import me.cxiy.cxvisuals.modules.social.Account;
@@ -54,6 +58,9 @@ import net.minecraft.world.entity.player.Player;
 public final class FriendsLink {
   private static final String IDENTITY_FILE = "identity";
   private static final long RETRY_NANOS = 8_000_000_000L;
+  private static final long READ_NANOS = 2_000_000_000L;
+  private static final long FRESH_MILLIS = 180_000L;
+  private static final long CODE_MILLIS = 290_000L;
   private static final float MAX_FRAME_SECONDS = 0.1F;
   private static final float FALLBACK_TOP = 10.0F;
   private static final float CHIME_PITCH = 1.35F;
@@ -69,10 +76,14 @@ public final class FriendsLink {
   private static Account account;
   private static volatile Sealer sealer;
   private static volatile boolean keyed;
+  private static volatile boolean locked;
+  private static volatile String home = "";
+  private static volatile boolean catchingUp = true;
+  private static final Map<String, Long> PUSHED = new HashMap<>();
+  private static long readPushAt;
   private static String sealerOwner = "";
   private static boolean circled;
   private static Path identityFile;
-  private static String self = "";
   private static volatile boolean streaming;
   private static volatile boolean circleDue;
   private static volatile boolean mailDue;
@@ -209,6 +220,33 @@ public final class FriendsLink {
           @Override
           public void forget(String uuid) {
             friends.forget(uuid);
+          }
+        });
+    module.identity.actions(
+        new Identity.Actions() {
+          @Override
+          public void handle(String handle) {
+            FriendsLink.handle(handle);
+          }
+
+          @Override
+          public void offer() {
+            FriendsLink.offer();
+          }
+
+          @Override
+          public void claim(String code) {
+            FriendsLink.claim(code);
+          }
+
+          @Override
+          public void unlink(String uuid) {
+            FriendsLink.unlink(uuid);
+          }
+
+          @Override
+          public void adopt() {
+            FriendsLink.adopt();
           }
         });
     Social.companion(
@@ -500,9 +538,11 @@ public final class FriendsLink {
   public static void preview(boolean on, String uuid) {
     linked = on;
     keyed = on;
+    locked = false;
+    home = uuid;
+    catchingUp = false;
     circled = on;
     linkedGeneration = on ? Social.generation() : -1;
-    self = uuid;
     if (on && sealer == null) {
       sealer = Sealer.create();
     }
@@ -533,11 +573,7 @@ public final class FriendsLink {
     boolean active = module.enabled.get() && account.online();
     if (!active || linkedGeneration != Social.generation()) {
       if (linked) {
-        linked = false;
-        keyed = false;
-        circled = false;
-        cursor = 0L;
-        friends.clear();
+        reset();
         toasts().clear();
       }
       if (!active) {
@@ -546,18 +582,18 @@ public final class FriendsLink {
       linkedGeneration = Social.generation();
     }
     long now = System.nanoTime();
-    self = mc.getUser().getProfileId().toString().toLowerCase(Locale.ROOT);
     friends.quiet(!module.toasts.get() || module.mode.get() == FriendsModule.Mode.BUSY);
     if (!Social.held()) {
       if (!linked) {
         linked = true;
         link();
       }
-      if (keyed && !streaming && now - streamAt > RETRY_NANOS) {
+      boolean ready = keyed || locked;
+      if (ready && !streaming && now - streamAt > RETRY_NANOS) {
         streamAt = now;
         listen();
       }
-      if (keyed && circleDue) {
+      if (ready && circleDue) {
         circleDue = false;
         circle();
       }
@@ -565,13 +601,20 @@ public final class FriendsLink {
         mailDue = false;
         mail();
       }
+      if (keyed && circled && now - readPushAt > READ_NANOS) {
+        readPushAt = now;
+        pushReads();
+      }
     }
     if (mc.level != null) {
       List<Friends.Friend> list = friends.friends();
       for (int i = 0; i < list.size(); i++) {
         Friends.Friend friend = list.get(i);
         Player entity =
-            friend.online ? mc.level.getPlayerByUUID(UUID.fromString(friend.uuid)) : null;
+            friend.online
+                ? mc.level.getPlayerByUUID(
+                    UUID.fromString(friend.live.isEmpty() ? friend.uuid : friend.live))
+                : null;
         friend.entityId = entity == null ? Friends.NO_ENTITY : entity.getId();
       }
     }
@@ -599,7 +642,7 @@ public final class FriendsLink {
       module.favorites.set(stored);
     }
     String read = friends.read();
-    if (!read.equals(module.read.get())) {
+    if (circled && !read.equals(module.read.get())) {
       module.read.set(read);
     }
     if (!pendingJoin.isEmpty()) {
@@ -652,30 +695,89 @@ public final class FriendsLink {
         null);
   }
 
+  private static void reset() {
+    linked = false;
+    keyed = false;
+    locked = false;
+    circled = false;
+    catchingUp = true;
+    home = "";
+    cursor = 0L;
+    PUSHED.clear();
+    friends.clear();
+    module.identity.clear();
+  }
+
+  private static List<Identity.Member> members(JsonObject who) {
+    List<Identity.Member> out = new ArrayList<>();
+    JsonElement rows = who.get("members");
+    if (rows == null || !rows.isJsonArray()) {
+      return out;
+    }
+    for (JsonElement row : rows.getAsJsonArray()) {
+      if (!row.isJsonObject()) {
+        continue;
+      }
+      JsonObject json = row.getAsJsonObject();
+      String uuid = SocialProtocol.lower(SocialProtocol.text(json, "uuid", ""));
+      if (SocialProtocol.validUuid(uuid)) {
+        out.add(
+            new Identity.Member(
+                uuid,
+                SocialProtocol.clip(SocialProtocol.text(json, "name", ""), SocialProtocol.NAME_LIMIT),
+                SocialProtocol.flag(json, "home", false)));
+      }
+    }
+    return out;
+  }
+
   private static void link() {
     String base = social.baseUrl();
     String token = Social.token();
-    String owner = self;
     int attempt = Social.generation();
     Social.work(
         () -> {
           try {
-            Sealer mine = sealer;
-            if (mine == null || !owner.equals(sealerOwner)) {
-              mine = identity(owner);
-              sealerOwner = owner;
-              sealer = mine;
+            JsonObject who = Social.cloud().get(base + "/v2/me", token);
+            String owner = SocialProtocol.lower(SocialProtocol.text(who, "home", ""));
+            if (!SocialProtocol.validUuid(owner)) {
+              throw new IOException("no identity");
             }
-            JsonObject key = new JsonObject();
-            key.addProperty("key", mine.publicKey());
-            Social.cloud().put(base + "/v2/key", token, key.toString());
+            String remote = SocialProtocol.text(who, "key", "");
+            Sealer mine = identity(owner, remote.isEmpty());
+            boolean usable = mine != null && (remote.isEmpty() || mine.publicKey().equals(remote));
+            if (usable && remote.isEmpty()) {
+              JsonObject key = new JsonObject();
+              key.addProperty("key", mine.publicKey());
+              try {
+                Social.cloud().put(base + "/v2/key", token, key.toString());
+              } catch (Cloud.Refused refused) {
+                if (!"key_exists".equals(refused.code)) {
+                  throw refused;
+                }
+                usable = false;
+              }
+            }
+            Sealer chosen = usable ? mine : null;
+            String handle = SocialProtocol.text(who, "handle", "");
+            List<Identity.Member> roster = members(who);
+            String own = SocialProtocol.lower(SocialProtocol.text(who, "self", ""));
             Social.later(
                 () -> {
-                  if (attempt == Social.generation()) {
-                    keyed = true;
-                    circleDue = true;
-                    mailDue = true;
+                  if (attempt != Social.generation()) {
+                    return;
                   }
+                  home = owner;
+                  sealer = chosen;
+                  sealerOwner = owner;
+                  module.identity.roster(own, roster);
+                  module.identity.handle(handle);
+                  module.identity.state(chosen == null ? Identity.State.LOCKED : Identity.State.READY);
+                  friends.locked(chosen == null);
+                  locked = chosen == null;
+                  keyed = chosen != null;
+                  circleDue = true;
+                  mailDue = true;
                 });
           } catch (IOException | RuntimeException e) {
             CxVisualsClient.LOG.warn("Couldn't set up friends: {}", e.getMessage());
@@ -689,8 +791,220 @@ public final class FriendsLink {
         });
   }
 
-  private static Sealer identity(String owner) throws IOException {
-    Path own = identityFile.resolveSibling(IDENTITY_FILE + "-" + owner);
+  private static void relink() {
+    reset();
+  }
+
+  private static void pushReads() {
+    String base = social.baseUrl();
+    String token = Social.token();
+    for (Map.Entry<String, Long> entry : friends.marks().entrySet()) {
+      String peer = entry.getKey();
+      long mark = entry.getValue();
+      if (mark <= PUSHED.getOrDefault(peer, 0L) || friends.friend(peer) == null) {
+        continue;
+      }
+      PUSHED.put(peer, mark);
+      JsonObject body = new JsonObject();
+      body.addProperty("peer", peer);
+      body.addProperty("id", mark);
+      Social.work(
+          () -> {
+            try {
+              Social.cloud().put(base + "/v2/read", token, body.toString());
+            } catch (IOException | RuntimeException e) {
+              Social.later(() -> PUSHED.remove(peer));
+            }
+          });
+    }
+  }
+
+  private static void handle(String handle) {
+    String base = social.baseUrl();
+    String token = Social.token();
+    JsonObject body = new JsonObject();
+    body.addProperty("handle", handle);
+    Social.work(
+        () -> {
+          String notice;
+          boolean saved = false;
+          try {
+            Social.cloud().put(base + "/v2/handle", token, body.toString());
+            saved = true;
+            notice = handle.isEmpty() ? Lang.tr("Username removed.") : Lang.tr("Username saved.");
+          } catch (Cloud.Refused refused) {
+            notice =
+                switch (refused.code) {
+                  case "handle_taken" -> Lang.tr("That username is taken.");
+                  case "bad_handle" -> Lang.tr("Use 3 to 16 letters, numbers or underscores.");
+                  case "slow_down" -> Lang.tr("Too many requests. Try again in a minute.");
+                  default -> Lang.tr("Couldn't save the username.");
+                };
+          } catch (IOException | RuntimeException e) {
+            notice = Lang.tr("Couldn't reach the cloud.");
+          }
+          String shown = notice;
+          boolean done = saved;
+          Social.later(
+              () -> {
+                if (done) {
+                  module.identity.handle(handle);
+                }
+                module.identity.notice(shown);
+              });
+        });
+  }
+
+  private static void offer() {
+    Sealer mine = sealer;
+    if (mine == null) {
+      module.identity.notice(Lang.tr("Unlock your chats on this device first."));
+      return;
+    }
+    String base = social.baseUrl();
+    String token = Social.token();
+    String code = LinkCode.create();
+    module.identity.busy(true);
+    Social.work(
+        () -> {
+          String notice = "";
+          try {
+            JsonObject body = new JsonObject();
+            body.addProperty("id", LinkCode.id(code));
+            body.addProperty("blob", Base64.getEncoder().encodeToString(LinkCode.pack(code, mine)));
+            Social.cloud().put(base + "/v2/link", token, body.toString());
+          } catch (Cloud.Refused refused) {
+            notice =
+                "slow_down".equals(refused.code)
+                    ? Lang.tr("Too many open codes. Wait a few minutes.")
+                    : Lang.tr("Couldn't make a link code.");
+          } catch (IOException | RuntimeException e) {
+            notice = Lang.tr("Couldn't reach the cloud.");
+          }
+          String shown = notice;
+          Social.later(
+              () -> {
+                module.identity.busy(false);
+                if (shown.isEmpty()) {
+                  module.identity.code(code, System.currentTimeMillis() + CODE_MILLIS);
+                  module.identity.notice("");
+                } else {
+                  module.identity.notice(shown);
+                }
+              });
+        });
+  }
+
+  private static void claim(String code) {
+    String base = social.baseUrl();
+    String token = Social.token();
+    module.identity.busy(true);
+    Social.work(
+        () -> {
+          String notice;
+          boolean linkedNow = false;
+          try {
+            JsonObject body = new JsonObject();
+            body.addProperty("id", LinkCode.id(code));
+            JsonObject reply = Social.cloud().post(base + "/v2/link", token, body.toString());
+            String target = SocialProtocol.lower(SocialProtocol.text(reply, "home", ""));
+            Sealer got =
+                LinkCode.unpack(
+                    code,
+                    Base64.getDecoder().decode(SocialProtocol.text(reply, "blob", "")));
+            if (!SocialProtocol.validUuid(target) || got == null) {
+              throw new IOException("unreadable link");
+            }
+            keep(target, got);
+            linkedNow = true;
+            notice = Lang.tr("Linked. Your friends and chats are here.");
+          } catch (Cloud.Refused refused) {
+            notice =
+                switch (refused.code) {
+                  case "bad_code" -> Lang.tr("That code is wrong or has expired.");
+                  case "bundled" ->
+                      Lang.tr("This account has linked accounts of its own. Unlink them first.");
+                  case "bundle_full" -> Lang.tr("That bundle is full.");
+                  case "slow_down" -> Lang.tr("Too many tries. Wait a minute.");
+                  default -> Lang.tr("Couldn't link.");
+                };
+          } catch (IOException | RuntimeException e) {
+            notice = Lang.tr("Couldn't link.");
+          }
+          String shown = notice;
+          boolean done = linkedNow;
+          Social.later(
+              () -> {
+                if (done) {
+                  relink();
+                }
+                module.identity.busy(false);
+                module.identity.notice(shown);
+              });
+        });
+  }
+
+  private static void unlink(String uuid) {
+    String base = social.baseUrl();
+    String token = Social.token();
+    Social.work(
+        () -> {
+          String notice;
+          try {
+            Social.cloud().delete(base + "/v2/link/" + uuid, token);
+            notice = Lang.tr("Account unlinked.");
+          } catch (IOException | RuntimeException e) {
+            notice = Lang.tr("Couldn't unlink.");
+          }
+          String shown = notice;
+          Social.later(
+              () -> {
+                relink();
+                module.identity.notice(shown);
+              });
+        });
+  }
+
+  private static void adopt() {
+    String base = social.baseUrl();
+    String token = Social.token();
+    String owner = home;
+    if (owner.isEmpty()) {
+      return;
+    }
+    Social.work(
+        () -> {
+          String notice;
+          boolean done = false;
+          try {
+            Sealer mine = identity(owner, true);
+            JsonObject key = new JsonObject();
+            key.addProperty("key", mine.publicKey());
+            key.addProperty("replace", true);
+            Social.cloud().put(base + "/v2/key", token, key.toString());
+            done = true;
+            notice = Lang.tr("This device now holds your chats.");
+          } catch (IOException | RuntimeException e) {
+            notice = Lang.tr("Couldn't switch to this device.");
+          }
+          String shown = notice;
+          boolean ok = done;
+          Social.later(
+              () -> {
+                if (ok) {
+                  relink();
+                }
+                module.identity.notice(shown);
+              });
+        });
+  }
+
+  private static Path identityPath(String owner) {
+    return identityFile.resolveSibling(IDENTITY_FILE + "-" + owner);
+  }
+
+  private static Sealer identity(String owner, boolean create) throws IOException {
+    Path own = identityPath(owner);
     if (!Files.isRegularFile(own) && Files.isRegularFile(identityFile)) {
       Files.move(identityFile, own, StandardCopyOption.REPLACE_EXISTING);
     }
@@ -700,12 +1014,20 @@ public final class FriendsLink {
         return stored;
       }
     }
+    if (!create) {
+      return null;
+    }
     Sealer fresh = Sealer.create();
+    keep(owner, fresh);
+    return fresh;
+  }
+
+  private static void keep(String owner, Sealer value) throws IOException {
+    Path own = identityPath(owner);
     Path tmp = own.resolveSibling(own.getFileName() + ".tmp");
     Files.createDirectories(own.getParent());
-    Files.writeString(tmp, fresh.stored(), StandardCharsets.UTF_8);
+    Files.writeString(tmp, value.stored(), StandardCharsets.UTF_8);
     Files.move(tmp, own, StandardCopyOption.REPLACE_EXISTING);
-    return fresh;
   }
 
   private static void listen() {
@@ -792,12 +1114,33 @@ public final class FriendsLink {
             }
             List<Friends.Person> incoming = people(reply, "incoming");
             List<Friends.Person> outgoing = people(reply, "outgoing");
+            String current = SocialProtocol.lower(SocialProtocol.text(reply, "home", ""));
+            Map<String, Long> marks = new HashMap<>();
+            JsonElement stored = reply.get("read");
+            if (stored != null && stored.isJsonObject()) {
+              for (Map.Entry<String, JsonElement> mark : stored.getAsJsonObject().entrySet()) {
+                try {
+                  marks.put(mark.getKey(), mark.getValue().getAsLong());
+                } catch (RuntimeException e) {
+                  continue;
+                }
+              }
+            }
             Social.later(
                 () -> {
-                  if (attempt == Social.generation()) {
-                    friends.circle(list, incoming, outgoing);
-                    circled = true;
+                  if (attempt != Social.generation()) {
+                    return;
                   }
+                  if (!current.isEmpty() && !home.isEmpty() && !current.equals(home)) {
+                    relink();
+                    return;
+                  }
+                  friends.circle(list, incoming, outgoing);
+                  friends.readFrom(marks);
+                  for (Map.Entry<String, Long> mark : marks.entrySet()) {
+                    PUSHED.merge(mark.getKey(), mark.getValue(), Math::max);
+                  }
+                  circled = true;
                 });
           } catch (IOException | RuntimeException e) {
             CxVisualsClient.LOG.warn("Couldn't load friends: {}", e.getMessage());
@@ -832,6 +1175,8 @@ public final class FriendsLink {
               SocialProtocol.text(json, "title", ""),
               SocialProtocol.text(json, "artist", ""),
               SocialProtocol.TRACK_LIMIT));
+      String as = SocialProtocol.lower(SocialProtocol.text(json, "as", ""));
+      friends.live(uuid, SocialProtocol.validUuid(as) ? as : "");
     }
     friends.presenceDone(seen);
     for (int i = 0; i < list.size(); i++) {
@@ -860,8 +1205,9 @@ public final class FriendsLink {
     fetching = true;
     String base = social.baseUrl();
     String token = Social.token();
-    String me = self;
+    String me = home;
     long after = cursor;
+    boolean quiet = catchingUp;
     int attempt = Social.generation();
     Social.work(
         () -> {
@@ -877,14 +1223,15 @@ public final class FriendsLink {
                   if (attempt != Social.generation()) {
                     return;
                   }
-                  boolean first = after == 0L;
                   for (int i = 0; i < list.size(); i++) {
                     if (list.get(i).isJsonObject()) {
-                      deliver(list.get(i).getAsJsonObject(), me, !first);
+                      deliver(list.get(i).getAsJsonObject(), me, !quiet);
                     }
                   }
                   if (more) {
                     mailDue = true;
+                  } else {
+                    catchingUp = false;
                   }
                 });
           } catch (IOException | RuntimeException e) {
@@ -924,8 +1271,10 @@ public final class FriendsLink {
       note = Note.UNREADABLE;
       announce = false;
     }
-    Friends.Line line = new Friends.Line(id, mine, note, SocialProtocol.number(json, "at", 0L));
-    if (friends.receive(other, line) && announce) {
+    long at = SocialProtocol.number(json, "at", 0L);
+    Friends.Line line = new Friends.Line(id, mine, note, at);
+    boolean fresh = System.currentTimeMillis() - at < FRESH_MILLIS;
+    if (friends.receive(other, line) && announce && fresh) {
       friends.announce(other, line);
     }
   }
@@ -1002,7 +1351,7 @@ public final class FriendsLink {
     }
     String base = social.baseUrl();
     String token = Social.token();
-    String me = self;
+    String me = home;
     String key = friend.key;
     Social.work(
         () -> {

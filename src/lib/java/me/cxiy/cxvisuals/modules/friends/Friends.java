@@ -16,6 +16,7 @@ public final class Friends {
     public final String uuid;
     public String name;
     public String key;
+    public String live = "";
     public boolean online;
     public boolean busy;
     public String status = "";
@@ -214,6 +215,7 @@ public final class Friends {
   private boolean quiet;
   private boolean met;
   private boolean counted;
+  private boolean locked;
   private int revision;
 
   public void actions(Actions next) {
@@ -238,6 +240,50 @@ public final class Friends {
 
   public int revision() {
     return revision;
+  }
+
+  public boolean locked() {
+    return locked;
+  }
+
+  public void locked(boolean on) {
+    if (locked != on) {
+      locked = on;
+      revision++;
+    }
+  }
+
+  public void live(String uuid, String account) {
+    Friend friend = friend(uuid);
+    if (friend != null) {
+      friend.live = account == null ? "" : account;
+    }
+  }
+
+  public Map<String, Long> marks() {
+    return Collections.unmodifiableMap(read);
+  }
+
+  public void readFrom(Map<String, Long> remote) {
+    for (Map.Entry<String, Long> entry : remote.entrySet()) {
+      long mark = entry.getValue();
+      if (mark <= read.getOrDefault(entry.getKey(), 0L)) {
+        continue;
+      }
+      read.put(entry.getKey(), mark);
+      Friend friend = friend(entry.getKey());
+      List<Line> lines = chats.get(entry.getKey());
+      if (friend != null && lines != null) {
+        int unread = 0;
+        for (int i = 0; i < lines.size(); i++) {
+          if (!lines.get(i).mine() && lines.get(i).id() > mark) {
+            unread++;
+          }
+        }
+        friend.unread = unread;
+      }
+      revision++;
+    }
   }
 
   public String notice() {
@@ -422,6 +468,7 @@ public final class Friends {
         friend.track = "";
         friend.status = "";
         friend.entityId = NO_ENTITY;
+        friend.live = "";
         friend.located = false;
       }
     }
@@ -636,6 +683,7 @@ public final class Friends {
     toasts.clear();
     met = false;
     counted = false;
+    locked = false;
     open = "";
     notice = "";
     revision++;

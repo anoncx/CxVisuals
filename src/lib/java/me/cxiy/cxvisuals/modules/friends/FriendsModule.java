@@ -29,6 +29,8 @@ public final class FriendsModule extends Module {
   public static final int STATUS_LIMIT = 48;
 
   public final Friends friends = new Friends();
+  public final Identity identity = new Identity();
+  public final PanelSetting link;
   public final Account account;
   public final PanelSetting people;
   public final PanelSetting chat;
@@ -54,6 +56,7 @@ public final class FriendsModule extends Module {
     Page talk = section(CHAT, "Chat");
     chat = talk.group("Conversation").panel(CHAT);
     Page you = section("you", "You");
+    link = you.group("Identity").showWhen(account::signedIn).panel("identity");
     Group presence = you.group("Presence");
     mode =
         presence
