@@ -49,6 +49,7 @@ import me.cxiy.cxvisuals.mc.modules.nametags.Nametags;
 import me.cxiy.cxvisuals.mc.modules.shaders.EntityTrails;
 import me.cxiy.cxvisuals.mc.modules.shaders.JumpCircles;
 import me.cxiy.cxvisuals.mc.modules.shaders.Shaders;
+import me.cxiy.cxvisuals.mc.modules.swings.Swings;
 import me.cxiy.cxvisuals.mc.modules.texturemixer.TextureMixer;
 import me.cxiy.cxvisuals.mc.modules.social.FriendsLink;
 import me.cxiy.cxvisuals.mc.modules.social.Social;
@@ -129,6 +130,7 @@ public final class CxVisualsClient implements ClientModInitializer {
     shaders = Shaders.create(keys);
     registry.add(shaders);
     registry.add(DeathEffects.create(keys));
+    registry.add(Swings.create(keys));
     registry.add(Fullbright.create(keys));
     registry.add(Chat.create(keys));
     registry.add(Inventory.create(keys, registry.client()));
@@ -338,6 +340,7 @@ public final class CxVisualsClient implements ClientModInitializer {
     Accounts.tick(mc);
     EntityTrails.tick(mc);
     DeathEffects.tick(mc);
+    Swings.tick(mc);
     Inventory.tick(mc);
     DonutSMP.tick(mc);
     TextureMixer.tick(mc);

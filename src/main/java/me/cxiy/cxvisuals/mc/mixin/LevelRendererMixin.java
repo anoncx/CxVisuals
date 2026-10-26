@@ -5,6 +5,7 @@ import me.cxiy.cxvisuals.mc.modules.animations.BlockPopEffects;
 import me.cxiy.cxvisuals.mc.modules.deaths.DeathEffects;
 import me.cxiy.cxvisuals.mc.modules.shaders.EntityShaders;
 import me.cxiy.cxvisuals.mc.modules.shaders.OutlineShaders;
+import me.cxiy.cxvisuals.mc.modules.swings.Swings;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
@@ -27,6 +28,24 @@ public abstract class LevelRendererMixin {
       SubmitNodeCollector output,
       CallbackInfo ci) {
     DeathEffects.hide(levelRenderState);
+  }
+
+  @Inject(method = "submitEntities", at = @At("HEAD"))
+  private void cxvisuals$swingsBegin(
+      PoseStack poseStack,
+      LevelRenderState levelRenderState,
+      SubmitNodeCollector output,
+      CallbackInfo ci) {
+    Swings.beginWorld(levelRenderState.cameraRenderState.pos);
+  }
+
+  @Inject(method = "submitEntities", at = @At("TAIL"))
+  private void cxvisuals$swingsEnd(
+      PoseStack poseStack,
+      LevelRenderState levelRenderState,
+      SubmitNodeCollector output,
+      CallbackInfo ci) {
+    Swings.endWorld();
   }
 
   @Inject(method = "submitEntities", at = @At("TAIL"))

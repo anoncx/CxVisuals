@@ -5,7 +5,9 @@ import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.mojang.blaze3d.vertex.PoseStack;
 import me.cxiy.cxvisuals.mc.modules.hands.Hands;
 import me.cxiy.cxvisuals.mc.modules.shaders.EntityShaders;
+import me.cxiy.cxvisuals.mc.modules.swings.Swings;
 import net.minecraft.client.player.AbstractClientPlayer;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.ItemInHandRenderer;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.world.InteractionHand;
@@ -99,6 +101,28 @@ public abstract class ItemInHandRendererMixin {
       int lightCoords,
       CallbackInfo ci) {
     Hands.item(poseStack, hand, cxvisuals$arm(player, hand));
+  }
+
+  @Inject(method = "submitHandsWithItems", at = @At("HEAD"))
+  private void cxvisuals$swingsBegin(
+      float frameInterp,
+      PoseStack poseStack,
+      SubmitNodeCollector submitNodeCollector,
+      LocalPlayer player,
+      int lightCoords,
+      CallbackInfo ci) {
+    Swings.beginHand();
+  }
+
+  @Inject(method = "submitHandsWithItems", at = @At("RETURN"))
+  private void cxvisuals$swingsEnd(
+      float frameInterp,
+      PoseStack poseStack,
+      SubmitNodeCollector submitNodeCollector,
+      LocalPlayer player,
+      int lightCoords,
+      CallbackInfo ci) {
+    Swings.endHand();
   }
 
   @Inject(method = "swingArm", at = @At("HEAD"), cancellable = true)

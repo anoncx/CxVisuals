@@ -15,8 +15,10 @@ import me.cxiy.cxvisuals.mc.modules.shaders.EntityTrails;
 import me.cxiy.cxvisuals.mc.modules.shaders.JumpCircles;
 import me.cxiy.cxvisuals.mc.modules.shaders.OutlineShaders;
 import me.cxiy.cxvisuals.mc.modules.shaders.SkyShaders;
+import me.cxiy.cxvisuals.mc.modules.swings.Swings;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.Projection;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.LivingEntity;
@@ -34,6 +36,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(GameRenderer.class)
 public abstract class GameRendererMixin {
   @Shadow @Final private RenderTarget mainRenderTarget;
+  @Shadow @Final private Projection hudProjection;
 
   @Inject(method = "nightVisionScale", at = @At("HEAD"), cancellable = true)
   private static void cxvisuals$fullbright(
@@ -98,6 +101,7 @@ public abstract class GameRendererMixin {
     OutlineShaders.render((GameRenderer) (Object) this);
     JumpCircles.render((GameRenderer) (Object) this);
     EntityTrails.render((GameRenderer) (Object) this);
+    Swings.render((GameRenderer) (Object) this);
     DeathEffects.render((GameRenderer) (Object) this);
     EntityShaders.world((GameRenderer) (Object) this);
     MotionBlur.apply((GameRenderer) (Object) this);
@@ -114,6 +118,7 @@ public abstract class GameRendererMixin {
                   "Lnet/minecraft/client/renderer/ScreenEffectRenderer;submit(ZZFLnet/minecraft/client/renderer/SubmitNodeCollector;Z)V"))
   private void cxvisuals$handShader(DeltaTracker deltaTracker, CallbackInfo ci) {
     EntityShaders.hand((GameRenderer) (Object) this);
+    Swings.hand((GameRenderer) (Object) this, hudProjection);
   }
 
   @ModifyArg(
