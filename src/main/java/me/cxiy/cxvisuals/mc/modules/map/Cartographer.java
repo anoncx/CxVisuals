@@ -19,15 +19,18 @@ import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.level.levelgen.Heightmap;
 
 final class Cartographer {
-  private static final long BUDGET_NANOS = 1_600_000L;
+  private static final long FRAME_NANOS = 700_000L;
+  private static final long BUSY_NANOS = 2_200_000L;
+  private static final int BACKLOG = 48;
+  private static final int NEAREST_LOOK = 512;
   private static final int REFRESH_TICKS = 10;
   private static final int CAVE_RADIUS = 5;
   private static final int CAVE_SHIFT = 3;
   private static final int SETTLE_TICKS = 16;
   private static final int SKIP_LIMIT = 48;
   private static final int WATER_LIMIT = 96;
-  private static final int RUN_LIMIT = 24;
-  private static final int GAP_LIMIT = 48;
+  private static final int RUN_LIMIT = 63;
+  private static final int WET = 0x80;
   private static final int CAVE_SEARCH = 20;
   private static final int CEILING_START = 118;
   private static final int CEILING_SEARCH = 110;
@@ -105,31 +108,62 @@ final class Cartographer {
     }
   }
 
-  void tick(ClientLevel level, LocalPlayer player, boolean cavesWanted, long now) {
-    if (++ticks % REFRESH_TICKS == 0) {
-      LongIterator moved = dirty.iterator();
-      while (moved.hasNext()) {
-        long chunk = moved.nextLong();
-        surface.add(chunk);
-        if (underground) {
-          caves.add(chunk);
-        }
+  void tick(ClientLevel level, LocalPlayer player, boolean cavesWanted) {
+    ticks++;
+    LongIterator moved = dirty.iterator();
+    while (moved.hasNext()) {
+      long chunk = moved.nextLong();
+      surface.add(chunk);
+      if (underground) {
+        caves.add(chunk);
       }
-      dirty.clear();
+    }
+    dirty.clear();
+    if (ticks % REFRESH_TICKS == 0) {
       surface.addAll(waiting);
       waiting.clear();
     }
     watchCaves(level, player, cavesWanted);
+  }
+
+  void frame(ClientLevel level, LocalPlayer player, long now) {
+    int backlog = surface.size() + caves.size();
+    if (backlog == 0) {
+      return;
+    }
+    long budget = backlog > BACKLOG ? BUSY_NANOS : FRAME_NANOS;
+    int centreX = player.getBlockX() >> 4;
+    int centreZ = player.getBlockZ() >> 4;
     long start = System.nanoTime();
-    while (System.nanoTime() - start < BUDGET_NANOS) {
+    while (System.nanoTime() - start < budget) {
       if (!caves.isEmpty()) {
         scan(level, caves.removeFirstLong(), TileKey.CAVE, now);
       } else if (!surface.isEmpty()) {
-        scan(level, surface.removeFirstLong(), TileKey.SURFACE, now);
+        long next = nearest(surface, centreX, centreZ);
+        surface.remove(next);
+        scan(level, next, TileKey.SURFACE, now);
       } else {
         break;
       }
     }
+  }
+
+  private static long nearest(LongLinkedOpenHashSet queue, int centreX, int centreZ) {
+    long best = queue.firstLong();
+    long bestDistance = Long.MAX_VALUE;
+    int looked = 0;
+    LongIterator it = queue.iterator();
+    while (it.hasNext() && looked++ < NEAREST_LOOK) {
+      long chunk = it.nextLong();
+      long dx = ChunkPos.getX(chunk) - centreX;
+      long dz = ChunkPos.getZ(chunk) - centreZ;
+      long distance = dx * dx + dz * dz;
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = chunk;
+      }
+    }
+    return best;
   }
 
   private void watchCaves(ClientLevel level, LocalPlayer player, boolean wanted) {
@@ -309,19 +343,21 @@ final class Cartographer {
       run++;
       y--;
     }
-    if (run >= RUN_LIMIT || y <= minY) {
+    if (run >= RUN_LIMIT) {
       return;
     }
-    for (int gap = 0; gap < GAP_LIMIT && y > minY; gap++, y--) {
+    for (; y > minY; y--) {
       BlockState state = chunk.getBlockState(cursor.set(x, y, z));
       if (!open(state)) {
         BlockState below = chunk.getBlockState(cursor.set(x, y - 1, z));
-        column.depth[i] = (byte) run;
+        boolean wet = state.getFluidState().is(FluidTags.WATER);
+        column.depth[i] = (byte) (run | (wet ? WET : 0));
         column.floor[i] = (short) y;
         column.ground[i] = (char) swatches.block(state, below, world.palette());
         return;
       }
     }
+    column.depth[i] = (byte) run;
   }
 
   private boolean open(BlockState state) {

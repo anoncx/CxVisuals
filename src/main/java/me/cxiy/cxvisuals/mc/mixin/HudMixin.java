@@ -9,6 +9,7 @@ import java.util.Collection;
 import me.cxiy.cxvisuals.mc.modules.animations.Animations;
 import me.cxiy.cxvisuals.mc.modules.hud.Hud;
 import me.cxiy.cxvisuals.mc.modules.idlecamera.IdleCamera;
+import me.cxiy.cxvisuals.mc.modules.map.Maps;
 import me.cxiy.cxvisuals.mc.modules.social.FriendsLink;
 import me.cxiy.cxvisuals.mc.modules.waypoints.Markers;
 import me.cxiy.cxvisuals.mc.modules.zoom.Zoom;
@@ -94,6 +95,7 @@ public abstract class HudMixin {
       return;
     }
     Markers.frame();
+    Maps.frame();
     Hud.frame(graphics);
   }
 

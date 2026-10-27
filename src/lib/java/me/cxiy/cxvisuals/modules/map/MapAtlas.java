@@ -22,10 +22,10 @@ public final class MapAtlas {
   public static final int MISSING = -1;
   public static final int TABLE = SLOTS - 1;
   public static final int SIDES = SLOTS - 2;
-  public static final int OVERLAYS = SLOTS - 3;
+  public static final int OVERLAYS = SLOTS - 6;
 
-  private static final int IN_FLIGHT = 12;
-  private static final long REBAKE_NANOS = 350_000_000L;
+  private static final int IN_FLIGHT = 16;
+  private static final long REBAKE_NANOS = 180_000_000L;
   private static final int POOL = 36;
 
   private record Done(long key, int generation, int[] pixels, int[] ids, int[] grounds) {}

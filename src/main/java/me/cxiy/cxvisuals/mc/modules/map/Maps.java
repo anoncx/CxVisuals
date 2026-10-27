@@ -230,11 +230,7 @@ public final class Maps {
     }
     module.atlas.frame();
     cartographer.sprites();
-    cartographer.tick(
-        mc.level,
-        mc.player,
-        module.caves.get() == MapModule.Caves.AUTO,
-        System.currentTimeMillis());
+    cartographer.tick(mc.level, mc.player, module.caves.get() == MapModule.Caves.AUTO);
     world.tick(
         System.nanoTime(),
         Region.key(mc.player.getBlockX() >> Region.SHIFT, mc.player.getBlockZ() >> Region.SHIFT));
@@ -304,6 +300,13 @@ public final class Maps {
                                 : Lang.tr("Couldn't share the map."));
               });
         });
+  }
+
+  public static void frame() {
+    Minecraft mc = Minecraft.getInstance();
+    if (live() && mc.level != null && mc.player != null) {
+      cartographer.frame(mc.level, mc.player, System.currentTimeMillis());
+    }
   }
 
   public static void erase() {

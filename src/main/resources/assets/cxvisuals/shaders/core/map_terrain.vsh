@@ -31,9 +31,11 @@ flat out vec3 raw;
 flat out int block;
 flat out int topBlock;
 flat out int face;
+flat out int side;
 flat out int layer;
 flat out float sideHeight;
 flat out int water;
+flat out int groundWet;
 
 const int EDGE = 128;
 const int GRID = 16;
@@ -47,6 +49,7 @@ struct Column {
     int depth;
     int ground;
     int floor;
+    int wet;
     bool known;
 };
 
@@ -60,7 +63,7 @@ uint word(vec4 texel, bool high) {
 }
 
 Column fetchColumn(ivec2 col) {
-    Column c = Column(0, NONE, 0, 0, 0, NONE, false);
+    Column c = Column(0, NONE, 0, 0, 0, NONE, 0, false);
     int slot = Slots.x;
     if (col.x < 0) {
         slot = Near.z;
@@ -97,8 +100,7 @@ Column fetchColumn(ivec2 col) {
     if (c.depth > 0 && (uhi & 0x200u) != 0u) {
         c.ground = int(ulo & 0x3FFFu);
         c.floor = int(uhi & 0x1FFu) - 64;
-    } else {
-        c.depth = 0;
+        c.wet = int((uhi >> 10u) & 1u);
     }
     return c;
 }
@@ -143,8 +145,9 @@ void main() {
     layer = kind / 3;
     face = kind - layer * 3;
     water = here.water;
+    groundWet = here.wet;
     topBlock = here.block;
-    if (here.block == 0 || (layer == 1 && here.depth == 0)) {
+    if (here.block == 0 || (layer == 1 && (here.depth == 0 || here.ground == 0))) {
         hide();
         return;
     }
@@ -158,12 +161,14 @@ void main() {
     float z0 = Tile.y + float(col.y) * step;
     vec3 pos;
     sideHeight = 0.0;
+    side = 0;
     if (face == 0) {
         pos = vec3(x0 + Position.x * width, top, z0 + Position.z * width);
         local = Position.xz * width;
     } else {
         bool zFace = face == 1;
         float sign = zFace ? Params.y : Params.z;
+        side = zFace ? (sign > 0.0 ? 1 : 0) : (sign > 0.0 ? 3 : 2);
         ivec2 offset = zFace ? ivec2(0, sign > 0.0 ? stride : -stride)
                              : ivec2(sign > 0.0 ? stride : -stride, 0);
         Column next = fetchColumn(col + offset);
@@ -177,7 +182,8 @@ void main() {
                 low = h;
             }
         } else {
-            low = !next.known ? h - SKIRT : next.depth > 0 ? next.floor : next.h;
+            low = !next.known ? h - SKIRT
+                : next.depth > 0 ? (next.ground != 0 ? next.floor : h - SKIRT) : next.h;
         }
         if (low >= h) {
             hide();

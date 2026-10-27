@@ -21,7 +21,7 @@ import net.minecraft.client.renderer.texture.TextureAtlas;
 import org.lwjgl.system.MemoryUtil;
 
 final class MapTextures {
-  private static final int UPLOADS_PER_FRAME = 6;
+  private static final int UPLOADS_PER_FRAME = 10;
 
   private static final class Slot {
     final DynamicTexture colors;
@@ -85,8 +85,10 @@ final class MapTextures {
       CommandEncoder tables = RenderSystem.getDevice().createCommandEncoder();
       palette.table(sprites);
       write(tables, slot.ids.getTexture(), MapAtlas.TABLE, sprites);
-      palette.sides(sprites);
-      write(tables, slot.ids.getTexture(), MapAtlas.SIDES, sprites);
+      for (int d = 0; d < BlockPalette.DIRECTIONS; d++) {
+        palette.sides(d, sprites);
+        write(tables, slot.ids.getTexture(), MapAtlas.SIDES - d, sprites);
+      }
       palette.overlays(sprites);
       write(tables, slot.ids.getTexture(), MapAtlas.OVERLAYS, sprites);
     }

@@ -21,17 +21,20 @@ flat in vec3 raw;
 flat in int block;
 flat in int topBlock;
 flat in int face;
+flat in int side;
 flat in int layer;
 flat in float sideHeight;
 flat in int water;
+flat in int groundWet;
 
 out vec4 fragColor;
 
 const int EDGE = 128;
 const ivec2 TOPS = ivec2(1920, 1920);
 const ivec2 SIDES = ivec2(1792, 1920);
-const ivec2 OVERLAYS = ivec2(1664, 1920);
+const ivec2 OVERLAYS = ivec2(1280, 1920);
 const float SHELTER = 0.62;
+const vec3 WATER_TINT = vec3(0.247, 0.463, 0.894);
 
 uint word(vec4 texel, bool high) {
     vec4 b = floor(texel * 255.0 + 0.5);
@@ -59,7 +62,7 @@ void main() {
         Sampler2, (spriteOrigin(tlo, thi) + spriteSize(tlo) * 0.5) / atlas, 12.0).rgb;
     vec3 ratio = min(raw / max(topAverage, vec3(0.03)), vec3(2.6));
 
-    vec4 own = entry(face == 0 ? TOPS : SIDES, block);
+    vec4 own = entry(face == 0 ? TOPS : SIDES - ivec2(side * EDGE, 0), block);
     uint lo = word(own, false);
     uint hi = word(own, true);
     vec3 color = raw;
@@ -72,7 +75,8 @@ void main() {
         vec2 dy = dFdy(local) * sprite / atlas;
         vec4 tex = textureGrad(Sampler2, uv, dx, dy);
         bool tinted = (hi & 0x4000u) != 0u || (layer == 0 && face == 0);
-        vec3 tint = tinted ? ratio : vec3(1.0);
+        vec3 tint = !tinted ? vec3(1.0)
+            : layer == 1 && groundWet == 1 ? WATER_TINT : ratio;
         vec3 average = layer == 0
             ? raw
             : textureLod(Sampler2, (origin + sprite * 0.5) / atlas, 12.0).rgb * tint;

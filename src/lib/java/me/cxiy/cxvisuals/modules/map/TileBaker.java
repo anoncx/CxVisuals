@@ -35,6 +35,7 @@ public final class TileBaker {
   public static final int DEPTH_SHIFT = 26;
   public static final int DEPTH_MAX = 63;
   public static final int GROUND_BIT = 1 << 25;
+  public static final int GROUND_WET = 1 << 26;
 
   public void details(long key, int[] ids, int[] grounds) {
     Arrays.fill(ids, 0);
@@ -74,13 +75,17 @@ public final class TileBaker {
           int block = Math.min(region.block[best], BlockPalette.TABLE - 1);
           int height = Math.max(0, Math.min(HEIGHT_MAX, top + HEIGHT_OFFSET));
           int water = region.water[best] != 0 ? WATER_BIT : 0;
-          int thick = Math.min(DEPTH_MAX, region.depth[best] & 0xFF);
+          int thick = Math.min(DEPTH_MAX, region.depth[best] & DEPTH_MAX);
           int at = (pz << TileKey.EDGE_SHIFT) | px;
           ids[at] = block | (height << 16) | water | (thick << DEPTH_SHIFT);
           if (thick > 0 && region.ground[best] != BlockPalette.NONE) {
             int under = Math.min(region.ground[best], BlockPalette.TABLE - 1);
             int floor = Math.max(0, Math.min(HEIGHT_MAX, region.floor[best] + HEIGHT_OFFSET));
-            grounds[at] = under | (floor << 16) | GROUND_BIT;
+            grounds[at] =
+                under
+                    | (floor << 16)
+                    | GROUND_BIT
+                    | ((region.depth[best] & 0x80) != 0 ? GROUND_WET : 0);
           }
         }
       }
