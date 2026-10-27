@@ -26,6 +26,7 @@ public final class MapAtlas {
 
   private static final int IN_FLIGHT = 16;
   private static final long REBAKE_NANOS = 180_000_000L;
+  private static final long SLOW_FACTOR = 6L;
   private static final int POOL = 36;
 
   private record Done(long key, int generation, int[] pixels, int[] ids, int[] grounds) {}
@@ -46,6 +47,7 @@ public final class MapAtlas {
   private volatile int generation;
   private long frame = 1L;
   private int revision;
+  private volatile boolean slow;
 
   public void baker(Baker next) {
     baker = next;
@@ -67,6 +69,10 @@ public final class MapAtlas {
     return revision;
   }
 
+  public void pace(boolean traveling) {
+    slow = traveling;
+  }
+
   public void frame() {
     frame++;
   }
@@ -85,7 +91,9 @@ public final class MapAtlas {
       return EMPTY;
     }
     used[index] = frame;
-    if (stale[index] && System.nanoTime() - bakedAt[index] > REBAKE_NANOS && request(key)) {
+    if (stale[index]
+        && System.nanoTime() - bakedAt[index] > (slow ? REBAKE_NANOS * SLOW_FACTOR : REBAKE_NANOS)
+        && request(key)) {
       stale[index] = false;
     }
     return index;

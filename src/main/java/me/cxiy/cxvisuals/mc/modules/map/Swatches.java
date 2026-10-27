@@ -57,6 +57,7 @@ final class Swatches {
   private static final int EDGE_LIMIT = 8191;
 
   private final Map<BlockState, Swatch> cache = new IdentityHashMap<>(1024);
+  private final Map<BlockState, Integer> ids = new IdentityHashMap<>(1024);
   private final List<BlockStateModelPart> parts = new ArrayList<>(4);
   private final RandomSource random = RandomSource.create(42L);
   private BlockStateModelSet models;
@@ -68,6 +69,7 @@ final class Swatches {
     if (current != models) {
       models = current;
       cache.clear();
+      ids.clear();
       resolvedUpTo = 0;
     }
     Swatch known = cache.get(state);
@@ -187,13 +189,23 @@ final class Swatches {
     Swatch swatch = of(state);
     Swatch sides = swatch;
     String key = swatch.key;
-    if (swatch.thin && below != null && !below.isAir() && below.getFluidState().isEmpty()) {
+    boolean joined =
+        swatch.thin && below != null && !below.isAir() && below.getFluidState().isEmpty();
+    if (joined) {
       sides = of(below);
       key = swatch.key + JOIN + sides.key;
+    } else {
+      Integer known = ids.get(state);
+      if (known != null) {
+        return known;
+      }
     }
     int id = palette.id(key);
     palette.sprite(id, swatch.sprite);
     store(palette, id, sides);
+    if (!joined) {
+      ids.put(state, id);
+    }
     return id;
   }
 

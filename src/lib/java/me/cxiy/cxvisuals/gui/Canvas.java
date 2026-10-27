@@ -97,6 +97,10 @@ public interface Canvas {
 
   boolean icon(byte[] png, float x, float y, float size, float radius);
 
+  default boolean blockIcon(int sprite, float x, float y, float size, float radius, int backing) {
+    return false;
+  }
+
   default boolean mobFace(int entityId, float x, float y, float size, float radius, int backing) {
     return false;
   }

@@ -17,6 +17,8 @@ import me.cxiy.cxvisuals.gui.spatial.Spring;
 import me.cxiy.cxvisuals.modules.friends.Note;
 import me.cxiy.cxvisuals.modules.hud.HudData;
 import me.cxiy.cxvisuals.modules.hud.elements.MinimapElement;
+import me.cxiy.cxvisuals.modules.map.BlockPalette;
+import me.cxiy.cxvisuals.modules.map.BlockSearch;
 import me.cxiy.cxvisuals.modules.map.MapShare;
 import me.cxiy.cxvisuals.modules.map.MapSource;
 import me.cxiy.cxvisuals.modules.map.TileKey;
@@ -38,13 +40,15 @@ public final class MapScreenView {
     MENU,
     NAME,
     PICK,
-    MARK
+    MARK,
+    PLAYER
   }
 
   private enum Row {
     COORDS,
     WAYPOINT,
-    FRIEND
+    FRIEND,
+    BLOCK
   }
 
   private record Entry(
@@ -83,6 +87,10 @@ public final class MapScreenView {
   private static final float SCALE_BAR = 110.0F;
   private static final int CHUNK = 16;
   private static final int FROST_LEVELS = 3;
+  private static final long SEARCH_DELAY = 220_000_000L;
+  private static final float PULSE_SECONDS = 1.6F;
+  private static final int PULSE_LIMIT = 160;
+  private static final int SHOWN_LIMIT = 900;
   private static final float TILT_SECONDS = 0.7F;
   private static final float DEFAULT_PITCH = (float) Math.toRadians(52.0);
   private static final float ORBIT_YAW = 0.006F;
@@ -125,11 +133,20 @@ public final class MapScreenView {
   private final Anim[] hovers = new Anim[8];
   private final Spring zoom = Spring.critical(240.0F);
   private final Spring glideX = Spring.critical(140.0F);
-  private final Field search = new Field(Lang.key("Search places, friends or x z"), 48);
+  private final Field search = new Field(Lang.key("Search places, blocks, friends or x z"), 48);
   private final Field naming = new Field(Lang.key("Waypoint name"), Waypoints.NAME_LIMIT);
   private final List<Entry> entries = new ArrayList<>(96);
   private final double[] otherX = new double[32];
   private final double[] otherZ = new double[32];
+  private final int[] otherIds = new int[32];
+  private final String[] otherNames = new String[32];
+  private final int[] seenId = new int[32];
+  private final float[] seenX = new float[32];
+  private final float[] seenY = new float[32];
+  private int seenPlayers;
+  private int hoveredPlayer = -1;
+  private int cardId = -1;
+  private MapPlayer card;
   private final double[] mobX = new double[160];
   private final double[] mobZ = new double[160];
   private final boolean[] mobHostile = new boolean[160];
@@ -176,6 +193,13 @@ public final class MapScreenView {
   private float scroll;
   private int hoveredRow = -1;
   private String builtQuery;
+  private BlockSearch.Result builtFound;
+  private BlockSearch.Result found = BlockSearch.Result.NONE;
+  private String requested = "";
+  private String typed = "";
+  private long typedAt;
+  private int focusKind = -1;
+  private float pulse;
   private int builtTab = -1;
   private int builtRevision = -1;
   private long builtAt;
@@ -261,6 +285,7 @@ public final class MapScreenView {
     zoom.step(dt, zoomGoal);
     step(data, dt);
     appear.frame(dt);
+    pulse += dt;
     float scale = scale() * hopDip(data, dt);
     view.set(camX, camZ, scale, 0.0F);
     view.origin(originX(), originY());
@@ -273,6 +298,9 @@ public final class MapScreenView {
       }
     }
 
+    if (!source.solid() && solidView()) {
+      solidView(false);
+    }
     tilt.update(dt);
     yawGlide.step(dt, yawGoal);
     pitchGlide.step(dt, pitchGoal);
@@ -531,6 +559,7 @@ public final class MapScreenView {
         }
       }
     }
+    highlights(c, t, p);
     int mobs = source.mobs(mobX, mobZ, mobHostile, mobIds, mobX.length);
     boolean heads = source.mobHeads();
     float pixels = solid() > 0.0F ? terrain.camera.pixelsPerBlock() : scale();
@@ -550,10 +579,36 @@ public final class MapScreenView {
             heads ? mobIds[i] : -1);
       }
     }
-    int others = source.players(otherX, otherZ, otherX.length);
+    int others = source.players(otherX, otherZ, otherIds, otherNames, otherX.length);
+    float headSize = Math.max(16.0F, Math.min(26.0F, pixels * 1.6F));
+    seenPlayers = 0;
+    hoveredPlayer = -1;
+    float nearest = headSize * 0.7F;
     for (int i = 0; i < others; i++) {
-      if (at(otherX[i], surface(otherX[i], otherZ[i]) + 1.0, otherZ[i], p)) {
-        MapMarks.other(c, t, p[0], p[1], OTHER);
+      if (!at(otherX[i], surface(otherX[i], otherZ[i]) + 1.0, otherZ[i], p)) {
+        continue;
+      }
+      seenId[seenPlayers] = otherIds[i];
+      seenX[seenPlayers] = p[0];
+      seenY[seenPlayers] = p[1];
+      float reach = (float) Math.hypot(p[0] - mouseX, p[1] - mouseY);
+      boolean over = pop == Pop.NONE && !dragging && !orbiting && reach < nearest;
+      if (over) {
+        nearest = reach;
+        hoveredPlayer = otherIds[i];
+      }
+      seenPlayers++;
+      float size =
+          headSize * appear.scale(otherIds[i]) * (otherIds[i] == hoveredPlayer ? 1.15F : 1.0F);
+      MapMarks.head(c, t, otherIds[i], otherNames[i], p[0], p[1], size, 1.0F);
+    }
+    if (hoveredPlayer >= 0) {
+      hoveredMark = -1;
+      for (int i = 0; i < seenPlayers; i++) {
+        if (seenId[i] == hoveredPlayer) {
+          String who = nameOf(hoveredPlayer, others);
+          MapMarks.label(c, t, who, seenX[i], seenY[i] + headSize * 0.5F + 6.0F, 1.0F);
+        }
       }
     }
     for (int i = 0; i < data.markCount; i++) {
@@ -598,6 +653,34 @@ public final class MapScreenView {
     }
   }
 
+  private void highlights(Canvas c, Theme t, float[] p) {
+    int n = found.size();
+    if (n == 0) {
+      return;
+    }
+    float pixels = solid() > 0.0F ? terrain.camera.pixelsPerBlock() : scale();
+    float radius = Math.max(8.0F, Math.min(10.5F, (1 << BlockSearch.CELL_SHIFT) * pixels * 0.5F));
+    BlockPalette palette = host.source().atlas().palette();
+    int visible = 0;
+    for (int j = 0; j < n && visible < SHOWN_LIMIT; j++) {
+      if (focusKind >= 0 && found.kind[j] != focusKind) {
+        continue;
+      }
+      if (!at(found.x[j], found.y[j], found.z[j], p)
+          || p[0] < -radius * 2.0F
+          || p[1] < -radius * 2.0F
+          || p[0] > screenW + radius * 2.0F
+          || p[1] > screenH + radius * 2.0F) {
+        continue;
+      }
+      visible++;
+      float phase = visible <= PULSE_LIMIT ? ((pulse / PULSE_SECONDS) + j * 0.137F) % 1.0F : -1.0F;
+      int kind = found.kind[j];
+      int sprite = palette == null ? 0 : palette.sprite(found.kinds.get(kind).id());
+      MapMarks.find(c, t, p[0], p[1], radius, phase, sprite, kind == focusKind);
+    }
+  }
+
   private static long markKey(HudData data, int i) {
     return MinimapElement.markKey(data, i);
   }
@@ -615,6 +698,15 @@ public final class MapScreenView {
     }
     hop = Math.min(1.0F, hop + dt / HOP_SECONDS);
     return 1.0F - HOP_DIP * (float) Math.sin(Math.PI * hop);
+  }
+
+  private String nameOf(int id, int count) {
+    for (int i = 0; i < count; i++) {
+      if (otherIds[i] == id) {
+        return otherNames[i];
+      }
+    }
+    return "";
   }
 
   private double surface(double x, double z) {
@@ -709,19 +801,23 @@ public final class MapScreenView {
 
   private static final int CONTROLS = 4;
 
+  private int controls() {
+    return host.source().solid() ? CONTROLS : CONTROLS - 1;
+  }
+
   private float controlsTop() {
     float size = MapChrome.BUTTON;
-    return screenH - MARGIN - (size * CONTROLS + 3.0F * (CONTROLS + 1));
+    return screenH - MARGIN - (size * controls() + 3.0F * (controls() + 1));
   }
 
   private void controls(Canvas c, Theme t, float shown, float dt) {
     float size = MapChrome.BUTTON;
     float x = controlsX();
-    float h = size * CONTROLS + 3.0F * (CONTROLS + 1);
+    float h = size * controls() + 3.0F * (controls() + 1);
     float y = controlsTop() + (1.0F - shown) * 12.0F;
     MapChrome.panel(c, t, frost, x, y, size + 6.0F, h, (size + 6.0F) * 0.5F);
     Glyph[] glyphs = {Glyph.PLUS, Glyph.MINUS, Glyph.LOCATE, Glyph.CUBE};
-    for (int i = 0; i < glyphs.length; i++) {
+    for (int i = 0; i < controls(); i++) {
       float by = y + 3.0F + i * (size + 3.0F);
       boolean over = MapChrome.hit(mouseX, mouseY, x + 3.0F, by, size, size) && pop == Pop.NONE;
       hovers[i].set(over ? 1.0F : 0.0F);
@@ -768,9 +864,9 @@ public final class MapScreenView {
   private boolean controlsDown(float mx, float my) {
     float size = MapChrome.BUTTON;
     float x = controlsX();
-    float h = size * CONTROLS + 3.0F * (CONTROLS + 1);
+    float h = size * controls() + 3.0F * (controls() + 1);
     float y = controlsTop();
-    for (int i = 0; i < CONTROLS; i++) {
+    for (int i = 0; i < controls(); i++) {
       float by = y + 3.0F + i * (size + 3.0F);
       if (MapChrome.hit(mx, my, x + 3.0F, by, size, size)) {
         switch (i) {
@@ -856,7 +952,9 @@ public final class MapScreenView {
     if (entries.isEmpty()) {
       String empty =
           tab == 0
-              ? Lang.tr("No waypoints in this dimension yet. Right-click the map to add one.")
+              ? builtQuery != null && !builtQuery.isEmpty()
+                  ? Lang.tr("Nothing found. Blocks only show up once you have explored them.")
+                  : Lang.tr("No waypoints in this dimension yet. Right-click the map to add one.")
               : Lang.tr("No friends are online.");
       wrap(c, t, empty, x + 22.0F, listTop + 12.0F, w - 44.0F);
     }
@@ -897,6 +995,20 @@ public final class MapScreenView {
     float iconY = y + ROW * 0.5F;
     switch (entry.kind) {
       case COORDS -> MapChrome.glyph(c, Glyph.PIN, iconX, iconY, 7.0F, t.ink());
+      case BLOCK -> {
+        BlockPalette palette = host.source().atlas().palette();
+        int sprite =
+            palette == null || entry.entity >= found.kinds.size()
+                ? 0
+                : palette.sprite(found.kinds.get(entry.entity).id());
+        boolean focus = entry.entity == focusKind;
+        if (focus) {
+          c.roundRect(iconX - 13.0F, iconY - 13.0F, 26.0F, 26.0F, 8.0F, t.red());
+        }
+        if (!c.blockIcon(sprite, iconX - 11.0F, iconY - 11.0F, 22.0F, 5.0F, 0x2A2A2E)) {
+          MapChrome.glyph(c, Glyph.FIND, iconX, iconY, 6.5F, focus ? t.red() : t.ink());
+        }
+      }
       case WAYPOINT -> {
         if (entry.color == Waypoints.DEATH_COLOR) {
           MapMarks.death(c, iconX, iconY, 11.0F, entry.color, 1.0F);
@@ -938,16 +1050,49 @@ public final class MapScreenView {
     }
   }
 
+  private void watchSearch(String query, HudData data, long now) {
+    if (!query.equals(typed)) {
+      typed = query;
+      typedAt = now;
+    }
+    boolean wanted =
+        tab == 0 && coordinates(query) == null && query.length() >= BlockSearch.MIN_QUERY;
+    if (!wanted) {
+      if (found != BlockSearch.Result.NONE || !requested.isEmpty()) {
+        found = BlockSearch.Result.NONE;
+        requested = "";
+        focusKind = -1;
+      }
+      return;
+    }
+    if (!query.equals(requested) && now - typedAt > SEARCH_DELAY) {
+      requested = query;
+      host.findBlocks(
+          query,
+          data.x,
+          data.z,
+          result -> {
+            if (query.equals(requested)) {
+              found = result;
+              focusKind = -1;
+            }
+          });
+    }
+  }
+
   private void rebuild(HudData data) {
     String query = search.text().strip().toLowerCase(Locale.ROOT);
     Waypoints waypoints = host.waypoints();
     long now = System.nanoTime();
+    watchSearch(query, data, now);
     if (query.equals(builtQuery)
         && tab == builtTab
+        && found == builtFound
         && waypoints.revision() == builtRevision
         && now - builtAt < 500_000_000L) {
       return;
     }
+    builtFound = found;
     builtQuery = query;
     builtTab = tab;
     builtRevision = waypoints.revision();
@@ -988,6 +1133,21 @@ public final class MapScreenView {
                 waypoint.color(),
                 -1,
                 waypoint,
+                true));
+      }
+      for (int i = 0; i < found.kinds.size(); i++) {
+        BlockSearch.Kind kind = found.kinds.get(i);
+        int metres = (int) Math.round(Math.hypot(kind.nearX() - data.x, kind.nearZ() - data.z));
+        entries.add(
+            new Entry(
+                Row.BLOCK,
+                kind.title(),
+                Lang.format("{0} found · {1}", kind.count(), WorldPins.range(metres)),
+                kind.nearX(),
+                kind.nearZ(),
+                0,
+                i,
+                null,
                 true));
       }
       return;
@@ -1062,6 +1222,7 @@ public final class MapScreenView {
       case NAME -> name(c, t, dt);
       case PICK -> pick(c, t);
       case MARK -> mark(c, t);
+      case PLAYER -> playerCard(c, t);
       default -> {}
     }
     c.popTransform();
@@ -1186,6 +1347,117 @@ public final class MapScreenView {
     }
   }
 
+  private static final float CARD_W = 262.0F;
+
+  private void playerCard(Canvas c, Theme t) {
+    MapPlayer fresh = host.player(cardId);
+    if (fresh == null) {
+      dismiss();
+      return;
+    }
+    card = fresh;
+    HudData data = host.data();
+    float h = 214.0F;
+    float[] at = popBox(CARD_W, h);
+    float x = at[0];
+    float y = at[1];
+    MapChrome.panel(c, t, frost, x, y, CARD_W, h, 18.0F);
+    MapMarks.head(
+        c, t, card.entityId(), card.name(), x + 16.0F + 20.0F, y + 16.0F + 20.0F, 40.0F, 1.0F);
+    c.text(
+        FontStyle.ROW,
+        c.fit(FontStyle.ROW, card.name(), CARD_W - 90.0F),
+        x + 70.0F,
+        y + 18.0F,
+        t.ink());
+    String line = card.mode().isEmpty() ? "" : card.mode();
+    if (card.ping() >= 0) {
+      line += (line.isEmpty() ? "" : " · ") + card.ping() + " ms";
+    }
+    if (card.level() > 0) {
+      line += (line.isEmpty() ? "" : " · ") + Lang.format("Level {0}", card.level());
+    }
+    c.text(
+        FontStyle.CAPTION,
+        c.fit(FontStyle.CAPTION, line, CARD_W - 90.0F),
+        x + 70.0F,
+        y + 40.0F,
+        t.grey());
+    if (!card.team().isEmpty()) {
+      c.text(
+          FontStyle.CAPTION,
+          c.fit(FontStyle.CAPTION, card.team(), CARD_W - 90.0F),
+          x + 70.0F,
+          y + 56.0F,
+          t.ink2());
+    }
+
+    float barY = y + 80.0F;
+    float barW = CARD_W - 32.0F;
+    float fill =
+        card.maxHealth() <= 0.0F
+            ? 0.0F
+            : Math.max(0.0F, Math.min(1.0F, card.health() / card.maxHealth()));
+    c.roundRect(x + 16.0F, barY, barW, 8.0F, 4.0F, Theme.withAlpha(t.ink(), 0.1F));
+    c.roundRect(
+        x + 16.0F,
+        barY,
+        Math.max(8.0F, barW * fill),
+        8.0F,
+        4.0F,
+        fill < 0.3F ? t.alert() : t.red());
+    String hp =
+        String.format(java.util.Locale.ROOT, "%.1f / %.0f", card.health(), card.maxHealth())
+            + (card.absorption() > 0.0F
+                ? String.format(java.util.Locale.ROOT, " +%.0f", card.absorption())
+                : "");
+    c.text(FontStyle.MONO, hp, x + 16.0F, barY + 14.0F, t.ink2());
+    String stats = Lang.format("Armor {0} · Food {1}", card.armor(), card.food());
+    c.text(
+        FontStyle.MONO,
+        stats,
+        x + CARD_W - 16.0F - c.textWidth(FontStyle.MONO, stats),
+        barY + 14.0F,
+        t.grey());
+
+    float rowY = y + 120.0F;
+    int metres = (int) Math.round(Math.hypot(card.x() - data.x, card.z() - data.z));
+    String where =
+        (long) Math.floor(card.x())
+            + "  "
+            + (long) Math.floor(card.y())
+            + "  "
+            + (long) Math.floor(card.z());
+    c.text(FontStyle.MONO, where, x + 16.0F, rowY, t.ink());
+    String away = WorldPins.range(metres);
+    c.text(
+        FontStyle.MONO,
+        away,
+        x + CARD_W - 16.0F - c.textWidth(FontStyle.MONO, away),
+        rowY,
+        t.grey());
+    String held = card.held().isEmpty() ? Lang.tr("Empty hands") : card.held();
+    c.text(
+        FontStyle.CAPTION,
+        Lang.tr("Holding") + "  " + c.fit(FontStyle.CAPTION, held, CARD_W - 110.0F),
+        x + 16.0F,
+        rowY + 20.0F,
+        t.ink2());
+    float chipX = x + 16.0F;
+    float chipY = rowY + 44.0F;
+    for (String state : card.states()) {
+      float width = c.textWidth(FontStyle.CAPTION, state) + 16.0F;
+      if (chipX + width > x + CARD_W - 16.0F) {
+        break;
+      }
+      chipX += MapChrome.chip(c, t, state, chipX, chipY, 0) + 6.0F;
+    }
+    float by = y + h - 40.0F;
+    float half = (CARD_W - 36.0F) / 2.0F;
+    pill(c, t, Lang.tr("Go to player"), x + 12.0F, by, half, false);
+    pill(c, t, Lang.tr("Copy name"), x + 24.0F + half, by, half, false);
+  }
+
   private void mark(Canvas c, Theme t) {
     if (focused == null) {
       return;
@@ -1285,6 +1557,15 @@ public final class MapScreenView {
     }
     if (panelDown(mx, my)) {
       return true;
+    }
+    if (hoveredPlayer >= 0) {
+      cardId = hoveredPlayer;
+      card = host.player(cardId);
+      if (card != null) {
+        show(Pop.PLAYER, mx + 14.0F, my + 14.0F);
+        Sound.play(Sound.Cue.STEP);
+        return true;
+      }
     }
     if (hoveredMark >= 0) {
       HudData data = host.data();
@@ -1390,6 +1671,9 @@ public final class MapScreenView {
         Sound.play(Sound.Cue.OFF);
         return true;
       }
+      if (entry.kind == Row.BLOCK) {
+        focusKind = focusKind == entry.entity ? -1 : entry.entity;
+      }
       if (entry.located) {
         glide(entry.x, entry.z);
         Sound.play(Sound.Cue.STEP);
@@ -1471,6 +1755,24 @@ public final class MapScreenView {
           Sound.play(Sound.Cue.ON);
         }
         dismiss();
+      }
+      case PLAYER -> {
+        float[] at = popBox(CARD_W, 214.0F);
+        float by = at[1] + 214.0F - 40.0F;
+        float half = (CARD_W - 36.0F) / 2.0F;
+        if (card != null && MapChrome.hit(mx, my, at[0] + 12.0F, by, half, 26.0F)) {
+          follow = false;
+          glide(card.x(), card.z());
+          Sound.play(Sound.Cue.STEP);
+        } else if (card != null && MapChrome.hit(mx, my, at[0] + 24.0F + half, by, half, 26.0F)) {
+          copy = card.name();
+          say(Lang.tr("Name copied"));
+          Sound.play(Sound.Cue.ON);
+        }
+        if (!MapChrome.hit(mx, my, at[0], at[1], CARD_W, 214.0F)
+            || (card != null && MapChrome.hit(mx, my, at[0] + 12.0F, by, CARD_W - 24.0F, 26.0F))) {
+          dismiss();
+        }
       }
       case MARK -> {
         float[] at = popBox(240.0F, 92.0F);
@@ -1721,6 +2023,11 @@ public final class MapScreenView {
       return search.type(codepoint);
     }
     return false;
+  }
+
+  public void query(String text) {
+    search.set(text);
+    tab = 0;
   }
 
   public boolean typing() {

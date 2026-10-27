@@ -19,8 +19,11 @@ import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.level.levelgen.Heightmap;
 
 final class Cartographer {
-  private static final long FRAME_NANOS = 700_000L;
-  private static final long BUSY_NANOS = 2_200_000L;
+  private static final float CALM_SHARE = 0.06F;
+  private static final float BUSY_SHARE = 0.11F;
+  private static final long MIN_NANOS = 250_000L;
+  private static final long MAX_NANOS = 1_400_000L;
+  private static final long SLOW_FRAME = 28_000_000L;
   private static final int BACKLOG = 48;
   private static final int NEAREST_LOOK = 512;
   private static final int REFRESH_TICKS = 10;
@@ -47,6 +50,10 @@ final class Cartographer {
   private final LongOpenHashSet dirty = new LongOpenHashSet();
   private final LongOpenHashSet waiting = new LongOpenHashSet();
   private final Region.Column column = new Region.Column();
+  private final boolean[] sectionAir = new boolean[48];
+  private final int[] sectionStamp = new int[48];
+  private int scanStamp;
+  private boolean solid;
   private final BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
   private int ticks;
   private int caveBand = Integer.MIN_VALUE;
@@ -126,12 +133,28 @@ final class Cartographer {
     watchCaves(level, player, cavesWanted);
   }
 
-  void frame(ClientLevel level, LocalPlayer player, long now) {
-    int backlog = surface.size() + caves.size();
+  boolean solid() {
+    return solid;
+  }
+
+  void solid(boolean on) {
+    solid = on;
+  }
+
+  int backlog() {
+    return surface.size() + caves.size();
+  }
+
+  void frame(ClientLevel level, LocalPlayer player, long now, long frameNanos) {
+    int backlog = backlog();
     if (backlog == 0) {
       return;
     }
-    long budget = backlog > BACKLOG ? BUSY_NANOS : FRAME_NANOS;
+    float share = backlog > BACKLOG ? BUSY_SHARE : CALM_SHARE;
+    long budget = Math.max(MIN_NANOS, Math.min(MAX_NANOS, (long) (frameNanos * share)));
+    if (frameNanos > SLOW_FRAME) {
+      budget = MIN_NANOS;
+    }
     int centreX = player.getBlockX() >> 4;
     int centreZ = player.getBlockZ() >> 4;
     long start = System.nanoTime();
@@ -230,6 +253,7 @@ final class Cartographer {
       }
       return;
     }
+    scanStamp++;
     boolean ceiling = level.dimensionType().hasCeiling();
     int minY = level.getMinY();
     int start =
@@ -313,7 +337,9 @@ final class Cartographer {
       column.block[i] = (char) swatches.block(state, below, world.palette());
       column.height[i] = (short) surfaceY;
       column.water[i] = 0;
-      overhang(chunk, x, z, surfaceY, minY, i);
+      if (solid) {
+        overhang(chunk, x, z, surfaceY, minY, i);
+      }
       return;
     }
     int fluidColor = swatches.color(swatch, state, level, cursor);
@@ -339,7 +365,17 @@ final class Cartographer {
   private void overhang(LevelChunk chunk, int x, int z, int top, int minY, int i) {
     int y = top - 1;
     int run = 1;
-    while (run < RUN_LIMIT && y > minY && !open(chunk.getBlockState(cursor.set(x, y, z)))) {
+    while (run < RUN_LIMIT && y > minY) {
+      if (!airIn(chunk, y, minY)) {
+        int floor = Math.max(minY, ((y - minY) >> 4 << 4) + minY);
+        int skip = Math.min(y - floor + 1, RUN_LIMIT - run);
+        run += skip;
+        y -= skip;
+        continue;
+      }
+      if (open(chunk.getBlockState(cursor.set(x, y, z)))) {
+        break;
+      }
       run++;
       y--;
     }
@@ -358,6 +394,18 @@ final class Cartographer {
       }
     }
     column.depth[i] = (byte) run;
+  }
+
+  private boolean airIn(LevelChunk chunk, int y, int minY) {
+    int index = (y - minY) >> 4;
+    if (index < 0 || index >= sectionAir.length) {
+      return false;
+    }
+    if (sectionStamp[index] != scanStamp) {
+      sectionStamp[index] = scanStamp;
+      sectionAir[index] = chunk.getSection(index).maybeHas(BlockState::isAir);
+    }
+    return sectionAir[index];
   }
 
   private boolean open(BlockState state) {

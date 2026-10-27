@@ -2,10 +2,12 @@ package me.cxiy.cxvisuals.mc.modules.map;
 
 import com.mojang.blaze3d.platform.Window;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import me.cxiy.cxvisuals.core.i18n.Lang;
 import me.cxiy.cxvisuals.gui.Theme;
 import me.cxiy.cxvisuals.gui.map.MapHost;
+import me.cxiy.cxvisuals.gui.map.MapPlayer;
 import me.cxiy.cxvisuals.gui.map.MapScreenView;
 import me.cxiy.cxvisuals.mc.gui.GlassPipeline;
 import me.cxiy.cxvisuals.mc.gui.McCanvas;
@@ -15,6 +17,7 @@ import me.cxiy.cxvisuals.mc.modules.hud.Hud;
 import me.cxiy.cxvisuals.mc.modules.social.FriendsLink;
 import me.cxiy.cxvisuals.mc.modules.waypoints.Markers;
 import me.cxiy.cxvisuals.modules.hud.HudData;
+import me.cxiy.cxvisuals.modules.map.BlockSearch;
 import me.cxiy.cxvisuals.modules.map.MapSource;
 import me.cxiy.cxvisuals.modules.waypoints.Waypoints;
 import net.minecraft.client.Minecraft;
@@ -82,6 +85,17 @@ public final class MapScreen extends Screen {
         @Override
         public boolean downloadArea(int minChunkX, int minChunkZ, int maxChunkX, int maxChunkZ) {
           return Downloads.area(minChunkX, minChunkZ, maxChunkX, maxChunkZ);
+        }
+
+        @Override
+        public void findBlocks(
+            String query, double nearX, double nearZ, Consumer<BlockSearch.Result> done) {
+          Maps.world().search(query, nearX, nearZ, done);
+        }
+
+        @Override
+        public MapPlayer player(int entityId) {
+          return Maps.player(entityId);
         }
 
         @Override

@@ -21,7 +21,7 @@ import net.minecraft.client.renderer.texture.TextureAtlas;
 import org.lwjgl.system.MemoryUtil;
 
 final class MapTextures {
-  private static final int UPLOADS_PER_FRAME = 10;
+  private static final int UPLOADS_PER_FRAME = 4;
 
   private static final class Slot {
     final DynamicTexture colors;
@@ -39,6 +39,8 @@ final class MapTextures {
   }
 
   private final Map<MapAtlas, Slot> slots = new IdentityHashMap<>(2);
+  private GpuTextureView iconView;
+  private TextureSetup icons;
   private ByteBuffer staging;
   private ByteBuffer zeros;
   private final int[] sprites = new int[BlockPalette.TABLE];
@@ -106,6 +108,25 @@ final class MapTextures {
           UPLOADS_PER_FRAME);
     }
     return slot.setup;
+  }
+
+  TextureSetup blocks() {
+    GpuTextureView view =
+        Minecraft.getInstance()
+            .getTextureManager()
+            .getTexture(TextureAtlas.LOCATION_BLOCKS)
+            .getTextureView();
+    if (iconView != view) {
+      iconView = view;
+      icons =
+          TextureSetup.singleTexture(
+              view, RenderSystem.getSamplerCache().getClampToEdge(FilterMode.NEAREST));
+    }
+    return icons;
+  }
+
+  float blockSize() {
+    return iconView == null ? 1.0F : iconView.texture().getWidth(0);
   }
 
   GpuTextureView grounds(MapAtlas atlas) {

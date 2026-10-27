@@ -1,7 +1,9 @@
 package me.cxiy.cxvisuals.gui.map;
 
 import java.util.List;
+import java.util.function.Consumer;
 import me.cxiy.cxvisuals.modules.hud.HudData;
+import me.cxiy.cxvisuals.modules.map.BlockSearch;
 import me.cxiy.cxvisuals.modules.map.MapSource;
 import me.cxiy.cxvisuals.modules.waypoints.Waypoints;
 
@@ -23,6 +25,10 @@ public interface MapHost {
   void shareArea(int minChunkX, int minChunkZ, int maxChunkX, int maxChunkZ, Waypoints.Target to);
 
   boolean downloadArea(int minChunkX, int minChunkZ, int maxChunkX, int maxChunkZ);
+
+  void findBlocks(String query, double nearX, double nearZ, Consumer<BlockSearch.Result> done);
+
+  MapPlayer player(int entityId);
 
   String notice();
 }

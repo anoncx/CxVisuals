@@ -16,7 +16,8 @@ public final class MapChrome {
     SIDEBAR,
     PIN,
     DOWNLOAD,
-    CUBE
+    CUBE,
+    FIND
   }
 
   public static final float BUTTON = 34.0F;
@@ -176,6 +177,10 @@ public final class MapChrome {
       case SIDEBAR -> {
         c.roundRectBorder(cx - r, cy - r * 0.8F, r * 2.0F, r * 1.6F, r * 0.35F, s, ink);
         line(c, ink, cx + r * 0.25F, cy - r * 0.8F, cx + r * 0.25F, cy + r * 0.8F);
+      }
+      case FIND -> {
+        c.roundRectBorder(cx - r, cy - r, r * 1.5F, r * 1.5F, r * 0.75F, s, ink);
+        line(c, ink, cx + r * 0.2F, cy + r * 0.2F, cx + r * 0.95F, cy + r * 0.95F);
       }
       case CUBE -> {
         float w = r * 0.92F;

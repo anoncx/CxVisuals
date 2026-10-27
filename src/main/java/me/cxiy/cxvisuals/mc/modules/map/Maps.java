@@ -2,10 +2,12 @@ package me.cxiy.cxvisuals.mc.modules.map;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import me.cxiy.cxvisuals.core.i18n.Lang;
 import me.cxiy.cxvisuals.core.module.ClientSettings;
 import me.cxiy.cxvisuals.gui.Themes;
+import me.cxiy.cxvisuals.gui.map.MapPlayer;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
 import me.cxiy.cxvisuals.mc.McKeyBinder;
 import me.cxiy.cxvisuals.mc.modules.hud.Hud;
@@ -25,11 +27,13 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.multiplayer.PlayerInfo;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.monster.Enemy;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 
 public final class Maps {
@@ -43,6 +47,9 @@ public final class Maps {
   private static KeyMapping zoomOutKey;
   private static Path root;
   private static String placed = "";
+  private static long lastFrame;
+  private static final long MAX_FRAME_NANOS = 100_000_000L;
+  private static final int BUSY_BACKLOG = 24;
   private static String notice = "";
   private static Themes themes;
   private static final MapSource SOURCE =
@@ -68,6 +75,11 @@ public final class Maps {
         }
 
         @Override
+        public boolean solid() {
+          return module.solid.get();
+        }
+
+        @Override
         public int terrain() {
           return module.terrain.get().ordinal();
         }
@@ -83,7 +95,7 @@ public final class Maps {
         }
 
         @Override
-        public int players(double[] x, double[] z, int max) {
+        public int players(double[] x, double[] z, int[] ids, String[] names, int max) {
           Minecraft mc = Minecraft.getInstance();
           if (mc.level == null || !module.players.get()) {
             return 0;
@@ -95,6 +107,8 @@ public final class Maps {
             if (player != mc.player && !player.isInvisible()) {
               x[count] = player.getX();
               z[count] = player.getZ();
+              ids[count] = player.getId();
+              names[count] = player.getGameProfile().name();
               count++;
             }
           }
@@ -230,6 +244,11 @@ public final class Maps {
     }
     module.atlas.frame();
     cartographer.sprites();
+    boolean solid = module.solid.get();
+    if (solid && !cartographer.solid()) {
+      cartographer.everything(mc.level, mc.player, mc.options.getEffectiveRenderDistance());
+    }
+    cartographer.solid(solid);
     cartographer.tick(mc.level, mc.player, module.caves.get() == MapModule.Caves.AUTO);
     world.tick(
         System.nanoTime(),
@@ -240,6 +259,57 @@ public final class Maps {
     String out = notice;
     notice = "";
     return out;
+  }
+
+  public static MapPlayer player(int entityId) {
+    Minecraft mc = Minecraft.getInstance();
+    if (mc.level == null || !(mc.level.getEntity(entityId) instanceof AbstractClientPlayer who)) {
+      return null;
+    }
+    PlayerInfo info =
+        mc.getConnection() == null ? null : mc.getConnection().getPlayerInfo(who.getUUID());
+    List<String> states = new ArrayList<>(4);
+    if (who.isShiftKeyDown()) {
+      states.add(Lang.tr("Sneaking"));
+    }
+    if (who.isSprinting()) {
+      states.add(Lang.tr("Sprinting"));
+    }
+    if (who.isFallFlying()) {
+      states.add(Lang.tr("Gliding"));
+    }
+    if (who.isSwimming() || who.isInWater()) {
+      states.add(Lang.tr("Swimming"));
+    }
+    if (who.isOnFire()) {
+      states.add(Lang.tr("Burning"));
+    }
+    if (who.isUsingItem()) {
+      states.add(Lang.tr("Using an item"));
+    }
+    ItemStack held = who.getMainHandItem();
+    String mode =
+        info == null || info.getGameMode() == null
+            ? ""
+            : info.getGameMode().getShortDisplayName().getString();
+    return new MapPlayer(
+        entityId,
+        who.getGameProfile().name(),
+        who.getUUID().toString(),
+        mode,
+        info == null ? -1 : info.getLatency(),
+        who.getHealth(),
+        who.getMaxHealth(),
+        who.getAbsorptionAmount(),
+        who.getArmorValue(),
+        who.getFoodData().getFoodLevel(),
+        who.experienceLevel,
+        held.isEmpty() ? "" : held.getHoverName().getString(),
+        who.getTeam() == null ? "" : who.getTeam().getName(),
+        who.getX(),
+        who.getY(),
+        who.getZ(),
+        states);
   }
 
   public static BlockPalette palette() {
@@ -303,9 +373,13 @@ public final class Maps {
   }
 
   public static void frame() {
+    long now = System.nanoTime();
+    long elapsed = lastFrame == 0L ? 0L : Math.min(now - lastFrame, MAX_FRAME_NANOS);
+    lastFrame = now;
     Minecraft mc = Minecraft.getInstance();
     if (live() && mc.level != null && mc.player != null) {
-      cartographer.frame(mc.level, mc.player, System.currentTimeMillis());
+      module.atlas.pace(cartographer.backlog() > BUSY_BACKLOG);
+      cartographer.frame(mc.level, mc.player, System.currentTimeMillis(), elapsed);
     }
   }
 

@@ -60,6 +60,7 @@ public final class McCanvas implements Canvas {
   private static final MapTextures MAPS = new MapTextures();
   private static final MobFaces MOBS = new MobFaces();
   private static final TerrainRenderer TERRAIN = new TerrainRenderer(MAPS);
+  private static final int SPRITE_VALID = 1 << 29;
   private static final float TERRAIN_SAMPLES = 1.5F;
   private static final float TERRAIN_LIMIT = 4096.0F;
   private static final ChatLines CHAT = new ChatLines();
@@ -680,6 +681,47 @@ public final class McCanvas implements Canvas {
             bounds,
             depth(),
             cut(matrix)));
+    return true;
+  }
+
+  @Override
+  public boolean blockIcon(
+      int sprite, float x, float y, float size, float radius, int backing) {
+    if (!shapes || alpha <= 0.002F || (sprite & SPRITE_VALID) == 0 || !FacePipeline.usable()) {
+      return false;
+    }
+    TextureSetup setup = MAPS.blocks();
+    if (setup == null) {
+      return false;
+    }
+    Matrix3x2f matrix = pose();
+    ScreenRectangle bounds = bounds(matrix, x, y, x + size, y + size);
+    if (bounds == null) {
+      return true;
+    }
+    float atlas = MAPS.blockSize();
+    float edge = 8 << ((sprite >> 13) & 7);
+    float u0 = (sprite & 0x1FFF) / atlas;
+    float v0 = ((sprite >> 16) & 0x1FFF) / atlas;
+    ScreenRectangle scissor = clipDepth > 0 ? clips[clipDepth - 1] : null;
+    int color = (Math.round(255.0F * Math.min(1.0F, alpha)) << 24) | (backing & 0x00FFFFFF);
+    state.addGuiElement(
+        new MobFaceRenderState(
+            matrix,
+            x,
+            y,
+            size,
+            radius,
+            u0,
+            v0,
+            u0 + edge / atlas,
+            v0 + edge / atlas,
+            color,
+            FacePipeline.MOB,
+            setup,
+            scissor,
+            bounds,
+            depth()));
     return true;
   }
 

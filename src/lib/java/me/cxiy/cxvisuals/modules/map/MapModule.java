@@ -30,6 +30,7 @@ public final class MapModule extends Module {
   public final MapAtlas atlas = new MapAtlas();
   public final EnumSetting<Terrain> terrain;
   public final BoolSetting clouds;
+  public final BoolSetting solid;
   public final EnumSetting<Caves> caves;
   public final BoolSetting waypoints;
   public final BoolSetting friends;
@@ -51,6 +52,9 @@ public final class MapModule extends Module {
     clouds =
         look.bool("clouds", "Clouds", true)
             .describe("Places you haven't explored yet hide under slowly drifting clouds.");
+    solid =
+        look.bool("solid", "3D map", false)
+            .describe("Builds the data for 3D. Off scans faster and hides the 3D button.");
     caves =
         look.enumOf("caves", "Cave view", Caves.AUTO, "Automatic", "Off")
             .describe("Underground, the minimap shows the cave around you instead of the surface.");

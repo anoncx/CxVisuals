@@ -105,6 +105,11 @@ public final class MapMarks {
     c.popAlpha();
   }
 
+  public static void head(
+      Canvas c, Theme t, int entityId, String name, float x, float y, float size, float alpha) {
+    friend(c, t, entityId, name, x, y, size, alpha);
+  }
+
   public static void other(Canvas c, Theme t, float x, float y, float size) {
     float half = size * 0.5F;
     c.roundRect(x - half - 1.5F, y - half - 1.5F, size + 3.0F, size + 3.0F, half + 1.5F, WHITE);
@@ -132,6 +137,32 @@ public final class MapMarks {
     c.roundRect(
         x - dotHalf - 1.0F, y - dotHalf - 1.0F, dot + 2.0F, dot + 2.0F, dotHalf + 1.0F, ring);
     c.roundRect(x - dotHalf, y - dotHalf, dot, dot, dotHalf, fill);
+  }
+
+  public static void find(
+      Canvas c, Theme t, float x, float y, float radius, float phase, int sprite, boolean focused) {
+    float tile = Math.max(15.0F, radius * 1.9F);
+    float half = tile * 0.5F;
+    int rim = focused ? t.red() : WHITE;
+    if (phase >= 0.0F) {
+      float grow = half * (1.0F + 0.8F * phase);
+      c.roundRectBorder(
+          x - grow,
+          y - grow,
+          grow * 2.0F,
+          grow * 2.0F,
+          grow * 0.4F,
+          1.6F,
+          Theme.withAlpha(t.red(), 0.8F * (1.0F - phase)));
+    }
+    float ring = Math.max(1.5F, tile * 0.09F);
+    float outer = half + ring;
+    float corner = outer * 0.4F;
+    c.shadow(x - outer, y - outer, outer * 2.0F, outer * 2.0F, corner, 6.0F, 1.5F, SHADOW);
+    c.roundRect(x - outer, y - outer, outer * 2.0F, outer * 2.0F, corner, rim);
+    if (!c.blockIcon(sprite, x - half, y - half, tile, half * 0.4F, 0x2A2A2E)) {
+      c.roundRect(x - half, y - half, tile, tile, half * 0.4F, t.red());
+    }
   }
 
   public static void label(Canvas c, Theme t, String text, float x, float y, float alpha) {

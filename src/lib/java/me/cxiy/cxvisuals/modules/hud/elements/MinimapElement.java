@@ -41,7 +41,7 @@ public final class MinimapElement extends HudElement {
   private static final float ARROW = 7.0F;
   private static final float WAYPOINT = 7.0F;
   private static final float FRIEND = 13.0F;
-  private static final float OTHER = 5.0F;
+  private static final float OTHER = 11.0F;
   private static final float EDGE = 8.0F;
   private static final float AWAY = 0.55F;
   private static final float NORTH = 12.0F;
@@ -66,6 +66,8 @@ public final class MinimapElement extends HudElement {
   private final Spring zoomGlide = Spring.critical(260.0F);
   private final double[] otherX = new double[MAX_PLAYERS];
   private final double[] otherZ = new double[MAX_PLAYERS];
+  private final int[] otherIds = new int[MAX_PLAYERS];
+  private final String[] otherNames = new String[MAX_PLAYERS];
   private final double[] mobX = new double[MAX_MOBS];
   private final double[] mobZ = new double[MAX_MOBS];
   private final boolean[] mobHostile = new boolean[MAX_MOBS];
@@ -179,12 +181,20 @@ public final class MinimapElement extends HudElement {
               heads ? mobIds[i] : -1);
         }
       }
-      int count = source.players(otherX, otherZ, MAX_PLAYERS);
+      int count = source.players(otherX, otherZ, otherIds, otherNames, MAX_PLAYERS);
       for (int i = 0; i < count; i++) {
         float px = view.screenX(otherX[i], otherZ[i]) - centreX;
         float py = view.screenY(otherX[i], otherZ[i]) - centreY;
         if (inside(px, py, reach, circle)) {
-          MapMarks.other(c, t, centreX + px, centreY + py, OTHER);
+          MapMarks.head(
+              c,
+              t,
+              otherIds[i],
+              otherNames[i],
+              centreX + px,
+              centreY + py,
+              OTHER * appear.scale(otherIds[i]),
+              1.0F);
         }
       }
     }

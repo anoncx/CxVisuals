@@ -26,12 +26,22 @@ public final class MapWorld implements TileBaker.Source {
   private static final int KEEP_REGIONS = 24;
   private static final int KEEP_THUMBS = 768;
   private static final int KEEP_CAVES = 12;
+  private static final int SEARCH_DISK = 600;
   private static final long SAVE_NANOS = 20_000_000_000L;
 
   private final MapAtlas atlas;
   private final BlockPalette palette = new BlockPalette();
   private final TileBaker tiles = new TileBaker(this);
   private final TileBaker thumbnails = new TileBaker(this);
+  private final ExecutorService searcher =
+      Executors.newSingleThreadExecutor(
+          run -> {
+            Thread thread = new Thread(run, "CxVisuals Map Search");
+            thread.setDaemon(true);
+            thread.setPriority(Thread.MIN_PRIORITY);
+            return thread;
+          });
+  private volatile int searchTicket;
   private final ExecutorService worker;
   private final Consumer<String> warn;
   private final Map<Long, Region> surface = new ConcurrentHashMap<>();
@@ -385,6 +395,48 @@ public final class MapWorld implements TileBaker.Source {
     }
   }
 
+  public void search(String query, double nearX, double nearZ, Consumer<BlockSearch.Result> done) {
+    Path dir = folder;
+    BlockSearch.Accumulator accumulator =
+        dir == null ? null : BlockSearch.accumulator(palette, query, nearX, nearZ);
+    int ticket = ++searchTicket;
+    if (accumulator == null || accumulator.empty()) {
+      done.accept(BlockSearch.Result.NONE);
+      return;
+    }
+    List<Region> live = new ArrayList<>(surface.values());
+    Set<Long> disk = new HashSet<>(known);
+    for (Region region : live) {
+      disk.remove(region.key());
+    }
+    searcher.execute(
+        () -> {
+          for (Region region : live) {
+            accumulator.add(region);
+          }
+          int read = 0;
+          for (long key : disk) {
+            if (ticket != searchTicket || read++ >= SEARCH_DISK) {
+              break;
+            }
+            Region region = read(dir, Region.keyX(key), Region.keyZ(key), palette);
+            if (region != null) {
+              accumulator.add(region);
+            }
+          }
+          if (ticket != searchTicket) {
+            return;
+          }
+          BlockSearch.Result result = accumulator.finish();
+          later.add(
+              () -> {
+                if (ticket == searchTicket) {
+                  done.accept(result);
+                }
+              });
+        });
+  }
+
   public void execute(Runnable task) {
     worker.execute(task);
   }
@@ -446,6 +498,7 @@ public final class MapWorld implements TileBaker.Source {
 
   public void shutdown() {
     saveAll();
+    searcher.shutdownNow();
     worker.shutdown();
   }
 
