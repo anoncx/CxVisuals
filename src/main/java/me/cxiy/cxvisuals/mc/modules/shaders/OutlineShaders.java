@@ -43,6 +43,7 @@ public final class OutlineShaders {
           .putVec4()
           .putVec4()
           .putVec4()
+          .putMat4f()
           .putVec4()
           .get();
   private static final int UNIFORM_USAGE = GpuBuffer.USAGE_UNIFORM | GpuBuffer.USAGE_COPY_DST;
@@ -62,7 +63,8 @@ public final class OutlineShaders {
   private static final Matrix4f LENS = new Matrix4f();
   private static final Matrix4f UNPROJECT = new Matrix4f();
   private static final Vector4f CORNER = new Vector4f();
-  private static final float[] POSE = new float[4];
+  private static final Matrix4f POSE = new Matrix4f();
+  private static final Matrix4f UNPOSE = new Matrix4f();
   private static final float[] SPAN = new float[6];
 
   private static GpuBuffer uniforms;
@@ -114,18 +116,7 @@ public final class OutlineShaders {
   }
 
   private static void span(
-      float lowX,
-      float lowY,
-      float lowZ,
-      float highX,
-      float highY,
-      float highZ,
-      float pivotX,
-      float pivotY,
-      float pivotZ) {
-    float cos = POSE[1];
-    float sin = POSE[2];
-    float scale = POSE[3];
+      float lowX, float lowY, float lowZ, float highX, float highY, float highZ) {
     SPAN[0] = Float.MAX_VALUE;
     SPAN[1] = Float.MAX_VALUE;
     SPAN[2] = Float.MAX_VALUE;
@@ -133,18 +124,18 @@ public final class OutlineShaders {
     SPAN[4] = -Float.MAX_VALUE;
     SPAN[5] = -Float.MAX_VALUE;
     for (int corner = 0; corner < 8; corner++) {
-      float x = ((corner & 1) == 0 ? lowX : highX) - pivotX;
-      float y = ((corner & 2) == 0 ? lowY : highY) - pivotY;
-      float z = ((corner & 4) == 0 ? lowZ : highZ) - pivotZ;
-      float worldX = pivotX + (cos * x + sin * z) * scale;
-      float worldY = pivotY + POSE[0] + y * scale;
-      float worldZ = pivotZ + (cos * z - sin * x) * scale;
-      SPAN[0] = Math.min(SPAN[0], worldX);
-      SPAN[1] = Math.min(SPAN[1], worldY);
-      SPAN[2] = Math.min(SPAN[2], worldZ);
-      SPAN[3] = Math.max(SPAN[3], worldX);
-      SPAN[4] = Math.max(SPAN[4], worldY);
-      SPAN[5] = Math.max(SPAN[5], worldZ);
+      CORNER.set(
+          (corner & 1) == 0 ? lowX : highX,
+          (corner & 2) == 0 ? lowY : highY,
+          (corner & 4) == 0 ? lowZ : highZ,
+          1.0F);
+      POSE.transform(CORNER);
+      SPAN[0] = Math.min(SPAN[0], CORNER.x);
+      SPAN[1] = Math.min(SPAN[1], CORNER.y);
+      SPAN[2] = Math.min(SPAN[2], CORNER.z);
+      SPAN[3] = Math.max(SPAN[3], CORNER.x);
+      SPAN[4] = Math.max(SPAN[4], CORNER.y);
+      SPAN[5] = Math.max(SPAN[5], CORNER.z);
     }
   }
 
@@ -219,15 +210,22 @@ public final class OutlineShaders {
     float highZ = (float) (state.pos().getZ() + box.maxZ - camera.pos.z);
     Matrix4f projection = EntityShaders.lens();
     LENS.set(projection).mul(camera.viewRotationMatrix);
-    float pivotX = (float) (state.pos().getX() + 0.5 - camera.pos.x);
-    float pivotY = (float) (state.pos().getY() + 0.5 - camera.pos.y);
-    float pivotZ = (float) (state.pos().getZ() + 0.5 - camera.pos.z);
-    boolean popping = BlockPopEffects.outlinePose(state.pos().asLong(), POSE);
+    float originX = (float) (state.pos().getX() - camera.pos.x);
+    float originY = (float) (state.pos().getY() - camera.pos.y);
+    float originZ = (float) (state.pos().getZ() - camera.pos.z);
+    boolean popping = BlockPopEffects.outlinePose(state.pos().asLong(), UNPOSE);
+    float unit = 1.0F;
     boolean visible;
     if (popping) {
-      span(lowX, lowY, lowZ, highX, highY, highZ, pivotX, pivotY, pivotZ);
+      POSE.translation(originX, originY, originZ)
+          .mul(UNPOSE)
+          .translate(-originX, -originY, -originZ);
+      unit = (float) Math.cbrt(Math.abs(POSE.determinant3x3()));
+      POSE.invert(UNPOSE);
+      span(lowX, lowY, lowZ, highX, highY, highZ);
       visible = frame(main, SPAN[0], SPAN[1], SPAN[2], SPAN[3], SPAN[4], SPAN[5]);
     } else {
+      UNPOSE.identity();
       visible = frame(main, lowX, lowY, lowZ, highX, highY, highZ);
     }
     if (!visible) {
@@ -256,12 +254,8 @@ public final class OutlineShaders {
               .putVec4(zeroToOne ? 1.0F : 2.0F, zeroToOne ? 0.0F : -1.0F, 0.0F, 0.0F)
               .putVec4(red(first), green(first), blue(first), 1.0F)
               .putVec4(red(second), green(second), blue(second), 1.0F)
-              .putVec4(pivotX, pivotY, pivotZ, 0.0F)
-              .putVec4(
-                  popping ? POSE[1] : 1.0F,
-                  popping ? POSE[2] : 0.0F,
-                  popping ? POSE[3] : 0.0F,
-                  popping ? POSE[0] : 0.0F)
+              .putMat4f(UNPOSE)
+              .putVec4(unit, 0.0F, 0.0F, 0.0F)
               .get();
       encoder.writeToBuffer(uniforms.slice(), data);
     }

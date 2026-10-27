@@ -26,6 +26,22 @@ public final class AnimationsModule extends Module {
     OFF
   }
 
+  public enum BlockPlace {
+    POP,
+    DROP,
+    GROW,
+    JELLY,
+    TUMBLE
+  }
+
+  public enum BlockBreak {
+    SHRINK,
+    SINK,
+    BURST,
+    FLING,
+    OFF
+  }
+
   public enum Source {
     SELF,
     EVERYONE
@@ -51,9 +67,10 @@ public final class AnimationsModule extends Module {
   public final BoolSetting tooltips;
   public final BoolSetting lists;
   public final EnumSetting<Source> blocksSource;
+  public final EnumSetting<BlockPlace> blocksPlace;
+  public final EnumSetting<BlockBreak> blocksBreak;
   public final NumberSetting blocksTime;
   public final NumberSetting blocksSpin;
-  public final BoolSetting blocksBreaks;
 
   public AnimationsModule(KeyBinder keys) {
     super(ID, "Animations", false, keys);
@@ -117,6 +134,16 @@ public final class AnimationsModule extends Module {
         world
             .enumOf("blocks_source", "Source", Source.EVERYONE, "Only you", "Everyone")
             .describe("Blocks pop in for everyone or only your own changes.");
+    blocksPlace =
+        world
+            .enumOf(
+                "blocks_place", "Placing", BlockPlace.POP, "Pop", "Drop", "Grow", "Jelly", "Tumble")
+            .describe("How a placed block arrives.");
+    blocksBreak =
+        world
+            .enumOf(
+                "blocks_break", "Breaking", BlockBreak.SHRINK, "Shrink", "Sink", "Burst", "Fling", "Off")
+            .describe("How a broken block leaves.");
     blocksTime =
         world
             .number("blocks_time", "Duration", 0.35, 0.1, 1.0, 0.05, "s")
@@ -125,10 +152,6 @@ public final class AnimationsModule extends Module {
         world
             .number("blocks_spin", "Spin", 90.0, 0.0, 360.0, 15.0, "°")
             .describe("Degrees the block rotates through while it settles.");
-    blocksBreaks =
-        world
-            .bool("blocks_breaks", "Breaking", true)
-            .describe("Broken blocks spin away instead of vanishing.");
   }
 
   public float seconds(float base) {

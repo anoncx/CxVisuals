@@ -8,7 +8,7 @@ layout(std140) uniform Outline {
     vec4 Lens;
     vec4 First;
     vec4 Second;
-    vec4 Pivot;
+    mat4 Unpose;
     vec4 Pop;
 };
 
@@ -24,13 +24,9 @@ void main() {
     vec3 at = point.xyz / point.w;
     float range = length(at);
     vec3 view = at;
-    float unit = 1.0;
-    if (Pop.z > 0.0) {
-        unit = Pop.z;
-        vec3 offset = at - Pivot.xyz - vec3(0.0, Pop.w, 0.0);
-        at = Pivot.xyz + vec3(Pop.x * offset.x - Pop.y * offset.z, offset.y, Pop.y * offset.x + Pop.x * offset.z) / unit;
-        view = vec3(Pop.x * view.x - Pop.y * view.z, view.y, Pop.y * view.x + Pop.x * view.z);
-    }
+    float unit = Pop.x;
+    at = (Unpose * vec4(at, 1.0)).xyz;
+    view = mat3(Unpose) * view * unit;
     float slack = 0.0015 + range * 0.001;
     float reach = slack / unit;
     vec3 below = at - Low.xyz;

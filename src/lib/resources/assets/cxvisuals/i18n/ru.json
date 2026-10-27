@@ -1278,5 +1278,15 @@
   "Blocks pop in for everyone or only your own changes.": "Блоки появляются у всех или только при твоих собственных изменениях.",
   "How long a placed or broken block animates.": "Как долго анимируется установленный или разрушенный блок.",
   "Degrees the block rotates through while it settles.": "Градусы поворота блока, пока он встаёт на место.",
-  "Broken blocks spin away instead of vanishing.": "Разрушенные блоки закручиваются, вместо того чтобы просто исчезнуть."
+  "Placing": "Установка",
+  "Shrink": "Сжатие",
+  "Sink": "Погружение",
+  "Burst": "Разрыв",
+  "Fling": "Отлёт",
+  "Drop": "Падение",
+  "Grow": "Рост",
+  "Jelly": "Желе",
+  "Tumble": "Кувырок",
+  "How a placed block arrives.": "Как появляется установленный блок.",
+  "How a broken block leaves.": "Как исчезает разрушенный блок."
 }

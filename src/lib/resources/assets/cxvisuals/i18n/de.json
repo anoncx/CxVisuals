@@ -1278,5 +1278,15 @@
   "Blocks pop in for everyone or only your own changes.": "Blöcke ploppen für alle oder nur für deine eigenen Änderungen auf.",
   "How long a placed or broken block animates.": "Wie lange ein gesetzter oder abgebauter Block animiert.",
   "Degrees the block rotates through while it settles.": "Grad, die sich der Block dreht, bis er einrastet.",
-  "Broken blocks spin away instead of vanishing.": "Abgebaute Blöcke drehen sich weg, statt einfach zu verschwinden."
+  "Placing": "Setzen",
+  "Shrink": "Schrumpfen",
+  "Sink": "Versinken",
+  "Burst": "Zerplatzen",
+  "Fling": "Wegschleudern",
+  "Drop": "Fallen",
+  "Grow": "Wachsen",
+  "Jelly": "Wackelpudding",
+  "Tumble": "Purzeln",
+  "How a placed block arrives.": "Wie ein gesetzter Block erscheint.",
+  "How a broken block leaves.": "Wie ein abgebauter Block verschwindet."
 }
