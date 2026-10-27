@@ -1,5 +1,6 @@
 package me.cxiy.cxvisuals.modules.map;
 
+import java.util.Arrays;
 import me.cxiy.cxvisuals.modules.map.Relief.Terrain;
 
 public final class TileBaker {
@@ -7,10 +8,6 @@ public final class TileBaker {
     Region region(int layer, int regionX, int regionZ);
 
     int[] thumbnail(int regionX, int regionZ);
-
-    default int sprite(int block) {
-      return 0;
-    }
   }
 
   public static final int PIXELS = TileKey.EDGE * TileKey.EDGE;
@@ -31,8 +28,12 @@ public final class TileBaker {
     this.source = source;
   }
 
-  public void sprites(long key, int[] ids) {
-    java.util.Arrays.fill(ids, 0);
+  public static final int HEIGHT_OFFSET = 64;
+  public static final int HEIGHT_MAX = 511;
+  public static final int WATER_BIT = 1 << 25;
+
+  public void details(long key, int[] ids) {
+    Arrays.fill(ids, 0);
     if (TileKey.level(key) != 0) {
       return;
     }
@@ -50,7 +51,11 @@ public final class TileBaker {
         int lx = baseX + px;
         int lz = baseZ + pz;
         if (region.seen(lx, lz)) {
-          ids[(pz << TileKey.EDGE_SHIFT) | px] = source.sprite(region.block[Region.index(lx, lz)]);
+          int at = Region.index(lx, lz);
+          int block = Math.min(region.block[at], BlockPalette.TABLE - 1);
+          int height = Math.max(0, Math.min(HEIGHT_MAX, region.height[at] + HEIGHT_OFFSET));
+          int water = region.water[at] != 0 ? WATER_BIT : 0;
+          ids[(pz << TileKey.EDGE_SHIFT) | px] = block | (height << 16) | water;
         }
       }
     }

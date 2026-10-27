@@ -29,6 +29,7 @@ public final class MapModule extends Module {
   public final BoolSetting waypoints;
   public final BoolSetting friends;
   public final BoolSetting players;
+  public final BoolSetting mobs;
   public final PanelSetting storage;
 
   public MapModule(KeyBinder keys, Runnable open) {
@@ -54,6 +55,11 @@ public final class MapModule extends Module {
             .bool("friends", "Friends", true)
             .describe("Friends on your server who share their location.");
     players = marks.bool("players", "Nearby players", true);
+    mobs =
+        marks
+            .bool("mobs", "Mobs", true)
+            .describe(
+                "Animals as soft dots and monsters in red, in the range the game shows them.");
     storage = page.group("This world").panel("storage");
     Group shortcuts = page.group("Shortcuts");
     shortcuts.key("open_key", "Open map", keys.bind(OPEN_KEY, "Open map", KEY_M));

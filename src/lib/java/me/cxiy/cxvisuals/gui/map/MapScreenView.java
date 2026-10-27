@@ -62,7 +62,8 @@ public final class MapScreenView {
   private static final float RADIUS = 20.0F;
   private static final float ROW = 46.0F;
   private static final float LIST_TOP = 104.0F;
-  private static final float MENU_W = 210.0F;
+  private static final float MENU_W = 236.0F;
+  private static final float MENU_HEAD = 32.0F;
   private static final float MENU_ROW = 34.0F;
   private static final float PICK_W = 230.0F;
   private static final float CARD_H = 58.0F;
@@ -80,10 +81,15 @@ public final class MapScreenView {
   private static final float START_SCALE = 2.0F;
   private static final float SCALE_BAR = 110.0F;
   private static final int CHUNK = 16;
+  private static final int FROST_LEVELS = 3;
 
   private final MapHost host;
   private final Viewport view = new Viewport();
   private final ChartBatch batch = new ChartBatch();
+  private final ChartBatch frostBatch = new ChartBatch();
+  private MapChrome.Frost frost;
+  private Canvas frostCanvas;
+  private Theme frostTheme;
   private final Anim open = Anim.reveal(0.0F);
   private final Anim panel = Anim.move(1.0F);
   private final Anim popAnim = Anim.pop(0.0F);
@@ -95,6 +101,9 @@ public final class MapScreenView {
   private final List<Entry> entries = new ArrayList<>(96);
   private final double[] otherX = new double[32];
   private final double[] otherZ = new double[32];
+  private final double[] mobX = new double[160];
+  private final double[] mobZ = new double[160];
+  private final boolean[] mobHostile = new boolean[160];
 
   private float screenW = 1280.0F;
   private float screenH = 720.0F;
@@ -155,6 +164,7 @@ public final class MapScreenView {
 
   public MapScreenView(MapHost host) {
     this.host = host;
+    this.frost = this::frosted;
     for (int i = 0; i < hovers.length; i++) {
       hovers[i] = Anim.hover(0.0F);
     }
@@ -230,13 +240,15 @@ public final class MapScreenView {
       }
     }
 
+    frostCanvas = c;
+    frostTheme = t;
     float shown = open.get();
     c.pushAlpha(shown);
     c.pushTransform(0.97F + 0.03F * shown, screenW * 0.5F, screenH * 0.5F);
     c.pushClip(0.0F, 0.0F, screenW, screenH);
     batch.build(source.atlas(), view, TileKey.SURFACE, 0.0F, 0.0F, screenW, screenH, 4);
     batch.masked = false;
-    batch.roundness = 0.0F;
+    batch.radius = 0.0F;
     batch.clouds = source.clouds() ? 1.0F : 0.0F;
     batch.fog = MapStyle.fog(t);
     batch.alpha = 1.0F;
@@ -258,6 +270,17 @@ public final class MapScreenView {
     popovers(c, t, dt);
     toast(c, t, dt);
     c.popAlpha();
+  }
+
+  private void frosted(float x, float y, float w, float h, float radius) {
+    MapSource source = host.source();
+    frostBatch.build(source.atlas(), view, TileKey.SURFACE, x, y, w, h, 2, FROST_LEVELS);
+    frostBatch.masked = true;
+    frostBatch.radius = radius;
+    frostBatch.clouds = source.clouds() ? 1.0F : 0.0F;
+    frostBatch.fog = MapStyle.fog(frostTheme);
+    frostBatch.alpha = 1.0F;
+    frostCanvas.chart(frostBatch);
   }
 
   private void step(HudData data, float dt) {
@@ -372,6 +395,17 @@ public final class MapScreenView {
         }
       }
     }
+    int mobs = source.mobs(mobX, mobZ, mobHostile, mobX.length);
+    float mobSize = Math.max(4.0F, Math.min(9.0F, scale() * 0.6F));
+    for (int i = 0; i < mobs; i++) {
+      MapMarks.mob(
+          c,
+          t,
+          view.screenX(mobX[i], mobZ[i]),
+          view.screenY(mobX[i], mobZ[i]),
+          mobSize,
+          mobHostile[i]);
+    }
     int others = source.players(otherX, otherZ, otherX.length);
     for (int i = 0; i < others; i++) {
       MapMarks.other(
@@ -401,7 +435,7 @@ public final class MapScreenView {
     }
     float px = view.screenX(data.x, data.z);
     float py = view.screenY(data.x, data.z);
-    MapMarks.player(c, px, py, ARROW, (float) Math.toRadians(data.yaw + 180.0F), t.red());
+    MapMarks.player(c, t, px, py, ARROW, (float) Math.toRadians(data.yaw + 180.0F));
     if (hoveredMark >= 0 && !data.markFriend[hoveredMark]) {
       int metres =
           (int)
@@ -440,7 +474,7 @@ public final class MapScreenView {
     width = Math.min(width, Math.max(200.0F, screenW - panelW() - MARGIN * 4.0F - 200.0F));
     float x = MARGIN;
     float y = MARGIN - (1.0F - shown) * 12.0F;
-    MapChrome.panel(c, t, x, y, width, CARD_H, RADIUS * 0.8F);
+    MapChrome.panel(c, t, frost, x, y, width, CARD_H, RADIUS * 0.8F);
     c.text(
         FontStyle.ROW, c.fit(FontStyle.ROW, title, width - 32.0F), x + 16.0F, y + 11.0F, t.ink());
     float chipY = y + 33.0F;
@@ -472,7 +506,7 @@ public final class MapScreenView {
     float h = 34.0F;
     float x = MARGIN;
     float y = screenH - MARGIN - h + (1.0F - shown) * 12.0F;
-    MapChrome.panel(c, t, x, y, width, h, h * 0.5F);
+    MapChrome.panel(c, t, frost, x, y, width, h, h * 0.5F);
     c.text(
         FontStyle.MONO, place, x + 16.0F, y + (h - c.lineHeight(FontStyle.MONO)) * 0.5F, t.ink());
     float barX = x + 16.0F + textW + 18.0F;
@@ -496,11 +530,7 @@ public final class MapScreenView {
   }
 
   private float controlsX() {
-    return screenW
-        - panelW()
-        - (panel.get() > 0.01F ? MARGIN * 2.0F : MARGIN)
-        - MapChrome.BUTTON
-        - 6.0F;
+    return screenW - panelW() - MARGIN - MARGIN * panel.get() - MapChrome.BUTTON - 6.0F;
   }
 
   private void controls(Canvas c, Theme t, float shown, float dt) {
@@ -508,7 +538,7 @@ public final class MapScreenView {
     float x = controlsX();
     float h = size * 3.0F + 12.0F;
     float y = screenH - MARGIN - h + (1.0F - shown) * 12.0F;
-    MapChrome.panel(c, t, x, y, size + 6.0F, h, (size + 6.0F) * 0.5F);
+    MapChrome.panel(c, t, frost, x, y, size + 6.0F, h, (size + 6.0F) * 0.5F);
     Glyph[] glyphs = {Glyph.PLUS, Glyph.MINUS, Glyph.LOCATE};
     for (int i = 0; i < glyphs.length; i++) {
       float by = y + 3.0F + i * (size + 3.0F);
@@ -524,7 +554,7 @@ public final class MapScreenView {
     }
     float sy = MARGIN - (1.0F - shown) * 12.0F;
     float sx = x;
-    MapChrome.panel(c, t, sx, sy, size + 6.0F, size + 6.0F, (size + 6.0F) * 0.5F);
+    MapChrome.panel(c, t, frost, sx, sy, size + 6.0F, size + 6.0F, (size + 6.0F) * 0.5F);
     boolean over = MapChrome.hit(mouseX, mouseY, sx + 3.0F, sy + 3.0F, size, size);
     hovers[3].set(over ? 1.0F : 0.0F);
     hovers[3].update(dt);
@@ -562,12 +592,13 @@ public final class MapScreenView {
   }
 
   private float panelX() {
-    return screenW - MARGIN - Math.min(PANEL, screenW * 0.34F) + (1.0F - panel.get()) * 40.0F;
+    float w = Math.min(PANEL, screenW * 0.34F);
+    return screenW - MARGIN - w + (1.0F - panel.get()) * (w + MARGIN * 2.0F);
   }
 
   private void sidePanel(Canvas c, Theme t, HudData data, float shown, float dt) {
-    float amount = panel.get() * shown;
-    if (amount <= 0.01F) {
+    float amount = shown;
+    if (panel.get() <= 0.005F) {
       return;
     }
     float w = Math.min(PANEL, screenW * 0.34F);
@@ -575,7 +606,7 @@ public final class MapScreenView {
     float y = MARGIN;
     float h = screenH - MARGIN * 2.0F;
     c.pushAlpha(amount);
-    MapChrome.panel(c, t, x, y, w, h, RADIUS);
+    MapChrome.panel(c, t, frost, x, y, w, h, RADIUS);
     search.draw(c, t, x + 14.0F, y + 14.0F, w - 28.0F, dt);
     String[] tabs = {Lang.tr("Places"), Lang.tr("Friends")};
     float tabW = (w - 28.0F) / 2.0F;
@@ -845,12 +876,14 @@ public final class MapScreenView {
 
   private void menu(Canvas c, Theme t) {
     String[] items = menuItems();
-    float h = items.length * MENU_ROW + 12.0F;
+    float h = items.length * MENU_ROW + 12.0F + MENU_HEAD;
     float[] at = popBox(MENU_W, h);
-    MapChrome.panel(c, t, at[0], at[1], MENU_W, h, 14.0F);
-    String head = (long) Math.floor(popWX) + "  " + (long) Math.floor(popWZ);
+    MapChrome.panel(c, t, frost, at[0], at[1], MENU_W, h, 14.0F);
+    String head = (long) Math.floor(popWX) + "   " + (long) Math.floor(popWZ);
+    c.text(FontStyle.MONO, head, at[0] + 16.0F, at[1] + 12.0F, t.grey());
+    c.roundRect(at[0] + 14.0F, at[1] + MENU_HEAD, MENU_W - 28.0F, 1.0F, 0.0F, t.hair());
     for (int i = 0; i < items.length; i++) {
-      float ry = at[1] + 6.0F + i * MENU_ROW;
+      float ry = at[1] + 6.0F + MENU_HEAD + i * MENU_ROW;
       if (MapChrome.hit(mouseX, mouseY, at[0] + 6.0F, ry, MENU_W - 12.0F, MENU_ROW)) {
         c.roundRect(
             at[0] + 6.0F, ry, MENU_W - 12.0F, MENU_ROW, 9.0F, Theme.withAlpha(t.ink(), 0.07F));
@@ -862,19 +895,13 @@ public final class MapScreenView {
           ry + (MENU_ROW - c.lineHeight(FontStyle.LABEL)) * 0.5F,
           t.ink());
     }
-    c.text(
-        FontStyle.MONO,
-        head,
-        at[0] + MENU_W - 14.0F - c.textWidth(FontStyle.MONO, head),
-        at[1] + 6.0F + (MENU_ROW - c.lineHeight(FontStyle.MONO)) * 0.5F,
-        t.grey());
   }
 
   private void name(Canvas c, Theme t, float dt) {
     float w = 260.0F;
     float h = 96.0F;
     float[] at = popBox(w, h);
-    MapChrome.panel(c, t, at[0], at[1], w, h, 16.0F);
+    MapChrome.panel(c, t, frost, at[0], at[1], w, h, 16.0F);
     c.text(FontStyle.CAPTION, Lang.tr("New waypoint"), at[0] + 16.0F, at[1] + 12.0F, t.grey());
     naming.draw(c, t, at[0] + 12.0F, at[1] + 30.0F, w - 24.0F, dt);
     String hint = Lang.tr("Enter to save");
@@ -899,14 +926,14 @@ public final class MapScreenView {
   private void pick(Canvas c, Theme t) {
     float h = pickHeight();
     float[] at = popBox(PICK_W, h);
-    MapChrome.panel(c, t, at[0], at[1], PICK_W, h, 16.0F);
+    MapChrome.panel(c, t, frost, at[0], at[1], PICK_W, h, 16.0F);
     float first = at[1] + 8.0F;
     if (pickArea) {
       if (MapChrome.hit(mouseX, mouseY, at[0] + 6.0F, first, PICK_W - 12.0F, MENU_ROW)) {
         c.roundRect(
             at[0] + 6.0F, first, PICK_W - 12.0F, MENU_ROW, 9.0F, Theme.withAlpha(t.ink(), 0.07F));
       }
-      MapChrome.glyph(c, Glyph.PIN, at[0] + 26.0F, first + MENU_ROW * 0.5F, 6.0F, t.red());
+      MapChrome.glyph(c, Glyph.DOWNLOAD, at[0] + 26.0F, first + MENU_ROW * 0.5F, 6.5F, t.ink());
       c.text(
           FontStyle.LABEL,
           Lang.tr("Save as a world"),
@@ -960,7 +987,7 @@ public final class MapScreenView {
     float w = 240.0F;
     float h = 92.0F;
     float[] at = popBox(w, h);
-    MapChrome.panel(c, t, at[0], at[1], w, h, 16.0F);
+    MapChrome.panel(c, t, frost, at[0], at[1], w, h, 16.0F);
     MapMarks.waypoint(c, at[0] + 22.0F, at[1] + 24.0F, 10.0F, focused.color(), 1.0F);
     c.text(
         FontStyle.LABEL,
@@ -1011,7 +1038,7 @@ public final class MapScreenView {
     float x = (screenW - panelW()) * 0.5F - w * 0.5F;
     float y = MARGIN + (1.0F - fade) * -10.0F;
     c.pushAlpha(Math.max(0.0F, fade));
-    MapChrome.panel(c, t, x, y, w, h, h * 0.5F);
+    MapChrome.panel(c, t, frost, x, y, w, h, h * 0.5F);
     c.text(
         FontStyle.LABEL,
         notice,
@@ -1168,9 +1195,9 @@ public final class MapScreenView {
     switch (pop) {
       case MENU -> {
         String[] items = menuItems();
-        float h = items.length * MENU_ROW + 12.0F;
+        float h = items.length * MENU_ROW + 12.0F + MENU_HEAD;
         float[] at = popBox(MENU_W, h);
-        int index = (int) Math.floor((my - at[1] - 6.0F) / MENU_ROW);
+        int index = (int) Math.floor((my - at[1] - 6.0F - MENU_HEAD) / MENU_ROW);
         if (!MapChrome.hit(mx, my, at[0], at[1], MENU_W, h) || index < 0 || index >= 3) {
           dismiss();
           return;

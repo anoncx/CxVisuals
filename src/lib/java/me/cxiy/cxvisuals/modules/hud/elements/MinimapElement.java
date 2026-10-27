@@ -44,6 +44,8 @@ public final class MinimapElement extends HudElement {
   private static final float AWAY = 0.55F;
   private static final float NORTH = 12.0F;
   private static final int MAX_PLAYERS = 24;
+  private static final int MAX_MOBS = 96;
+  private static final float MOB = 4.0F;
   private static final float ZOOM_STEP = 1.5F;
   private static final String CAVE = Lang.key("Cave");
 
@@ -57,6 +59,9 @@ public final class MinimapElement extends HudElement {
   private final Spring zoomGlide = Spring.critical(260.0F);
   private final double[] otherX = new double[MAX_PLAYERS];
   private final double[] otherZ = new double[MAX_PLAYERS];
+  private final double[] mobX = new double[MAX_MOBS];
+  private final double[] mobZ = new double[MAX_MOBS];
+  private final boolean[] mobHostile = new boolean[MAX_MOBS];
   private MapSource source;
   private MapAtlas idle;
   private boolean glided;
@@ -107,9 +112,11 @@ public final class MinimapElement extends HudElement {
     boolean circle = shape.get() == Shape.CIRCLE;
     float plateRadius = circle ? SIZE * 0.5F : SQUARE_RADIUS;
     HudPaint.plate(c, t, this, x, y, SIZE, SIZE, plateRadius);
-    float mapX = x + INSET;
-    float mapY = y + INSET;
-    float mapSize = SIZE - INSET * 2.0F;
+    float plateW = HudPaint.folded(SIZE, SIZE, foldW, SIZE);
+    float plateH = HudPaint.folded(SIZE, SIZE, foldH, SIZE);
+    float mapSize = Math.max(1.0F, Math.min(plateW, plateH) - INSET * 2.0F);
+    float mapX = x + (SIZE - mapSize) * 0.5F;
+    float mapY = y + (SIZE - mapSize) * 0.5F;
     float half = mapSize * 0.5F;
     float centreX = mapX + half;
     float centreY = mapY + half;
@@ -129,7 +136,7 @@ public final class MinimapElement extends HudElement {
     int layer = source != null && source.active() ? source.layer() : TileKey.SURFACE;
     batch.build(atlas, view, layer, mapX, mapY, mapSize, mapSize, 2);
     batch.masked = true;
-    batch.roundness = circle ? 1.0F : (SQUARE_RADIUS - INSET) / half;
+    batch.radius = circle ? half : Math.min(half, SQUARE_RADIUS - INSET);
     batch.clouds = source == null || source.clouds() ? 1.0F : 0.0F;
     batch.fog = MapStyle.fog(t);
     batch.alpha = 1.0F;
@@ -139,6 +146,14 @@ public final class MinimapElement extends HudElement {
     boolean waypoints = source == null || source.waypoints();
     boolean friends = source == null || source.friends();
     if (source != null && source.active()) {
+      int mobs = source.mobs(mobX, mobZ, mobHostile, MAX_MOBS);
+      for (int i = 0; i < mobs; i++) {
+        float px = view.screenX(mobX[i], mobZ[i]) - centreX;
+        float py = view.screenY(mobX[i], mobZ[i]) - centreY;
+        if (inside(px, py, reach, circle)) {
+          MapMarks.mob(c, t, centreX + px, centreY + py, MOB, mobHostile[i]);
+        }
+      }
       int count = source.players(otherX, otherZ, MAX_PLAYERS);
       for (int i = 0; i < count; i++) {
         float px = view.screenX(otherX[i], otherZ[i]) - centreX;
@@ -194,7 +209,7 @@ public final class MinimapElement extends HudElement {
         MapMarks.WHITE);
 
     float heading = rotate.get() ? 0.0F : (float) Math.toRadians(data.yaw + 180.0F);
-    MapMarks.player(c, centreX, centreY, ARROW, heading, t.red());
+    MapMarks.player(c, t, centreX, centreY, ARROW, heading);
 
     if (coordinates.get()) {
       int bx = (int) Math.floor(data.x);

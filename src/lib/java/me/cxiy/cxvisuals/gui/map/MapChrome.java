@@ -14,7 +14,8 @@ public final class MapChrome {
     TRASH,
     CLOSE,
     SIDEBAR,
-    PIN
+    PIN,
+    DOWNLOAD
   }
 
   public static final float BUTTON = 34.0F;
@@ -22,9 +23,21 @@ public final class MapChrome {
 
   private MapChrome() {}
 
-  public static void panel(Canvas c, Theme t, float x, float y, float w, float h, float radius) {
+  public interface Frost {
+    void draw(float x, float y, float w, float h, float radius);
+  }
+
+  private static final float FROST_VEIL = 0.5F;
+
+  public static void panel(
+      Canvas c, Theme t, Frost frost, float x, float y, float w, float h, float radius) {
     c.shadow(x, y, w, h, radius, 22.0F, 8.0F, 0x59000000);
-    c.roundRect(x, y, w, h, radius, Theme.withAlpha(t.paper() | 0xFF000000, 0.88F));
+    if (t.glass() && frost != null) {
+      frost.draw(x, y, w, h, radius);
+      c.roundRect(x, y, w, h, radius, Theme.withAlpha(t.paper() | 0xFF000000, FROST_VEIL));
+    } else {
+      c.roundRect(x, y, w, h, radius, t.paper());
+    }
     c.roundRectBorder(x, y, w, h, radius, 1.0F, t.hair());
     c.rim(x, y, w, h, radius, 1.0F, Math.min(h, radius * 1.4F), Depth.rimColor(t));
   }
@@ -48,51 +61,124 @@ public final class MapChrome {
     glyph(c, glyph, x + size * 0.5F, y + size * 0.5F, size * 0.36F, ink);
   }
 
+  private static final float[] XS = new float[6];
+  private static final float[] YS = new float[6];
+
+  private static void line(Canvas c, int ink, float... points) {
+    int count = points.length / 2;
+    for (int i = 0; i < count; i++) {
+      XS[i] = points[i * 2];
+      YS[i] = points[i * 2 + 1];
+    }
+    c.stroke(XS, YS, count, STROKE, 0.5F, ink);
+  }
+
   public static void glyph(Canvas c, Glyph glyph, float cx, float cy, float r, int ink) {
     float s = STROKE;
+    if (!c.curves()) {
+      c.roundRect(cx - r * 0.4F, cy - r * 0.4F, r * 0.8F, r * 0.8F, r * 0.4F, ink);
+      return;
+    }
     switch (glyph) {
       case PLUS -> {
-        c.roundRect(cx - r, cy - s * 0.5F, r * 2.0F, s, s * 0.5F, ink);
-        c.roundRect(cx - s * 0.5F, cy - r, s, r * 2.0F, s * 0.5F, ink);
+        line(c, ink, cx - r, cy, cx + r, cy);
+        line(c, ink, cx, cy - r, cx, cy + r);
       }
-      case MINUS -> c.roundRect(cx - r, cy - s * 0.5F, r * 2.0F, s, s * 0.5F, ink);
+      case MINUS -> line(c, ink, cx - r, cy, cx + r, cy);
+      case CLOSE -> {
+        line(c, ink, cx - r * 0.7F, cy - r * 0.7F, cx + r * 0.7F, cy + r * 0.7F);
+        line(c, ink, cx + r * 0.7F, cy - r * 0.7F, cx - r * 0.7F, cy + r * 0.7F);
+      }
       case LOCATE -> {
-        float ring = r * 1.3F;
-        c.roundRectBorder(
-            cx - ring * 0.5F * 1.2F,
-            cy - ring * 0.5F * 1.2F,
-            ring * 1.2F,
-            ring * 1.2F,
-            ring * 0.6F,
-            s,
-            ink);
-        c.roundRect(cx - r * 0.28F, cy - r * 0.28F, r * 0.56F, r * 0.56F, r * 0.28F, ink);
-        c.roundRect(cx - s * 0.5F, cy - r * 1.15F, s, r * 0.35F, s * 0.5F, ink);
-        c.roundRect(cx - s * 0.5F, cy + r * 0.8F, s, r * 0.35F, s * 0.5F, ink);
-        c.roundRect(cx - r * 1.15F, cy - s * 0.5F, r * 0.35F, s, s * 0.5F, ink);
-        c.roundRect(cx + r * 0.8F, cy - s * 0.5F, r * 0.35F, s, s * 0.5F, ink);
+        float w = r * 0.95F;
+        line(
+            c,
+            ink,
+            cx + w,
+            cy - w,
+            cx - w,
+            cy - w * 0.05F,
+            cx - w * 0.05F,
+            cy + w * 0.05F,
+            cx + w * 0.05F,
+            cy + w,
+            cx + w,
+            cy - w);
       }
       case SHARE -> {
-        c.roundRectBorder(cx - r * 0.8F, cy - r * 0.2F, r * 1.6F, r * 1.2F, r * 0.3F, s, ink);
-        c.roundRect(cx - s * 0.5F, cy - r * 1.05F, s, r * 1.25F, s * 0.5F, ink);
-        c.roundRect(cx - r * 0.42F, cy - r * 0.78F, r * 0.84F, s, s * 0.5F, ink);
+        line(
+            c,
+            ink,
+            cx - r * 0.45F,
+            cy - r * 0.15F,
+            cx - r * 0.8F,
+            cy - r * 0.15F,
+            cx - r * 0.8F,
+            cy + r,
+            cx + r * 0.8F,
+            cy + r,
+            cx + r * 0.8F,
+            cy - r * 0.15F,
+            cx + r * 0.45F,
+            cy - r * 0.15F);
+        line(c, ink, cx, cy + r * 0.35F, cx, cy - r);
+        line(c, ink, cx - r * 0.42F, cy - r * 0.6F, cx, cy - r, cx + r * 0.42F, cy - r * 0.6F);
+      }
+      case DOWNLOAD -> {
+        line(c, ink, cx, cy - r, cx, cy + r * 0.3F);
+        line(
+            c,
+            ink,
+            cx - r * 0.45F,
+            cy - r * 0.12F,
+            cx,
+            cy + r * 0.32F,
+            cx + r * 0.45F,
+            cy - r * 0.12F);
+        line(
+            c,
+            ink,
+            cx - r * 0.85F,
+            cy + r * 0.35F,
+            cx - r * 0.85F,
+            cy + r,
+            cx + r * 0.85F,
+            cy + r,
+            cx + r * 0.85F,
+            cy + r * 0.35F);
       }
       case TRASH -> {
-        c.roundRect(cx - r * 0.85F, cy - r * 0.7F, r * 1.7F, s, s * 0.5F, ink);
-        c.roundRect(cx - r * 0.3F, cy - r * 0.98F, r * 0.6F, s, s * 0.5F, ink);
-        c.roundRectBorder(cx - r * 0.6F, cy - r * 0.5F, r * 1.2F, r * 1.45F, r * 0.25F, s, ink);
-      }
-      case CLOSE -> {
-        c.roundRect(cx - r * 0.75F, cy - s * 0.5F, r * 1.5F, s, s * 0.5F, ink);
-        c.roundRect(cx - s * 0.5F, cy - r * 0.75F, s, r * 1.5F, s * 0.5F, ink);
+        line(c, ink, cx - r * 0.9F, cy - r * 0.6F, cx + r * 0.9F, cy - r * 0.6F);
+        line(
+            c,
+            ink,
+            cx - r * 0.3F,
+            cy - r * 0.6F,
+            cx - r * 0.3F,
+            cy - r,
+            cx + r * 0.3F,
+            cy - r,
+            cx + r * 0.3F,
+            cy - r * 0.6F);
+        line(
+            c,
+            ink,
+            cx - r * 0.65F,
+            cy - r * 0.6F,
+            cx - r * 0.5F,
+            cy + r,
+            cx + r * 0.5F,
+            cy + r,
+            cx + r * 0.65F,
+            cy - r * 0.6F);
       }
       case SIDEBAR -> {
         c.roundRectBorder(cx - r, cy - r * 0.8F, r * 2.0F, r * 1.6F, r * 0.35F, s, ink);
-        c.roundRect(cx + r * 0.2F, cy - r * 0.8F, s, r * 1.6F, 0.0F, ink);
+        line(c, ink, cx + r * 0.25F, cy - r * 0.8F, cx + r * 0.25F, cy + r * 0.8F);
       }
       case PIN -> {
         c.roundRectBorder(cx - r * 0.6F, cy - r, r * 1.2F, r * 1.2F, r * 0.6F, s, ink);
-        c.roundRect(cx - s * 0.5F, cy + r * 0.1F, s, r * 0.9F, s * 0.5F, ink);
+        line(c, ink, cx - r * 0.42F, cy - r * 0.05F, cx, cy + r, cx + r * 0.42F, cy - r * 0.05F);
       }
     }
   }

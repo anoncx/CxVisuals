@@ -20,8 +20,9 @@ public final class MapAtlas {
   public static final int SIZE = GRID * TileKey.EDGE;
   public static final int EMPTY = 0;
   public static final int MISSING = -1;
+  public static final int TABLE = SLOTS - 1;
 
-  private static final int IN_FLIGHT = 6;
+  private static final int IN_FLIGHT = 12;
   private static final long REBAKE_NANOS = 350_000_000L;
   private static final int POOL = 24;
 
@@ -38,12 +39,21 @@ public final class MapAtlas {
   private final ConcurrentLinkedQueue<Done> done = new ConcurrentLinkedQueue<>();
   private final ConcurrentLinkedQueue<int[]> pool = new ConcurrentLinkedQueue<>();
   private Baker baker = (key, generation) -> {};
+  private BlockPalette palette;
   private volatile int generation;
   private long frame = 1L;
   private int revision;
 
   public void baker(Baker next) {
     baker = next;
+  }
+
+  public void palette(BlockPalette next) {
+    palette = next;
+  }
+
+  public BlockPalette palette() {
+    return palette;
   }
 
   public int generation() {
@@ -76,6 +86,17 @@ public final class MapAtlas {
       stale[index] = false;
     }
     return index;
+  }
+
+  public int peek(long key) {
+    Integer slot = slots.get(key);
+    if (slot == null) {
+      return MISSING;
+    }
+    if (slot != EMPTY) {
+      used[slot] = frame;
+    }
+    return slot;
   }
 
   public void invalidate(long key) {
@@ -175,7 +196,7 @@ public final class MapAtlas {
   private int evict() {
     int best = MISSING;
     long oldest = Long.MAX_VALUE;
-    for (int i = 1; i < SLOTS; i++) {
+    for (int i = 1; i < TABLE; i++) {
       if (!taken[i]) {
         return i;
       }

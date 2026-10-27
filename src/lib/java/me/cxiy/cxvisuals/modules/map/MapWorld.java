@@ -70,6 +70,7 @@ public final class MapWorld implements TileBaker.Source {
               return thread;
             });
     atlas.baker(this::bake);
+    atlas.palette(palette);
   }
 
   public static Path folder(Path root, String scope, String dimension) {
@@ -457,11 +458,6 @@ public final class MapWorld implements TileBaker.Source {
   }
 
   @Override
-  public int sprite(int block) {
-    return palette.sprite(block);
-  }
-
-  @Override
   public int[] thumbnail(int regionX, int regionZ) {
     long key = Region.key(regionX, regionZ);
     if (!known.contains(key)) {
@@ -512,7 +508,7 @@ public final class MapWorld implements TileBaker.Source {
             any = tiles.bake(key, terrain, pixels);
             if (any && TileKey.level(key) == 0) {
               ids = atlas.buffer();
-              tiles.sprites(key, ids);
+              tiles.details(key, ids);
             }
           } catch (RuntimeException e) {
             warn.accept("Couldn't draw a map tile: " + e.getMessage());

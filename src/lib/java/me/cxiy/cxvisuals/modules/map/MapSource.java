@@ -14,4 +14,6 @@ public interface MapSource {
   boolean friends();
 
   int players(double[] x, double[] z, int max);
+
+  int mobs(double[] x, double[] z, boolean[] hostile, int max);
 }

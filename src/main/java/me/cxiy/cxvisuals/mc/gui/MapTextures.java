@@ -10,6 +10,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.IdentityHashMap;
 import java.util.Map;
+import me.cxiy.cxvisuals.modules.map.BlockPalette;
 import me.cxiy.cxvisuals.modules.map.MapAtlas;
 import me.cxiy.cxvisuals.modules.map.TileBaker;
 import me.cxiy.cxvisuals.modules.map.TileKey;
@@ -27,6 +28,7 @@ final class MapTextures {
     final DynamicTexture ids;
     GpuTextureView blocks;
     TextureSetup setup;
+    int table = -1;
 
     Slot(DynamicTexture colors, DynamicTexture ids) {
       this.colors = colors;
@@ -37,6 +39,7 @@ final class MapTextures {
   private final Map<MapAtlas, Slot> slots = new IdentityHashMap<>(2);
   private ByteBuffer staging;
   private ByteBuffer zeros;
+  private final int[] sprites = new int[BlockPalette.TABLE];
 
   TextureSetup setup(MapAtlas atlas) {
     Slot slot = slots.get(atlas);
@@ -67,18 +70,28 @@ final class MapTextures {
               RenderSystem.getSamplerCache().getClampToEdge(FilterMode.NEAREST),
               RenderSystem.getSamplerCache().getClampToEdge(FilterMode.NEAREST, true));
     }
+    if (staging == null) {
+      staging = MemoryUtil.memAlloc(TileBaker.PIXELS * 4).order(ByteOrder.nativeOrder());
+      zeros = MemoryUtil.memCalloc(TileBaker.PIXELS * 4).order(ByteOrder.nativeOrder());
+    }
+    BlockPalette palette = atlas.palette();
+    if (palette != null && palette.revision() != slot.table) {
+      slot.table = palette.revision();
+      palette.table(sprites);
+      write(
+          RenderSystem.getDevice().createCommandEncoder(),
+          slot.ids.getTexture(),
+          MapAtlas.TABLE,
+          sprites);
+    }
     if (atlas.busy()) {
-      if (staging == null) {
-        staging = MemoryUtil.memAlloc(TileBaker.PIXELS * 4).order(ByteOrder.nativeOrder());
-        zeros = MemoryUtil.memCalloc(TileBaker.PIXELS * 4).order(ByteOrder.nativeOrder());
-      }
       CommandEncoder encoder = RenderSystem.getDevice().createCommandEncoder();
       GpuTexture colors = slot.colors.getTexture();
       GpuTexture ids = slot.ids.getTexture();
       atlas.drain(
-          (index, pixels, sprites) -> {
+          (index, pixels, details) -> {
             write(encoder, colors, index, pixels);
-            write(encoder, ids, index, sprites);
+            write(encoder, ids, index, details);
           },
           UPLOADS_PER_FRAME);
     }

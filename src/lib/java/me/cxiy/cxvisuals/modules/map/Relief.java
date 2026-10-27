@@ -19,7 +19,7 @@ public final class Relief {
   private static final float DEEP = 0.035F;
   private static final float DEEP_FLOOR = 0.62F;
   private static final float GRAIN = 0.045F;
-  private static final float VIBRANCE = 1.18F;
+  private static final float VIBRANCE = 1.04F;
 
   private Relief() {}
 

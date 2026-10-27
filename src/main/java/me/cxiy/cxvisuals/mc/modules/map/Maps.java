@@ -27,6 +27,9 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.level.Level;
 
 public final class Maps {
@@ -87,6 +90,27 @@ public final class Maps {
             if (player != mc.player && !player.isInvisible()) {
               x[count] = player.getX();
               z[count] = player.getZ();
+              count++;
+            }
+          }
+          return count;
+        }
+
+        @Override
+        public int mobs(double[] x, double[] z, boolean[] hostile, int max) {
+          Minecraft mc = Minecraft.getInstance();
+          if (mc.level == null || mc.player == null || !module.mobs.get()) {
+            return 0;
+          }
+          int count = 0;
+          for (Entity entity : mc.level.entitiesForRendering()) {
+            if (count >= max) {
+              break;
+            }
+            if (entity instanceof Mob mob && !mob.isInvisible() && mob.isAlive()) {
+              x[count] = mob.getX();
+              z[count] = mob.getZ();
+              hostile[count] = mob instanceof Enemy;
               count++;
             }
           }
@@ -194,9 +218,7 @@ public final class Maps {
       cartographer.everything(mc.level, mc.player, mc.options.getEffectiveRenderDistance());
     }
     module.atlas.frame();
-    if (cartographer.sprites()) {
-      module.atlas.clear();
-    }
+    cartographer.sprites();
     cartographer.tick(
         mc.level,
         mc.player,

@@ -5,89 +5,83 @@ import me.cxiy.cxvisuals.gui.FontStyle;
 import me.cxiy.cxvisuals.gui.Theme;
 
 public final class MapMarks {
-  public static final int SHADOW = 0x66000000;
+  public static final int SHADOW = 0x59000000;
   public static final int WHITE = 0xFFFFFFFF;
 
-  private static final float[] ARROW_X = {0.0F, 0.72F, 0.0F, -0.72F, 0.0F};
-  private static final float[] ARROW_Y = {-1.0F, 0.78F, 0.36F, 0.78F, -1.0F};
-  private static final float[] XS = new float[ARROW_X.length];
-  private static final float[] YS = new float[ARROW_X.length];
-  private static final float[] LINE_X = new float[2];
-  private static final float[] LINE_Y = new float[2];
-  private static final int FILL = 8;
+  private static final int BEAM_RAYS = 9;
+  private static final float BEAM_SPREAD = 0.075F;
+  private static final float BEAM_LENGTH = 3.4F;
+  private static final float BEAM_ALPHA = 0.15F;
+  private static final float[] XS = new float[2];
+  private static final float[] YS = new float[2];
 
   private MapMarks() {}
 
-  public static void player(Canvas c, float x, float y, float size, float radians, int fill) {
-    float cos = (float) Math.cos(radians);
-    float sin = (float) Math.sin(radians);
-    c.shadow(
-        x - size * 0.6F,
-        y - size * 0.6F,
-        size * 1.2F,
-        size * 1.2F,
-        size * 0.6F,
-        6.0F,
-        1.5F,
-        SHADOW);
+  public static void player(Canvas c, Theme t, float x, float y, float size, float radians) {
     if (c.curves()) {
-      for (int i = 0; i < ARROW_X.length; i++) {
-        float ax = ARROW_X[i] * size;
-        float ay = ARROW_Y[i] * size;
-        XS[i] = x + ax * cos - ay * sin;
-        YS[i] = y + ax * sin + ay * cos;
+      for (int i = 0; i < BEAM_RAYS; i++) {
+        float offset = i - (BEAM_RAYS - 1) * 0.5F;
+        float angle = radians + offset * BEAM_SPREAD;
+        float reach = size * BEAM_LENGTH * (1.0F - Math.abs(offset) * 0.06F);
+        XS[0] = x;
+        YS[0] = y;
+        XS[1] = x + (float) Math.sin(angle) * reach;
+        YS[1] = y - (float) Math.cos(angle) * reach;
+        c.stroke(XS, YS, 2, size * 0.42F, size * 0.6F, Theme.withAlpha(t.red(), BEAM_ALPHA));
       }
-      c.stroke(XS, YS, XS.length, size * 0.78F, 1.2F, 0x59000000);
-      c.stroke(XS, YS, XS.length, size * 0.52F, 0.5F, WHITE);
-      c.stroke(XS, YS, XS.length, size * 0.22F, 0.4F, fill);
-      for (int k = 1; k < FILL; k++) {
-        float f = k / (float) FILL;
-        float bx = f < 0.5F ? lerp(XS[3], XS[2], f * 2.0F) : lerp(XS[2], XS[1], f * 2.0F - 1.0F);
-        float by = f < 0.5F ? lerp(YS[3], YS[2], f * 2.0F) : lerp(YS[2], YS[1], f * 2.0F - 1.0F);
-        LINE_X[0] = XS[0];
-        LINE_Y[0] = YS[0];
-        LINE_X[1] = bx;
-        LINE_Y[1] = by;
-        c.stroke(LINE_X, LINE_Y, 2, size * 0.3F, 0.4F, fill);
-      }
-      return;
     }
-    c.roundRect(x - size * 0.45F, y - size * 0.45F, size * 0.9F, size * 0.9F, size * 0.45F, fill);
-  }
-
-  private static float lerp(float a, float b, float t) {
-    return a + (b - a) * t;
+    float ring = size * 0.62F;
+    float dot = size * 0.4F;
+    c.shadow(x - ring, y - ring, ring * 2.0F, ring * 2.0F, ring, 6.0F, 1.5F, SHADOW);
+    c.roundRect(x - ring, y - ring, ring * 2.0F, ring * 2.0F, ring, WHITE);
+    c.roundRect(x - dot, y - dot, dot * 2.0F, dot * 2.0F, dot, t.red());
   }
 
   public static void waypoint(Canvas c, float x, float y, float size, int color, float alpha) {
     float half = size * 0.5F;
-    float ring = Math.max(1.0F, size * 0.18F);
+    float ring = Math.max(1.5F, size * 0.2F);
+    float outer = half + ring;
     c.shadow(
-        x - half, y - half, size, size, size * 0.32F, 5.0F, 1.0F, Theme.withAlpha(SHADOW, alpha));
+        x - outer,
+        y - outer,
+        outer * 2.0F,
+        outer * 2.0F,
+        outer * 0.45F,
+        5.0F,
+        1.0F,
+        Theme.withAlpha(SHADOW, alpha));
     c.roundRect(
-        x - half - ring,
-        y - half - ring,
-        size + ring * 2.0F,
-        size + ring * 2.0F,
-        size * 0.32F + ring,
+        x - outer,
+        y - outer,
+        outer * 2.0F,
+        outer * 2.0F,
+        outer * 0.45F,
         Theme.withAlpha(WHITE, alpha));
-    c.roundRect(x - half, y - half, size, size, size * 0.32F, Theme.withAlpha(color, alpha));
+    c.roundRect(x - half, y - half, size, size, half * 0.45F, Theme.withAlpha(color, alpha));
   }
 
   public static void death(Canvas c, float x, float y, float size, int color, float alpha) {
     waypoint(c, x, y, size, color, alpha);
-    float bar = size * 0.5F;
-    float thin = Math.max(1.0F, size * 0.16F);
-    c.roundRect(
-        x - thin * 0.5F, y - bar * 0.5F, thin, bar, thin * 0.5F, Theme.withAlpha(WHITE, alpha));
-    c.roundRect(
-        x - bar * 0.5F, y - bar * 0.2F, bar, thin, thin * 0.5F, Theme.withAlpha(WHITE, alpha));
+    if (!c.curves()) {
+      return;
+    }
+    float arm = size * 0.24F;
+    float width = Math.max(1.2F, size * 0.14F);
+    int ink = Theme.withAlpha(WHITE, alpha);
+    XS[0] = x - arm;
+    YS[0] = y - arm;
+    XS[1] = x + arm;
+    YS[1] = y + arm;
+    c.stroke(XS, YS, 2, width, 0.4F, ink);
+    XS[0] = x + arm;
+    XS[1] = x - arm;
+    c.stroke(XS, YS, 2, width, 0.4F, ink);
   }
 
   public static void friend(
       Canvas c, Theme t, int entityId, String name, float x, float y, float size, float alpha) {
     float half = size * 0.5F;
-    float ring = Math.max(1.0F, size * 0.12F);
+    float ring = Math.max(1.5F, size * 0.1F);
     c.pushAlpha(alpha);
     c.shadow(x - half, y - half, size, size, half, 6.0F, 1.5F, SHADOW);
     c.roundRect(
@@ -98,7 +92,7 @@ public final class MapMarks {
         half + ring,
         WHITE);
     if (entityId < 0 || !c.face(entityId, x - half, y - half, size, half)) {
-      c.roundRect(x - half, y - half, size, size, half, t.surface2());
+      c.roundRect(x - half, y - half, size, size, half, t.surface2() | 0xFF000000);
       String initial = name == null || name.isEmpty() ? "?" : name.substring(0, 1).toUpperCase();
       float width = c.textWidth(FontStyle.CAPTION, initial);
       c.text(
@@ -113,25 +107,28 @@ public final class MapMarks {
 
   public static void other(Canvas c, Theme t, float x, float y, float size) {
     float half = size * 0.5F;
-    c.roundRect(
-        x - half - 1.0F,
-        y - half - 1.0F,
-        size + 2.0F,
-        size + 2.0F,
-        half + 1.0F,
-        Theme.withAlpha(t.paper(), 0.8F));
-    c.roundRect(x - half, y - half, size, size, half, t.ink2());
+    c.roundRect(x - half - 1.5F, y - half - 1.5F, size + 3.0F, size + 3.0F, half + 1.5F, WHITE);
+    c.roundRect(x - half, y - half, size, size, half, 0xFF1C1C1E);
+  }
+
+  public static void mob(Canvas c, Theme t, float x, float y, float size, boolean hostile) {
+    float half = size * 0.5F;
+    int fill = hostile ? t.red() : 0xFFE5E5EA;
+    int ring = hostile ? 0xE6FFFFFF : 0x99000000;
+    c.roundRect(x - half - 1.0F, y - half - 1.0F, size + 2.0F, size + 2.0F, half + 1.0F, ring);
+    c.roundRect(x - half, y - half, size, size, half, fill);
   }
 
   public static void label(Canvas c, Theme t, String text, float x, float y, float alpha) {
-    float width = c.textWidth(FontStyle.CAPTION, text) + 12.0F;
-    float height = c.lineHeight(FontStyle.CAPTION) + 6.0F;
+    float width = c.textWidth(FontStyle.CAPTION, text) + 14.0F;
+    float height = c.lineHeight(FontStyle.CAPTION) + 7.0F;
     float left = x - width * 0.5F;
     c.pushAlpha(alpha);
     c.shadow(left, y, width, height, height * 0.5F, 8.0F, 2.0F, SHADOW);
-    c.roundRect(left, y, width, height, height * 0.5F, Theme.withAlpha(t.paper(), 0.86F));
+    c.roundRect(
+        left, y, width, height, height * 0.5F, Theme.withAlpha(t.paper() | 0xFF000000, 0.9F));
     c.roundRectBorder(left, y, width, height, height * 0.5F, 1.0F, t.hair());
-    c.text(FontStyle.CAPTION, text, left + 6.0F, y + 3.0F, t.ink());
+    c.text(FontStyle.CAPTION, text, left + 7.0F, y + 3.5F, t.ink());
     c.popAlpha();
   }
 }

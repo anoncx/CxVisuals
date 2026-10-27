@@ -27,7 +27,7 @@ void main() {
     gl_Position = ProjMat * ModelViewMat * vec4(Position, 1.0);
     tint = Color;
     texUv = UV0;
-    maskPos = vec2(UV1) / 8192.0;
+    maskPos = vec2(UV1) / 2048.0;
     cloudPos = vec2(UV2) / 16.0;
     params = Normal;
 }

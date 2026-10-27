@@ -16,7 +16,7 @@ public record ChartRenderState(
     int count,
     int color,
     float roundness,
-    float masked,
+    float box,
     float clouds,
     RenderPipeline pipeline,
     TextureSetup textureSetup,
@@ -24,7 +24,7 @@ public record ChartRenderState(
     @Nullable ScreenRectangle bounds,
     float z)
     implements GuiElementRenderState {
-  private static final float MASK_FIXED = 8192.0F;
+  private static final float MASK_FIXED = 2048.0F;
   private static final float CLOUD_FIXED = 16.0F;
   private static final int STRIDE = 4;
 
@@ -38,6 +38,12 @@ public record ChartRenderState(
       @Nullable ScreenRectangle bounds,
       float z) {
     int vertices = batch.count * 4;
+    float halfW = batch.width * 0.5F;
+    float halfH = batch.height * 0.5F;
+    float unit = Math.max(Math.max(halfW, halfH), 0.001F);
+    float scaleX = halfW / unit;
+    float scaleY = halfH / unit;
+    float box = batch.width >= batch.height ? halfH / unit : -halfW / unit;
     float[] corners = new float[vertices * STRIDE];
     int[] packed = new int[vertices * 2];
     for (int q = 0; q < batch.count; q++) {
@@ -49,7 +55,8 @@ public record ChartRenderState(
         corners[at * STRIDE + 1] = batch.py[at];
         corners[at * STRIDE + 2] = right ? batch.u1[q] : batch.u0[q];
         corners[at * STRIDE + 3] = bottom ? batch.v1[q] : batch.v0[q];
-        packed[at * 2] = pack(batch.mx[at] * MASK_FIXED, batch.my[at] * MASK_FIXED);
+        packed[at * 2] =
+            pack(batch.mx[at] * scaleX * MASK_FIXED, batch.my[at] * scaleY * MASK_FIXED);
         packed[at * 2 + 1] = pack(batch.cx[at] * CLOUD_FIXED, batch.cy[at] * CLOUD_FIXED);
       }
     }
@@ -59,8 +66,8 @@ public record ChartRenderState(
         packed,
         vertices,
         color,
-        batch.roundness,
-        batch.masked ? 1.0F : 0.0F,
+        Math.min(1.0F, batch.radius / unit),
+        batch.masked ? box : 0.0F,
         batch.clouds,
         pipeline,
         setup,
@@ -85,7 +92,7 @@ public record ChartRenderState(
           .setUv(corners[at * STRIDE + 2], corners[at * STRIDE + 3])
           .setUv1(mask >> 16, (short) mask)
           .setUv2(cloud >> 16, (short) cloud)
-          .setNormal(roundness, masked, clouds);
+          .setNormal(roundness, box, clouds);
     }
   }
 }

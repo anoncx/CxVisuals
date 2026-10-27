@@ -12,6 +12,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.color.block.BlockColors;
 import net.minecraft.client.color.block.BlockTintSource;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.renderer.BiomeColors;
 import net.minecraft.client.renderer.block.BlockStateModelSet;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
@@ -22,6 +23,7 @@ import net.minecraft.commands.arguments.blocks.BlockStateParser;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.EmptyBlockGetter;
 import net.minecraft.world.level.block.SnowLayerBlock;
@@ -64,6 +66,9 @@ final class Swatches {
   }
 
   int color(Swatch swatch, BlockState state, ClientLevel level, BlockPos pos) {
+    if (state.getFluidState().is(FluidTags.WATER)) {
+      return multiply(swatch.rgb, BiomeColors.getAverageWaterColor(level, pos));
+    }
     if (swatch.tint == NO_TINT) {
       return swatch.rgb;
     }

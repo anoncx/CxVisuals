@@ -7,11 +7,13 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class BlockPalette {
   public static final int NONE = 0;
   public static final int LIMIT = Character.MAX_VALUE;
+  public static final int TABLE = 1 << 14;
 
   private final Map<String, Integer> ids = new ConcurrentHashMap<>(512);
   private volatile String[] keys = new String[256];
   private volatile int[] sprites = new int[256];
   private volatile int size = 1;
+  private volatile int revision;
 
   public synchronized int id(String key) {
     if (key == null || key.isEmpty()) {
@@ -50,12 +52,25 @@ public final class BlockPalette {
   }
 
   public synchronized void sprite(int id, int code) {
-    if (id > NONE && id < sprites.length) {
+    if (id > NONE && id < sprites.length && sprites[id] != code) {
       sprites[id] = code;
+      revision++;
     }
   }
 
   public synchronized void forgetSprites() {
     sprites = new int[sprites.length];
+    revision++;
+  }
+
+  public int revision() {
+    return revision;
+  }
+
+  public void table(int[] out) {
+    int[] all = sprites;
+    int count = Math.min(Math.min(size, all.length), Math.min(out.length, TABLE));
+    Arrays.fill(out, 0);
+    System.arraycopy(all, 0, out, 0, count);
   }
 }
