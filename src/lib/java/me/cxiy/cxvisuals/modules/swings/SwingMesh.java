@@ -7,8 +7,10 @@ public final class SwingMesh {
   private static final float SPAN = 0.05F;
   private static final int FINEST = 16;
   private static final float HALO = 0.4F;
-  private static final int CHANNELS = 7;
+  private static final int CHANNELS = 8;
   private static final int AGE = 6;
+  private static final int WEIGHT = 7;
+  private static final float RAMP = 0.5F;
 
   private final double[] controls = new double[4 * CHANNELS];
   private final float[] stops = new float[STRIPS + 1];
@@ -19,6 +21,8 @@ public final class SwingMesh {
   private float fade;
   private int seed;
   private float arc;
+  private float runLength;
+  private float liveness;
   private int emitted;
   private int budget;
   private SwingSink sink;
@@ -65,6 +69,9 @@ public final class SwingMesh {
         open = false;
         continue;
       }
+      if (!open) {
+        begin(ribbon, i, n, nanos);
+      }
       load(ribbon, i, n, nanos, cameraX, cameraY, cameraZ);
       float dx = (float) (controls[CHANNELS + 3] - controls[CHANNELS * 2 + 3]);
       float dy = (float) (controls[CHANNELS + 4] - controls[CHANNELS * 2 + 4]);
@@ -82,6 +89,33 @@ public final class SwingMesh {
     }
     sink = null;
     return emitted;
+  }
+
+  private void begin(Ribbon ribbon, int from, int n, long nanos) {
+    float length = 0.0F;
+    for (int j = from; j < n - 1 && ribbon.linked(j); j++) {
+      double dx = ribbon.at(j, 3) - ribbon.at(j + 1, 3);
+      double dy = ribbon.at(j, 4) - ribbon.at(j + 1, 4);
+      double dz = ribbon.at(j, 5) - ribbon.at(j + 1, 5);
+      length += (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+    runLength = length;
+    liveness = 1.0F - smooth((ribbon.age(from, nanos) - 0.02F) / 0.04F);
+    arc = 0.0F;
+  }
+
+  private float soft(float travelled) {
+    return smooth((runLength - travelled) / RAMP) * smooth(travelled / RAMP);
+  }
+
+  private float core(float travelled) {
+    float newest = smooth(travelled / RAMP);
+    return smooth((runLength - travelled) / RAMP) * (newest + (1.0F - newest) * liveness);
+  }
+
+  private static float smooth(float t) {
+    float c = Math.clamp(t, 0.0F, 1.0F);
+    return c * c * (3.0F - 2.0F * c);
   }
 
   private void load(
@@ -104,6 +138,7 @@ public final class SwingMesh {
     controls[at + 4] = ribbon.at(i, 4) - cameraY;
     controls[at + 5] = ribbon.at(i, 5) - cameraZ;
     controls[at + AGE] = ribbon.age(i, nanos);
+    controls[at + WEIGHT] = ribbon.weight(i);
   }
 
   private void column(float[] out, float u) {
@@ -126,6 +161,12 @@ public final class SwingMesh {
     float travelled = arc + (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
     float t0 = Math.clamp(from[AGE] / life, 0.0F, 1.0F);
     float t1 = Math.clamp(to[AGE] / life, 0.0F, 1.0F);
+    float e0 = soft(arc);
+    float e1 = soft(travelled);
+    float c0 = core(arc);
+    float c1 = core(travelled);
+    float w0 = fade * Math.clamp(from[WEIGHT], 0.0F, 1.0F);
+    float w1 = fade * Math.clamp(to[WEIGHT], 0.0F, 1.0F);
     for (int s = 0; s < STRIPS; s++) {
       float near = stops[s];
       float far = stops[s + 1];
@@ -141,12 +182,12 @@ public final class SwingMesh {
       float toFarX = to[3] - (to[3] - to[0]) * far;
       float toFarY = to[4] - (to[4] - to[1]) * far;
       float toFarZ = to[5] - (to[5] - to[2]) * far;
-      sink.vertex(fromNearX, fromNearY, fromNearZ, near, arc, t0, fade, seed);
-      sink.vertex(fromFarX, fromFarY, fromFarZ, far, arc, t0, fade, seed);
-      sink.vertex(toFarX, toFarY, toFarZ, far, travelled, t1, fade, seed);
-      sink.vertex(fromNearX, fromNearY, fromNearZ, near, arc, t0, fade, seed);
-      sink.vertex(toFarX, toFarY, toFarZ, far, travelled, t1, fade, seed);
-      sink.vertex(toNearX, toNearY, toNearZ, near, travelled, t1, fade, seed);
+      sink.vertex(fromNearX, fromNearY, fromNearZ, near, arc, t0, w0, e0, c0, seed);
+      sink.vertex(fromFarX, fromFarY, fromFarZ, far, arc, t0, w0, e0, c0, seed);
+      sink.vertex(toFarX, toFarY, toFarZ, far, travelled, t1, w1, e1, c1, seed);
+      sink.vertex(fromNearX, fromNearY, fromNearZ, near, arc, t0, w0, e0, c0, seed);
+      sink.vertex(toFarX, toFarY, toFarZ, far, travelled, t1, w1, e1, c1, seed);
+      sink.vertex(toNearX, toNearY, toNearZ, near, travelled, t1, w1, e1, c1, seed);
     }
     arc = travelled;
     emitted += STRIPS;

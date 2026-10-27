@@ -11,15 +11,17 @@ public final class Ribbon {
   private static final double SLOWEST = 4.0e-3;
   private static final double TURN = -0.25;
   private static final float RESTART = 0.2F;
+  private static final float RETURN_WEIGHT = 0.3F;
 
   private final double[] points = new double[CAPACITY * CHANNELS];
   private final long[] born = new long[CAPACITY];
   private final boolean[] linked = new boolean[CAPACITY];
+  private final float[] weights = new float[CAPACITY];
   private int head;
   private int count;
   private long touched;
   private float progress;
-  private boolean sealed;
+  private boolean returning;
 
   public int count() {
     return count;
@@ -45,6 +47,10 @@ public final class Ribbon {
     return linked[(head - i) & MASK];
   }
 
+  public float weight(int i) {
+    return weights[(head - i) & MASK];
+  }
+
   public void add(
       double baseX,
       double baseY,
@@ -59,12 +65,11 @@ public final class Ribbon {
     touched = nanos;
     progress = swing;
     if (fresh) {
-      sealed = false;
-    } else if (sealed || stationary(baseX, baseY, baseZ, tipX, tipY, tipZ)) {
+      returning = false;
+    } else if (stationary(baseX, baseY, baseZ, tipX, tipY, tipZ)) {
       return;
-    } else if (reverses(tipX, tipY, tipZ)) {
-      sealed = true;
-      return;
+    } else if (!returning && reverses(tipX, tipY, tipZ)) {
+      returning = true;
     }
     if (!fresh && count > 1 && linked[head] && nanos - born[head] < spacing) {
       store(head, baseX, baseY, baseZ, tipX, tipY, tipZ, nanos, true);
@@ -84,7 +89,7 @@ public final class Ribbon {
 
   public void clear() {
     count = 0;
-    sealed = false;
+    returning = false;
   }
 
   private boolean stationary(
@@ -131,5 +136,6 @@ public final class Ribbon {
     points[at + TIP + 2] = tipZ;
     born[slot] = nanos;
     linked[slot] = joined;
+    weights[slot] = returning ? RETURN_WEIGHT : 1.0F;
   }
 }

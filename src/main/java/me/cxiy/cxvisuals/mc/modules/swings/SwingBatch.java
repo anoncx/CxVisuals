@@ -134,9 +134,18 @@ final class SwingBatch implements SwingSink {
 
   @Override
   public void vertex(
-      float x, float y, float z, float across, float arc, float along, float alpha, int seed) {
+      float x,
+      float y,
+      float z,
+      float across,
+      float arc,
+      float along,
+      float alpha,
+      float ends,
+      float tip,
+      int seed) {
     data.putFloat(x).putFloat(y).putFloat(z);
-    data.put(unit(along)).put(unit(alpha)).put((byte) 0).put((byte) -1);
+    data.put(unit(along)).put(unit(alpha)).put(unit(ends)).put(unit(tip));
     data.putFloat(across).putFloat(arc);
     data.putShort((short) (seed & 0xFFF)).putShort((short) 0);
   }

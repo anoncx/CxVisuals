@@ -16,6 +16,8 @@ out float across;
 out float arc;
 out float along;
 out float alpha;
+out float ends;
+out float tipEnds;
 flat out float seed;
 
 void main() {
@@ -24,5 +26,7 @@ void main() {
     arc = UV0.y;
     along = Color.r;
     alpha = Color.g;
+    ends = Color.b;
+    tipEnds = Color.a;
     seed = float(UV2.x) / 4095.0;
 }
