@@ -12,7 +12,7 @@ public final class MapAtlas {
   }
 
   public interface Uploader {
-    void upload(int slot, int[] pixels, int[] ids);
+    void upload(int slot, int[] pixels, int[] ids, int[] grounds);
   }
 
   public static final int GRID = 16;
@@ -26,9 +26,9 @@ public final class MapAtlas {
 
   private static final int IN_FLIGHT = 12;
   private static final long REBAKE_NANOS = 350_000_000L;
-  private static final int POOL = 24;
+  private static final int POOL = 36;
 
-  private record Done(long key, int generation, int[] pixels, int[] ids) {}
+  private record Done(long key, int generation, int[] pixels, int[] ids, int[] grounds) {}
 
   private final Map<Long, Integer> slots = new HashMap<>(SLOTS * 2);
   private final long[] keys = new long[SLOTS];
@@ -132,8 +132,8 @@ public final class MapAtlas {
     return reused != null ? reused : new int[TileBaker.PIXELS];
   }
 
-  public void finish(long key, int forGeneration, int[] pixels, int[] ids) {
-    done.add(new Done(key, forGeneration, pixels, ids));
+  public void finish(long key, int forGeneration, int[] pixels, int[] ids, int[] grounds) {
+    done.add(new Done(key, forGeneration, pixels, ids, grounds));
   }
 
   public int drain(Uploader uploader, int max) {
@@ -143,6 +143,7 @@ public final class MapAtlas {
       if (next.generation != generation) {
         recycle(next.pixels);
         recycle(next.ids);
+        recycle(next.grounds);
         continue;
       }
       flight.remove(next.key);
@@ -159,6 +160,7 @@ public final class MapAtlas {
       if (slot == MISSING) {
         recycle(next.pixels);
         recycle(next.ids);
+        recycle(next.grounds);
         continue;
       }
       keys[slot] = next.key;
@@ -166,9 +168,10 @@ public final class MapAtlas {
       used[slot] = frame;
       bakedAt[slot] = System.nanoTime();
       slots.put(next.key, slot);
-      uploader.upload(slot, next.pixels, next.ids);
+      uploader.upload(slot, next.pixels, next.ids, next.grounds);
       recycle(next.pixels);
       recycle(next.ids);
+      recycle(next.grounds);
       uploaded++;
       revision++;
     }

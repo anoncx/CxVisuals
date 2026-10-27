@@ -26,6 +26,8 @@ final class Cartographer {
   private static final int SETTLE_TICKS = 16;
   private static final int SKIP_LIMIT = 48;
   private static final int WATER_LIMIT = 96;
+  private static final int RUN_LIMIT = 24;
+  private static final int GAP_LIMIT = 48;
   private static final int CAVE_SEARCH = 20;
   private static final int CEILING_START = 118;
   private static final int CEILING_SEARCH = 110;
@@ -228,6 +230,9 @@ final class Cartographer {
       int search,
       int i,
       boolean buried) {
+    column.depth[i] = 0;
+    column.floor[i] = 0;
+    column.ground[i] = (char) BlockPalette.NONE;
     int y = start;
     if (buried) {
       int air = -1;
@@ -274,6 +279,7 @@ final class Cartographer {
       column.block[i] = (char) swatches.block(state, below, world.palette());
       column.height[i] = (short) surfaceY;
       column.water[i] = 0;
+      overhang(chunk, x, z, surfaceY, minY, i);
       return;
     }
     int fluidColor = swatches.color(swatch, state, level, cursor);
@@ -294,6 +300,32 @@ final class Cartographer {
     column.block[i] = (char) swatches.block(state, null, world.palette());
     column.height[i] = (short) surfaceY;
     column.water[i] = (byte) Math.min(255, depth);
+  }
+
+  private void overhang(LevelChunk chunk, int x, int z, int top, int minY, int i) {
+    int y = top - 1;
+    int run = 1;
+    while (run < RUN_LIMIT && y > minY && !open(chunk.getBlockState(cursor.set(x, y, z)))) {
+      run++;
+      y--;
+    }
+    if (run >= RUN_LIMIT || y <= minY) {
+      return;
+    }
+    for (int gap = 0; gap < GAP_LIMIT && y > minY; gap++, y--) {
+      BlockState state = chunk.getBlockState(cursor.set(x, y, z));
+      if (!open(state)) {
+        BlockState below = chunk.getBlockState(cursor.set(x, y - 1, z));
+        column.depth[i] = (byte) run;
+        column.floor[i] = (short) y;
+        column.ground[i] = (char) swatches.block(state, below, world.palette());
+        return;
+      }
+    }
+  }
+
+  private boolean open(BlockState state) {
+    return state.isAir() || (state.getFluidState().isEmpty() && swatches.of(state).skip());
   }
 
   private static int darken(int rgb, float amount) {

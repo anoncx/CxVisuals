@@ -23,7 +23,7 @@ import me.cxiy.cxvisuals.modules.map.Relief.Terrain;
 public final class MapWorld implements TileBaker.Source {
   public static final String EXTENSION = ".cxm";
 
-  private static final int KEEP_REGIONS = 36;
+  private static final int KEEP_REGIONS = 24;
   private static final int KEEP_THUMBS = 768;
   private static final int KEEP_CAVES = 12;
   private static final long SAVE_NANOS = 20_000_000_000L;
@@ -160,6 +160,8 @@ public final class MapWorld implements TileBaker.Source {
     thumbs.clear();
     thumbRevisions.clear();
     bytes = 0L;
+    scope = "";
+    dimension = "";
     atlas.clear();
   }
 
@@ -503,18 +505,20 @@ public final class MapWorld implements TileBaker.Source {
           }
           int[] pixels = atlas.buffer();
           int[] ids = null;
+          int[] grounds = null;
           boolean any;
           try {
             any = tiles.bake(key, terrain, pixels);
             if (any && TileKey.level(key) <= TileKey.REGION_LEVEL) {
               ids = atlas.buffer();
-              tiles.details(key, ids);
+              grounds = atlas.buffer();
+              tiles.details(key, ids, grounds);
             }
           } catch (RuntimeException e) {
             warn.accept("Couldn't draw a map tile: " + e.getMessage());
             any = false;
           }
-          atlas.finish(key, generation, any ? pixels : null, ids);
+          atlas.finish(key, generation, any ? pixels : null, ids, grounds);
         });
   }
 

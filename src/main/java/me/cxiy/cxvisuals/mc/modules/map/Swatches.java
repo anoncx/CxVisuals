@@ -26,6 +26,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.EmptyBlockGetter;
+import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.SnowLayerBlock;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -144,12 +145,13 @@ final class Swatches {
       rgb = state.getMapColor(EmptyBlockGetter.INSTANCE, BlockPos.ZERO).col;
       tint = NO_TINT;
     }
-    boolean skip = passable || (!fluid && coverage < SEE_THROUGH);
+    boolean invisible = !fluid && state.getRenderShape() == RenderShape.INVISIBLE;
+    boolean skip = passable || invisible || (!fluid && coverage < SEE_THROUGH);
     return new Swatch(
         rgb & 0xFFFFFF,
         tint < 0 ? NO_TINT : tint,
         skip,
-        code(sprite),
+        code(sprite) | (tint >= 0 && code(sprite) != 0 ? TINTED : 0),
         side == 0 ? code(sprite) | (tint >= 0 ? TINTED : 0) : side,
         overlay,
         !fluid

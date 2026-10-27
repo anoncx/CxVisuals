@@ -42,10 +42,24 @@ final class TerrainRenderer {
       GpuTexture.USAGE_RENDER_ATTACHMENT | GpuTexture.USAGE_TEXTURE_BINDING;
   private static final int UNIFORM_USAGE = GpuBuffer.USAGE_UNIFORM | GpuBuffer.USAGE_COPY_DST;
   private static final int FRAME_SIZE =
-      new Std140SizeCalculator().putMat4f().putVec4().putVec4().putVec4().putVec4().get();
+      new Std140SizeCalculator()
+          .putMat4f()
+          .putVec4()
+          .putVec4()
+          .putVec4()
+          .putVec4()
+          .putMat4f()
+          .putVec4()
+          .putVec4()
+          .putVec4()
+          .get();
+  private static final double CLOUD_CELL = 48.0;
+  private static final double CLOUD_SPAN = CLOUD_CELL * 256.0;
+  private static final double CLOUD_DRIFT = 2.5;
+  private static final float CLOUD_DROP = 18.0F;
   private static final int TILE_SIZE =
       new Std140SizeCalculator().putVec4().putIVec4().putIVec4().putIVec4().get();
-  private static final int VERTICES = 18;
+  private static final int VERTICES = 36;
   private static final OptionalDouble CLEAR_DEPTH = OptionalDouble.of(0.0);
   private static final Optional<Vector4fc> CLEAR =
       Optional.of(new Vector4f(0.0F, 0.0F, 0.0F, 0.0F));
@@ -55,6 +69,21 @@ final class TerrainRenderer {
           .addAttribute("Position", GpuFormat.RGB32_FLOAT)
           .addAttribute("UV0", GpuFormat.RG32_FLOAT)
           .build();
+  private static final RenderPipeline CLOUDS =
+      RenderPipeline.builder()
+          .withBindGroupLayout(
+              BindGroupLayout.builder().withUniform(FRAME, UniformType.UNIFORM_BUFFER).build())
+          .withLocation(
+              Identifier.fromNamespaceAndPath(CxVisualsClient.MOD_ID, "pipeline/map_clouds"))
+          .withVertexShader(
+              Identifier.fromNamespaceAndPath(CxVisualsClient.MOD_ID, "core/map_clouds"))
+          .withFragmentShader(
+              Identifier.fromNamespaceAndPath(CxVisualsClient.MOD_ID, "core/map_clouds"))
+          .withVertexBinding(0, FORMAT)
+          .withPrimitiveTopology(PrimitiveTopology.TRIANGLES)
+          .withDepthStencilState(new DepthStencilState(CompareOp.GREATER_THAN_OR_EQUAL, false))
+          .withCull(false)
+          .build();
   private static final RenderPipeline PIPELINE =
       RenderPipeline.builder()
           .withBindGroupLayout(
@@ -62,6 +91,7 @@ final class TerrainRenderer {
                   .withSampler("Sampler0")
                   .withSampler("Sampler1")
                   .withSampler("Sampler2")
+                  .withSampler("Sampler3")
                   .withUniform(FRAME, UniformType.UNIFORM_BUFFER)
                   .withUniform(TILE, UniformType.UNIFORM_BUFFER)
                   .build())
@@ -79,6 +109,13 @@ final class TerrainRenderer {
 
   private final MapTextures textures;
   private final Matrix4f viewProjection = new Matrix4f();
+  private final Matrix4f inverse = new Matrix4f();
+  private final long born = System.nanoTime();
+  private double cloudX;
+  private double cloudZ;
+  private int cloudBase;
+  private int cloudTop;
+  private boolean zeroToOne;
   private final int[] slot = new int[TerrainFrame.MAX_TILES];
   private final float[] originX = new float[TerrainFrame.MAX_TILES];
   private final float[] originZ = new float[TerrainFrame.MAX_TILES];
@@ -155,7 +192,14 @@ final class TerrainRenderer {
                 colorView, RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR));
       }
       Camera3D camera = frame.camera;
-      camera.matrix(device.getDeviceInfo().isZZeroToOne(), viewProjection);
+      zeroToOne = device.getDeviceInfo().isZZeroToOne();
+      camera.matrix(zeroToOne, viewProjection);
+      viewProjection.invert(inverse);
+      double drift = (System.nanoTime() - born) / 1.0e9 * CLOUD_DRIFT;
+      cloudX = mod(camera.targetX + drift, CLOUD_SPAN);
+      cloudZ = mod(camera.targetZ + drift * 0.6, CLOUD_SPAN);
+      cloudBase = frame.cloudBase;
+      cloudTop = frame.cloudTop;
       atlas = frame.atlas;
       count = frame.count;
       eyeX = camera.eyeX();
@@ -216,7 +260,11 @@ final class TerrainRenderer {
                     (fog & 0xFF) / 255.0F,
                     fogEnd * FOG_START)
                 .putVec4(terrain, sideZ, sideX, 0.0F)
-                .putVec4(targetY, 0.0F, 0.0F, 0.0F)
+                .putVec4(targetY, zeroToOne ? 1.0F : 0.0F, 0.0F, 0.0F)
+                .putMat4f(inverse)
+                .putVec4((float) cloudX, (float) cloudZ, -CLOUD_DROP, (float) CLOUD_CELL)
+                .putVec4(red(cloudBase), green(cloudBase), blue(cloudBase), 1.0F)
+                .putVec4(red(cloudTop), green(cloudTop), blue(cloudTop), 1.0F)
                 .get();
         encoder.writeToBuffer(frameUniforms.slice(), data);
       }
@@ -251,12 +299,17 @@ final class TerrainRenderer {
         pass.bindTexture("Sampler0", maps.texure0(), maps.sampler0());
         pass.bindTexture("Sampler1", maps.texure1(), maps.sampler1());
         pass.bindTexture("Sampler2", maps.texure2(), maps.sampler2());
+        pass.bindTexture("Sampler3", textures.grounds(atlas), maps.sampler1());
         pass.setVertexBuffer(0, template.slice());
         for (int i = 0; i < count; i++) {
           int per = TileKey.EDGE / stride[i];
           pass.setUniform(TILE, tileUniforms.slice((long) i * tileStride, TILE_SIZE));
           pass.draw(VERTICES, per * per, 0, 0);
         }
+        pass.setPipeline(CLOUDS);
+        pass.setUniform(FRAME, frameUniforms);
+        pass.setVertexBuffer(0, template.slice());
+        pass.draw(3, 1, 0, 0);
       }
     } catch (RuntimeException e) {
       fail(e);
@@ -266,7 +319,8 @@ final class TerrainRenderer {
   private boolean compile(GpuDevice device) {
     if (!compiled) {
       compiled = true;
-      if (!device.precompilePipeline(PIPELINE).isValid()) {
+      if (!device.precompilePipeline(PIPELINE).isValid()
+          || !device.precompilePipeline(CLOUDS).isValid()) {
         broken = true;
         CxVisualsClient.LOG.warn("Map terrain shader failed to compile, 3D view is off");
         return false;
@@ -287,7 +341,7 @@ final class TerrainRenderer {
     float[][] zSide = {{0, 0, 0}, {0, 1, 0}, {1, 1, 0}, {0, 0, 0}, {1, 1, 0}, {1, 0, 0}};
     float[][] xSide = {{0, 0, 0}, {0, 1, 0}, {0, 1, 1}, {0, 0, 0}, {0, 1, 1}, {0, 0, 1}};
     ByteBuffer out = MemoryUtil.memAlloc(VERTICES * 20).order(ByteOrder.nativeOrder());
-    float[][][] faces = {top, zSide, xSide};
+    float[][][] faces = {top, zSide, xSide, top, zSide, xSide};
     for (int f = 0; f < faces.length; f++) {
       for (float[] corner : faces[f]) {
         out.putFloat(corner[0]).putFloat(corner[1]).putFloat(corner[2]);
@@ -296,6 +350,23 @@ final class TerrainRenderer {
     }
     out.flip();
     return out;
+  }
+
+  private static double mod(double value, double span) {
+    double out = value % span;
+    return out < 0.0 ? out + span : out;
+  }
+
+  private static float red(int argb) {
+    return ((argb >> 16) & 0xFF) / 255.0F;
+  }
+
+  private static float green(int argb) {
+    return ((argb >> 8) & 0xFF) / 255.0F;
+  }
+
+  private static float blue(int argb) {
+    return (argb & 0xFF) / 255.0F;
   }
 
   private void release() {

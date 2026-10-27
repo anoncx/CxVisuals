@@ -14,6 +14,9 @@ public final class Region {
   final short[] height;
   final byte[] water;
   final char[] block;
+  final byte[] depth;
+  final short[] floor;
+  final char[] ground;
   final long[] stamps;
   private volatile int revision;
   private int saved;
@@ -27,16 +30,32 @@ public final class Region {
         new short[COLUMNS],
         new byte[COLUMNS],
         new char[COLUMNS],
+        new byte[COLUMNS],
+        new short[COLUMNS],
+        new char[COLUMNS],
         new long[CHUNKS * CHUNKS]);
   }
 
-  Region(int x, int z, int[] color, short[] height, byte[] water, char[] block, long[] stamps) {
+  Region(
+      int x,
+      int z,
+      int[] color,
+      short[] height,
+      byte[] water,
+      char[] block,
+      byte[] depth,
+      short[] floor,
+      char[] ground,
+      long[] stamps) {
     this.x = x;
     this.z = z;
     this.color = color;
     this.height = height;
     this.water = water;
     this.block = block;
+    this.depth = depth;
+    this.floor = floor;
+    this.ground = ground;
     this.stamps = stamps;
     for (long stamp : stamps) {
       if (stamp != 0L) {
@@ -119,6 +138,9 @@ public final class Region {
       System.arraycopy(column.height, from, height, to, 16);
       System.arraycopy(column.water, from, water, to, 16);
       System.arraycopy(column.block, from, block, to, 16);
+      System.arraycopy(column.depth, from, depth, to, 16);
+      System.arraycopy(column.floor, from, floor, to, 16);
+      System.arraycopy(column.ground, from, ground, to, 16);
     }
     int slot = (chunkZ << 5) | chunkX;
     if (stamps[slot] == 0L) {
@@ -138,12 +160,24 @@ public final class Region {
       System.arraycopy(height, from, out.height, to, 16);
       System.arraycopy(water, from, out.water, to, 16);
       System.arraycopy(block, from, out.block, to, 16);
+      System.arraycopy(depth, from, out.depth, to, 16);
+      System.arraycopy(floor, from, out.floor, to, 16);
+      System.arraycopy(ground, from, out.ground, to, 16);
     }
   }
 
   public Region copy() {
     return new Region(
-        x, z, color.clone(), height.clone(), water.clone(), block.clone(), stamps.clone());
+        x,
+        z,
+        color.clone(),
+        height.clone(),
+        water.clone(),
+        block.clone(),
+        depth.clone(),
+        floor.clone(),
+        ground.clone(),
+        stamps.clone());
   }
 
   public static final class Column {
@@ -151,5 +185,8 @@ public final class Region {
     public final short[] height = new short[CHUNK_COLUMNS];
     public final byte[] water = new byte[CHUNK_COLUMNS];
     public final char[] block = new char[CHUNK_COLUMNS];
+    public final byte[] depth = new byte[CHUNK_COLUMNS];
+    public final short[] floor = new short[CHUNK_COLUMNS];
+    public final char[] ground = new char[CHUNK_COLUMNS];
   }
 }

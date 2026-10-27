@@ -11,7 +11,7 @@ import java.util.zip.InflaterInputStream;
 
 public final class RegionCodec {
   public static final int MAGIC = 0x43584D31;
-  public static final int VERSION = 2;
+  public static final int VERSION = 3;
   private static final int CHUNK_SLOTS = Region.CHUNKS * Region.CHUNKS;
 
   private RegionCodec() {}
@@ -41,6 +41,7 @@ public final class RegionCodec {
           int from = Region.index(baseX, baseZ + row);
           for (int i = 0; i < 16; i++) {
             locals.add(region.block[from + i]);
+            locals.add(region.ground[from + i]);
           }
         }
       }
@@ -137,15 +138,28 @@ public final class RegionCodec {
     for (int i = 0; i < Region.CHUNK_COLUMNS; i++) {
       out.writeChar(locals.of(column.block[i]));
     }
+    out.write(column.depth);
+    for (int i = 0; i < Region.CHUNK_COLUMNS; i++) {
+      out.writeShort(column.floor[i]);
+      out.writeChar(locals.of(column.ground[i]));
+    }
   }
 
   static void readColumn(DataInputStream in, Region.Column column, char[] globals)
       throws IOException {
     readColumn(in, column);
     for (int i = 0; i < Region.CHUNK_COLUMNS; i++) {
-      int local = in.readChar();
-      column.block[i] = local < globals.length ? globals[local] : (char) BlockPalette.NONE;
+      column.block[i] = global(globals, in.readChar());
     }
+    in.readFully(column.depth);
+    for (int i = 0; i < Region.CHUNK_COLUMNS; i++) {
+      column.floor[i] = in.readShort();
+      column.ground[i] = global(globals, in.readChar());
+    }
+  }
+
+  private static char global(char[] globals, int local) {
+    return local < globals.length ? globals[local] : (char) BlockPalette.NONE;
   }
 
   static void writeColumn(DataOutputStream out, Region.Column column) throws IOException {

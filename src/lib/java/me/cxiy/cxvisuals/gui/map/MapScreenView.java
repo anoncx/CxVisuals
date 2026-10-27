@@ -16,6 +16,7 @@ import me.cxiy.cxvisuals.gui.map.MapChrome.Glyph;
 import me.cxiy.cxvisuals.gui.spatial.Spring;
 import me.cxiy.cxvisuals.modules.friends.Note;
 import me.cxiy.cxvisuals.modules.hud.HudData;
+import me.cxiy.cxvisuals.modules.hud.elements.MinimapElement;
 import me.cxiy.cxvisuals.modules.map.MapShare;
 import me.cxiy.cxvisuals.modules.map.MapSource;
 import me.cxiy.cxvisuals.modules.map.TileKey;
@@ -87,12 +88,19 @@ public final class MapScreenView {
   private static final float ORBIT_YAW = 0.006F;
   private static final float ORBIT_PITCH = 0.005F;
   private static final float FADE_UNTIL = 0.35F;
+  private static final double HOP_JUMP = 12.0;
+  private static final float HOP_SECONDS = 0.6F;
+  private static final float HOP_DIP = 0.3F;
 
   private final MapHost host;
   private final Viewport view = new Viewport();
   private final ChartBatch batch = new ChartBatch();
   private final ChartBatch frostBatch = new ChartBatch();
   private final TerrainFrame terrain = new TerrainFrame();
+  private final Appear appear = new Appear();
+  private double lastPlayerX;
+  private double lastPlayerZ;
+  private float hop = 1.0F;
   private final Anim tilt = new Anim(0.0F, TILT_SECONDS, Anim.Curve.SNAPPY);
   private final Spring yawGlide = Spring.critical(160.0F);
   private final Spring pitchGlide = Spring.critical(160.0F);
@@ -243,6 +251,8 @@ public final class MapScreenView {
       started = true;
       camX = data.x;
       camZ = data.z;
+      lastPlayerX = data.x;
+      lastPlayerZ = data.z;
       zoom.snap(zoomGoal);
     }
     open.update(dt);
@@ -250,7 +260,8 @@ public final class MapScreenView {
     popAnim.update(dt);
     zoom.step(dt, zoomGoal);
     step(data, dt);
-    float scale = scale();
+    appear.frame(dt);
+    float scale = scale() * hopDip(data, dt);
     view.set(camX, camZ, scale, 0.0F);
     view.origin(originX(), originY());
     if (anchored) {
@@ -285,6 +296,9 @@ public final class MapScreenView {
       c.roundRectGradient(0.0F, 0.0F, screenW, screenH, 0.0F, sky[0], sky[1]);
       terrain.build(source.atlas(), TileKey.SURFACE, 0.0F, 0.0F, originX() * 2.0F, screenH);
       terrain.fog = sky[1];
+      boolean dark = MapStyle.dark(t);
+      terrain.cloudBase = dark ? 0xFF25262B : 0xFFD8D9DF;
+      terrain.cloudTop = dark ? 0xFF474950 : 0xFFFFFFFF;
       terrain.terrain = source.terrain();
       terrain.alpha = 1.0F;
       solidDrawn = c.terrain(terrain);
@@ -336,6 +350,13 @@ public final class MapScreenView {
   private float solid() {
     float v = tilt.get();
     return v <= 0.001F ? 0.0F : v;
+  }
+
+  public void recenter() {
+    follow = true;
+    gliding = false;
+    velX = 0.0F;
+    velZ = 0.0F;
   }
 
   public boolean solidView() {
@@ -403,7 +424,7 @@ public final class MapScreenView {
 
   private void step(HudData data, float dt) {
     if (follow && !dragging) {
-      float ease = Math.min(1.0F, dt * 10.0F);
+      float ease = Math.min(1.0F, dt * 9.0F);
       camX += (data.x - camX) * ease;
       camZ += (data.z - camZ) * ease;
     } else if (gliding) {
@@ -519,7 +540,14 @@ public final class MapScreenView {
             : Math.max(4.0F, Math.min(9.0F, pixels * 0.6F));
     for (int i = 0; i < mobs; i++) {
       if (at(mobX[i], surface(mobX[i], mobZ[i]) + 0.8, mobZ[i], p)) {
-        MapMarks.mob(c, t, p[0], p[1], mobSize, mobHostile[i], heads ? mobIds[i] : -1);
+        MapMarks.mob(
+            c,
+            t,
+            p[0],
+            p[1],
+            mobSize * appear.scale(mobIds[i]),
+            mobHostile[i],
+            heads ? mobIds[i] : -1);
       }
     }
     int others = source.players(otherX, otherZ, otherX.length);
@@ -534,7 +562,7 @@ public final class MapScreenView {
           || !at(data.markX[i], data.markY[i], data.markZ[i], p)) {
         continue;
       }
-      float size = WAYPOINT * (i == hoveredMark ? 1.25F : 1.0F);
+      float size = WAYPOINT * (i == hoveredMark ? 1.25F : 1.0F) * appear.scale(markKey(data, i));
       if (data.markColor[i] == Waypoints.DEATH_COLOR) {
         MapMarks.death(c, p[0], p[1], size + 1.0F, data.markColor[i], 1.0F);
       } else {
@@ -547,7 +575,8 @@ public final class MapScreenView {
           || !at(data.markX[i], data.markY[i], data.markZ[i], p)) {
         continue;
       }
-      MapMarks.friend(c, t, data.markEntity[i], data.markLabel[i], p[0], p[1], FRIEND, 1.0F);
+      float pop = appear.scale(markKey(data, i));
+      MapMarks.friend(c, t, data.markEntity[i], data.markLabel[i], p[0], p[1], FRIEND * pop, 1.0F);
       MapMarks.label(c, t, data.markLabel[i], p[0], p[1] + FRIEND * 0.5F + 5.0F, 0.92F);
     }
     if (at(data.x, data.y + 0.2, data.z, p)) {
@@ -567,6 +596,25 @@ public final class MapScreenView {
       String text = data.markLabel[hoveredMark] + " · " + WorldPins.range(metres);
       MapMarks.label(c, t, text, p[0], p[1] + WAYPOINT + 4.0F, 1.0F);
     }
+  }
+
+  private static long markKey(HudData data, int i) {
+    return MinimapElement.markKey(data, i);
+  }
+
+  private float hopDip(HudData data, float dt) {
+    double dx = data.x - lastPlayerX;
+    double dz = data.z - lastPlayerZ;
+    lastPlayerX = data.x;
+    lastPlayerZ = data.z;
+    if (follow && dx * dx + dz * dz > HOP_JUMP * HOP_JUMP) {
+      hop = 0.0F;
+    }
+    if (hop >= 1.0F) {
+      return 1.0F;
+    }
+    hop = Math.min(1.0F, hop + dt / HOP_SECONDS);
+    return 1.0F - HOP_DIP * (float) Math.sin(Math.PI * hop);
   }
 
   private double surface(double x, double z) {
@@ -728,12 +776,7 @@ public final class MapScreenView {
         switch (i) {
           case 0 -> zoomAt(originX(), originY(), 3.0F);
           case 1 -> zoomAt(originX(), originY(), -3.0F);
-          case 2 -> {
-            follow = true;
-            gliding = false;
-            velX = 0.0F;
-            velZ = 0.0F;
-          }
+          case 2 -> recenter();
           default -> solidView(!solidView());
         }
         Sound.play(Sound.Cue.STEP);

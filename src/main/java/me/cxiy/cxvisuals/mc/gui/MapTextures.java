@@ -26,13 +26,15 @@ final class MapTextures {
   private static final class Slot {
     final DynamicTexture colors;
     final DynamicTexture ids;
+    final DynamicTexture grounds;
     GpuTextureView blocks;
     TextureSetup setup;
     int table = -1;
 
-    Slot(DynamicTexture colors, DynamicTexture ids) {
+    Slot(DynamicTexture colors, DynamicTexture ids, DynamicTexture grounds) {
       this.colors = colors;
       this.ids = ids;
+      this.grounds = grounds;
     }
   }
 
@@ -51,6 +53,9 @@ final class MapTextures {
                   new NativeImage(NativeImage.Format.RGBA, MapAtlas.SIZE, MapAtlas.SIZE, true)),
               new DynamicTexture(
                   () -> "cxvisuals_map_blocks",
+                  new NativeImage(NativeImage.Format.RGBA, MapAtlas.SIZE, MapAtlas.SIZE, true)),
+              new DynamicTexture(
+                  () -> "cxvisuals_map_grounds",
                   new NativeImage(NativeImage.Format.RGBA, MapAtlas.SIZE, MapAtlas.SIZE, true)));
       slots.put(atlas, slot);
     }
@@ -89,14 +94,21 @@ final class MapTextures {
       CommandEncoder encoder = RenderSystem.getDevice().createCommandEncoder();
       GpuTexture colors = slot.colors.getTexture();
       GpuTexture ids = slot.ids.getTexture();
+      GpuTexture grounds = slot.grounds.getTexture();
       atlas.drain(
-          (index, pixels, details) -> {
+          (index, pixels, details, under) -> {
             write(encoder, colors, index, pixels);
             write(encoder, ids, index, details);
+            write(encoder, grounds, index, under);
           },
           UPLOADS_PER_FRAME);
     }
     return slot.setup;
+  }
+
+  GpuTextureView grounds(MapAtlas atlas) {
+    Slot slot = slots.get(atlas);
+    return slot == null ? null : slot.grounds.getTextureView();
   }
 
   private void write(CommandEncoder encoder, GpuTexture texture, int index, int[] values) {

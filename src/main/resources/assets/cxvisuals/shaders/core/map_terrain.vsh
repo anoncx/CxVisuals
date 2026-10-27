@@ -6,6 +6,10 @@ layout(std140) uniform MapTerrain {
     vec4 FogColor;
     vec4 Params;
     vec4 Extra;
+    mat4 Inverse;
+    vec4 Cloud;
+    vec4 CloudBase;
+    vec4 CloudTop;
 };
 layout(std140) uniform MapTile {
     vec4 Tile;
@@ -16,6 +20,7 @@ layout(std140) uniform MapTile {
 
 uniform sampler2D Sampler0;
 uniform sampler2D Sampler1;
+uniform sampler2D Sampler3;
 
 in vec3 Position;
 in vec2 UV0;
@@ -24,13 +29,26 @@ out vec2 local;
 out float fogDistance;
 flat out vec3 raw;
 flat out int block;
+flat out int topBlock;
 flat out int face;
+flat out int layer;
 flat out float sideHeight;
 flat out int water;
 
 const int EDGE = 128;
 const int GRID = 16;
 const int SKIRT = 6;
+const int NONE = -1000;
+
+struct Column {
+    int block;
+    int h;
+    int water;
+    int depth;
+    int ground;
+    int floor;
+    bool known;
+};
 
 ivec2 slotOrigin(int slot) {
     return ivec2(slot % GRID, slot / GRID) * EDGE;
@@ -41,7 +59,8 @@ uint word(vec4 texel, bool high) {
     return high ? uint(b.b) | (uint(b.a) << 8u) : uint(b.r) | (uint(b.g) << 8u);
 }
 
-ivec4 fetchColumn(ivec2 col) {
+Column fetchColumn(ivec2 col) {
+    Column c = Column(0, NONE, 0, 0, 0, NONE, false);
     int slot = Slots.x;
     if (col.x < 0) {
         slot = Near.z;
@@ -58,13 +77,30 @@ ivec4 fetchColumn(ivec2 col) {
         col.y -= EDGE;
     }
     if (slot < 0) {
-        return ivec4(0, -1000, 0, 0);
+        return c;
     }
-    vec4 id = texelFetch(Sampler1, slotOrigin(slot) + col, 0);
+    ivec2 at = slotOrigin(slot) + col;
+    vec4 id = texelFetch(Sampler1, at, 0);
     uint lo = word(id, false);
     uint hi = word(id, true);
-    int b = int(lo & 0x3FFFu);
-    return ivec4(b, b == 0 ? -1000 : int(hi & 0x1FFu) - 64, int((hi >> 9u) & 1u), 1);
+    c.block = int(lo & 0x3FFFu);
+    if (c.block == 0) {
+        return c;
+    }
+    c.known = true;
+    c.h = int(hi & 0x1FFu) - 64;
+    c.water = int((hi >> 9u) & 1u);
+    c.depth = int((hi >> 10u) & 0x3Fu);
+    vec4 under = texelFetch(Sampler3, at, 0);
+    uint ulo = word(under, false);
+    uint uhi = word(under, true);
+    if (c.depth > 0 && (uhi & 0x200u) != 0u) {
+        c.ground = int(ulo & 0x3FFFu);
+        c.floor = int(uhi & 0x1FFu) - 64;
+    } else {
+        c.depth = 0;
+    }
+    return c;
 }
 
 float relief(int h, int west, int north) {
@@ -94,21 +130,29 @@ vec3 unlight(vec3 lit, float light) {
     return (lit - k) / (light - k);
 }
 
+void hide() {
+    gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+}
+
 void main() {
     int stride = Slots.y;
     int perRow = EDGE / stride;
     ivec2 col = ivec2(gl_InstanceID % perRow, gl_InstanceID / perRow) * stride;
-    ivec4 here = fetchColumn(col);
-    block = here.x;
-    water = here.z;
-    face = int(UV0.x + 0.5);
-    if (block == 0) {
-        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+    Column here = fetchColumn(col);
+    int kind = int(UV0.x + 0.5);
+    layer = kind / 3;
+    face = kind - layer * 3;
+    water = here.water;
+    topBlock = here.block;
+    if (here.block == 0 || (layer == 1 && here.depth == 0)) {
+        hide();
         return;
     }
+    block = layer == 0 ? here.block : here.ground;
     float step = Tile.z;
     float width = step * float(stride);
-    int h = here.y;
+    int h = layer == 0 ? here.h : here.floor;
+    int underside = here.depth > 0 ? here.h - here.depth + 1 : NONE;
     float top = float(h + 1) - Extra.x;
     float x0 = Tile.x + float(col.x) * step;
     float z0 = Tile.y + float(col.y) * step;
@@ -122,13 +166,21 @@ void main() {
         float sign = zFace ? Params.y : Params.z;
         ivec2 offset = zFace ? ivec2(0, sign > 0.0 ? stride : -stride)
                              : ivec2(sign > 0.0 ? stride : -stride, 0);
-        ivec4 next = fetchColumn(col + offset);
-        int low = next.w == 0 || next.x == 0 ? h - SKIRT : next.y;
-        if (water == 1 && next.x != 0 && next.z == 1) {
-            low = h;
+        Column next = fetchColumn(col + offset);
+        int low;
+        if (layer == 0) {
+            low = next.known ? next.h : h - SKIRT;
+            if (underside != NONE) {
+                low = max(low, underside - 1);
+            }
+            if (water == 1 && next.known && next.water == 1) {
+                low = h;
+            }
+        } else {
+            low = !next.known ? h - SKIRT : next.depth > 0 ? next.floor : next.h;
         }
         if (low >= h) {
-            gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+            hide();
             return;
         }
         float bottom = float(low + 1) - Extra.x;
@@ -142,13 +194,13 @@ void main() {
         }
         local = vec2(along * width, top - y);
     }
-    ivec4 westColumn = fetchColumn(col + ivec2(-stride, 0));
-    ivec4 northColumn = fetchColumn(col + ivec2(0, -stride));
-    int west = westColumn.x == 0 ? h : westColumn.y;
-    int north = northColumn.x == 0 ? h : northColumn.y;
     vec3 color = texelFetch(Sampler0, slotOrigin(Slots.x) + col, 0).rgb;
     if (water == 0) {
-        float light = relief(h, west, north);
+        Column westColumn = fetchColumn(col + ivec2(-stride, 0));
+        Column northColumn = fetchColumn(col + ivec2(0, -stride));
+        int west = westColumn.known ? westColumn.h : here.h;
+        int north = northColumn.known ? northColumn.h : here.h;
+        float light = relief(here.h, west, north);
         if (step < 1.5) {
             light *= grain(World.x + col.x, World.y + col.y);
         }

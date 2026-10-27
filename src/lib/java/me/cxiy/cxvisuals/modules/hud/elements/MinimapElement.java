@@ -1,6 +1,7 @@
 package me.cxiy.cxvisuals.modules.hud.elements;
 
 import me.cxiy.cxvisuals.core.i18n.Lang;
+import me.cxiy.cxvisuals.core.math.Easing;
 import me.cxiy.cxvisuals.core.settings.BoolSetting;
 import me.cxiy.cxvisuals.core.settings.EnumSetting;
 import me.cxiy.cxvisuals.core.settings.NumberSetting;
@@ -9,6 +10,7 @@ import me.cxiy.cxvisuals.gui.Canvas;
 import me.cxiy.cxvisuals.gui.FontStyle;
 import me.cxiy.cxvisuals.gui.Theme;
 import me.cxiy.cxvisuals.gui.hud.HudPaint;
+import me.cxiy.cxvisuals.gui.map.Appear;
 import me.cxiy.cxvisuals.gui.map.ChartBatch;
 import me.cxiy.cxvisuals.gui.map.MapMarks;
 import me.cxiy.cxvisuals.gui.map.MapStyle;
@@ -48,6 +50,10 @@ public final class MinimapElement extends HudElement {
   private static final float MOB = 4.0F;
   private static final float MOB_HEAD = 9.0F;
   private static final float ZOOM_STEP = 1.5F;
+  private static final double JUMP = 12.0;
+  private static final double FAR_JUMP = 50_000.0;
+  private static final float HOP_SECONDS = 0.55F;
+  private static final float HOP_DIP = 0.35F;
   private static final String CAVE = Lang.key("Cave");
 
   public final EnumSetting<Shape> shape;
@@ -64,7 +70,14 @@ public final class MinimapElement extends HudElement {
   private final double[] mobZ = new double[MAX_MOBS];
   private final boolean[] mobHostile = new boolean[MAX_MOBS];
   private final int[] mobIds = new int[MAX_MOBS];
+  private final Appear appear = new Appear();
   private MapSource source;
+  private boolean settled;
+  private double shownX;
+  private double shownZ;
+  private double hopX;
+  private double hopZ;
+  private float hop = 1.0F;
   private MapAtlas idle;
   private boolean glided;
   private int footX = Integer.MIN_VALUE;
@@ -129,9 +142,10 @@ public final class MinimapElement extends HudElement {
       zoomGlide.snap(goal);
     }
     zoomGlide.step(dt, goal);
-    float scale = (float) Math.exp(zoomGlide.value());
+    float scale = (float) Math.exp(zoomGlide.value()) * glide(data, dt);
+    appear.frame(dt);
     float angle = rotate.get() ? Viewport.facing(data.yaw) : 0.0F;
-    view.set(data.x, data.z, scale, angle);
+    view.set(shownX, shownZ, scale, angle);
     view.origin(centreX, centreY);
 
     MapAtlas atlas = source != null ? source.atlas() : idle();
@@ -154,12 +168,13 @@ public final class MinimapElement extends HudElement {
         float px = view.screenX(mobX[i], mobZ[i]) - centreX;
         float py = view.screenY(mobX[i], mobZ[i]) - centreY;
         if (inside(px, py, reach, circle)) {
+          float pop = appear.scale(mobIds[i]);
           MapMarks.mob(
               c,
               t,
               centreX + px,
               centreY + py,
-              heads ? MOB_HEAD : MOB,
+              (heads ? MOB_HEAD : MOB) * pop,
               mobHostile[i],
               heads ? mobIds[i] : -1);
         }
@@ -189,12 +204,13 @@ public final class MinimapElement extends HudElement {
       }
       float sx = centreX + px;
       float sy = centreY + py;
+      float pop = appear.scale(markKey(data, i));
       if (friend) {
-        MapMarks.friend(c, t, data.markEntity[i], data.markLabel[i], sx, sy, FRIEND, alpha);
+        MapMarks.friend(c, t, data.markEntity[i], data.markLabel[i], sx, sy, FRIEND * pop, alpha);
       } else if (data.markColor[i] == Waypoints.DEATH_COLOR) {
-        MapMarks.death(c, sx, sy, WAYPOINT + 1.0F, data.markColor[i], alpha);
+        MapMarks.death(c, sx, sy, (WAYPOINT + 1.0F) * pop, data.markColor[i], alpha);
       } else {
-        MapMarks.waypoint(c, sx, sy, WAYPOINT, data.markColor[i], alpha);
+        MapMarks.waypoint(c, sx, sy, WAYPOINT * pop, data.markColor[i], alpha);
       }
     }
 
@@ -219,7 +235,8 @@ public final class MinimapElement extends HudElement {
         MapMarks.WHITE);
 
     float heading = rotate.get() ? 0.0F : (float) Math.toRadians(data.yaw + 180.0F);
-    MapMarks.player(c, t, centreX, centreY, ARROW, heading);
+    MapMarks.player(
+        c, t, view.screenX(data.x, data.z), view.screenY(data.x, data.z), ARROW, heading);
 
     if (coordinates.get()) {
       int bx = (int) Math.floor(data.x);
@@ -257,6 +274,45 @@ public final class MinimapElement extends HudElement {
           pillY + (FOOT - c.lineHeight(FontStyle.MONO)) * 0.5F,
           t.ink());
     }
+  }
+
+  public static long markKey(HudData data, int i) {
+    if (data.markFriend[i]) {
+      return ((long) 1 << 40)
+          ^ (data.markEntity[i] >= 0 ? data.markEntity[i] : data.markLabel[i].hashCode());
+    }
+    return ((long) 2 << 40)
+        ^ ((long) data.markLabel[i].hashCode() << 8)
+        ^ Math.round(data.markX[i]) * 31L
+        ^ Math.round(data.markZ[i]);
+  }
+
+  private float glide(HudData data, float dt) {
+    double dx = data.x - shownX;
+    double dz = data.z - shownZ;
+    double jump = Math.sqrt(dx * dx + dz * dz);
+    if (!settled || jump > FAR_JUMP) {
+      settled = true;
+      shownX = data.x;
+      shownZ = data.z;
+      hop = 1.0F;
+      return 1.0F;
+    }
+    if (hop >= 1.0F && jump > JUMP) {
+      hop = 0.0F;
+      hopX = shownX;
+      hopZ = shownZ;
+    }
+    if (hop >= 1.0F) {
+      shownX = data.x;
+      shownZ = data.z;
+      return 1.0F;
+    }
+    hop = Math.min(1.0F, hop + dt / HOP_SECONDS);
+    float ease = (float) Easing.smootherstep(hop);
+    shownX = hopX + (data.x - hopX) * ease;
+    shownZ = hopZ + (data.z - hopZ) * ease;
+    return 1.0F - HOP_DIP * (float) Math.sin(Math.PI * hop);
   }
 
   private MapAtlas idle() {

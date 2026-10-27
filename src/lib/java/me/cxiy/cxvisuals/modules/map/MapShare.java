@@ -15,7 +15,7 @@ public final class MapShare {
   public record Area(String scope, String dimension, List<Chunk> chunks) {}
 
   public static final int MAGIC = 0x43584D53;
-  public static final int VERSION = 2;
+  public static final int VERSION = 3;
   public static final int MAX_CHUNKS = 16_384;
   public static final int MAX_BYTES = 8 << 20;
   private static final int TEXT_LIMIT = 128;
@@ -34,8 +34,10 @@ public final class MapShare {
     int count = Math.min(chunks.size(), MAX_CHUNKS);
     RegionCodec.Locals locals = new RegionCodec.Locals();
     for (int i = 0; i < count; i++) {
-      for (char block : chunks.get(i).column().block) {
-        locals.add(block);
+      Region.Column column = chunks.get(i).column();
+      for (int c = 0; c < Region.CHUNK_COLUMNS; c++) {
+        locals.add(column.block[c]);
+        locals.add(column.ground[c]);
       }
     }
     locals.write(out, palette);

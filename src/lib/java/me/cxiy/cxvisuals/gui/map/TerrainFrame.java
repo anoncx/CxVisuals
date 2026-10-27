@@ -36,6 +36,8 @@ public final class TerrainFrame {
   public int sky;
   public int horizon;
   public int fog;
+  public int cloudBase;
+  public int cloudTop;
   public int terrain;
   public float time;
 
