@@ -1,5 +1,6 @@
 package me.cxiy.cxvisuals.gui;
 
+import me.cxiy.cxvisuals.gui.map.ChartBatch;
 import me.cxiy.cxvisuals.modules.hud.mirror.FrameStore;
 
 public interface Canvas {
@@ -128,6 +129,10 @@ public interface Canvas {
 
   default boolean feed(
       FrameStore frames, float x, float y, float w, float h, float radius, float dim) {
+    return false;
+  }
+
+  default boolean chart(ChartBatch batch) {
     return false;
   }
 

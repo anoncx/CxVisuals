@@ -22,7 +22,8 @@ public record Note(
     INVITE,
     MODEL,
     CONFIG,
-    WAYPOINT
+    WAYPOINT,
+    MAP
   }
 
   public static final int TEXT_LIMIT = 500;
@@ -121,6 +122,15 @@ public record Note(
     return new Note(Kind.CONFIG, clean(name, NAME_LIMIT), parcel, key, hash, 0, 0, 0, "");
   }
 
+  public static Note map(String name, String parcel, String key, String hash, int chunks) {
+    return new Note(
+        Kind.MAP, clean(name, NAME_LIMIT), parcel, key, hash, Math.max(0, chunks), 0, 0, "");
+  }
+
+  public int chunks() {
+    return kind == Kind.MAP ? x : 0;
+  }
+
   public static Note waypoint(String name, int x, int y, int z, String dimension) {
     return spot(name, x, y, z, dimension, "", false);
   }
@@ -174,7 +184,7 @@ public record Note(
   }
 
   public boolean sealed() {
-    return kind == Kind.MODEL || kind == Kind.CONFIG;
+    return kind == Kind.MODEL || kind == Kind.CONFIG || kind == Kind.MAP;
   }
 
   public String coordinates() {
@@ -189,6 +199,7 @@ public record Note(
       case MODEL -> Lang.tr("Avatar") + " · " + text;
       case CONFIG -> Lang.tr("Config") + " · " + text;
       case WAYPOINT -> Lang.tr("Waypoint") + " · " + text;
+      case MAP -> Lang.tr("Map") + " · " + text;
     };
   }
 
@@ -211,6 +222,9 @@ public record Note(
         json.addProperty("mp", mini());
         json.addProperty("mh", miniHash());
       }
+    }
+    if (kind == Kind.MAP) {
+      json.addProperty("ch", x);
     }
     if (kind == Kind.WAYPOINT) {
       json.addProperty("x", x);
@@ -244,7 +258,7 @@ public record Note(
         case TEXT -> text.isBlank() ? null : text(text);
         case WAVE -> wave();
         case INVITE -> clean(text, SERVER_LIMIT).isEmpty() ? null : invite(text);
-        case MODEL, CONFIG -> {
+        case MODEL, CONFIG, MAP -> {
           String parcel = SocialProtocol.text(json, "p", "");
           String hash = SocialProtocol.lower(SocialProtocol.text(json, "h", ""));
           String key = SocialProtocol.text(json, "s", "");
@@ -257,16 +271,23 @@ public record Note(
               ? null
               : kind == Kind.CONFIG
                   ? config(text, parcel, key, hash)
-                  : model(
-                      text,
-                      parcel,
-                      key,
-                      hash,
-                      SocialProtocol.text(json, "mp", ""),
-                      SocialProtocol.lower(SocialProtocol.text(json, "mh", "")),
-                      (int) Math.min(10_000_000L, SocialProtocol.number(json, "tr", 0L)),
-                      (int) Math.min(1000L, SocialProtocol.number(json, "cl", 0L)),
-                      (int) Math.min(1L << 20, SocialProtocol.number(json, "kb", 0L)));
+                  : kind == Kind.MAP
+                      ? map(
+                          text,
+                          parcel,
+                          key,
+                          hash,
+                          (int) Math.min(1L << 20, SocialProtocol.number(json, "ch", 0L)))
+                      : model(
+                          text,
+                          parcel,
+                          key,
+                          hash,
+                          SocialProtocol.text(json, "mp", ""),
+                          SocialProtocol.lower(SocialProtocol.text(json, "mh", "")),
+                          (int) Math.min(10_000_000L, SocialProtocol.number(json, "tr", 0L)),
+                          (int) Math.min(1000L, SocialProtocol.number(json, "cl", 0L)),
+                          (int) Math.min(1L << 20, SocialProtocol.number(json, "kb", 0L)));
         }
         case WAYPOINT -> {
           long x = SocialProtocol.number(json, "x", Long.MAX_VALUE);

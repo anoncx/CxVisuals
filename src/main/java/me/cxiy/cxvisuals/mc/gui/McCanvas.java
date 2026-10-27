@@ -9,6 +9,7 @@ import me.cxiy.cxvisuals.gui.FontStyle;
 import me.cxiy.cxvisuals.gui.Hsv;
 import me.cxiy.cxvisuals.gui.StyledText;
 import me.cxiy.cxvisuals.gui.TileSheet;
+import me.cxiy.cxvisuals.gui.map.ChartBatch;
 import me.cxiy.cxvisuals.gui.spatial.Warp;
 import me.cxiy.cxvisuals.gui.text.FontFace;
 import me.cxiy.cxvisuals.gui.text.TextEngine;
@@ -55,6 +56,7 @@ public final class McCanvas implements Canvas {
   private static final IconTextures ICONS = new IconTextures();
   private static final TileTextures TILES = new TileTextures();
   private static final FeedTextures FEEDS = new FeedTextures();
+  private static final MapTextures MAPS = new MapTextures();
   private static final ChatLines CHAT = new ChatLines();
   private static final FontStyle[] FONTS = FontStyle.values();
   private static ItemStack[] held;
@@ -741,6 +743,27 @@ public final class McCanvas implements Canvas {
             bounds,
             depth(),
             cut(matrix)));
+    return true;
+  }
+
+  @Override
+  public boolean chart(ChartBatch batch) {
+    if (!shapes || alpha <= 0.002F || batch.count == 0 || !MapPipeline.usable()) {
+      return false;
+    }
+    Matrix3x2f matrix = pose();
+    ScreenRectangle bounds =
+        bounds(matrix, batch.left, batch.top, batch.left + batch.width, batch.top + batch.height);
+    if (bounds == null) {
+      return true;
+    }
+    TextureSetup setup = MAPS.setup(batch.atlas);
+    ScreenRectangle scissor = clipDepth > 0 ? clips[clipDepth - 1] : null;
+    int color =
+        (Math.round(255.0F * Math.min(1.0F, alpha * batch.alpha)) << 24) | (batch.fog & 0xFFFFFF);
+    state.addGuiElement(
+        ChartRenderState.of(
+            matrix, batch, color, MapPipeline.MAP, setup, scissor, bounds, depth()));
     return true;
   }
 

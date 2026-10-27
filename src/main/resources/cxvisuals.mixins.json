@@ -54,6 +54,7 @@
     "RenderTypeAccessor",
     "ScreenAccessor",
     "ScreenMixin",
+    "SpriteContentsAccessor",
     "SliderAccessor",
     "TextCollectorMixin",
     "TextDisplayRendererMixin",

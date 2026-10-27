@@ -1,6 +1,7 @@
 package me.cxiy.cxvisuals.mc.mixin;
 
 import me.cxiy.cxvisuals.mc.modules.animations.BlockPopEffects;
+import me.cxiy.cxvisuals.mc.modules.download.Downloads;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
@@ -23,6 +24,7 @@ public abstract class MultiPlayerGameModeMixin {
       BlockHitResult hit,
       CallbackInfoReturnable<InteractionResult> cir) {
     BlockPopEffects.selfAction(true);
+    Downloads.clicked(hit.getBlockPos());
   }
 
   @Inject(method = "useItemOn", at = @At("RETURN"))

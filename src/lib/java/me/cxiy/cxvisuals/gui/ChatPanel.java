@@ -30,6 +30,7 @@ public final class ChatPanel extends Widget {
   public static final int PICK = 17;
   public static final int POINT = 18;
   public static final int DROP = 19;
+  public static final int CHART = 20;
 
   public static final float HEIGHT = 268.0F;
   private static final int CLOSED = 0;
@@ -527,7 +528,7 @@ public final class ChatPanel extends Widget {
       case WAVE -> NOTE;
       case WAYPOINT -> mine ? PLACE_MINE : PLACE_THEIRS;
       case MODEL -> MODEL_HEIGHT;
-      case INVITE, CONFIG -> mine ? CARD : CARD_ACTIONS;
+      case INVITE, CONFIG, MAP -> mine ? CARD : CARD_ACTIONS;
     };
   }
 
@@ -764,6 +765,7 @@ public final class ChatPanel extends Widget {
         switch (note.kind()) {
           case MODEL -> Lang.tr("AVATAR");
           case CONFIG -> Lang.tr("CONFIG");
+          case MAP -> Lang.tr("MAP") + " · " + Lang.format("{0} chunks", note.chunks());
           case WAYPOINT -> Lang.tr("WAYPOINT") + " · " + note.coordinates();
           default -> Lang.tr("INVITE");
         };
@@ -819,6 +821,13 @@ public final class ChatPanel extends Widget {
       return cardX;
     }
     if (state == Friends.Parcel.WORKING || state == Friends.Parcel.FAILED) {
+      return cardX;
+    }
+    if (note.kind() == Note.Kind.MAP) {
+      if (state != Friends.Parcel.KEPT) {
+        hits.pill(
+            c, t, CHART, line, Lang.tr("Add to my map"), edge, pillMiddle, mx, my, t.ink(), true);
+      }
       return cardX;
     }
     if (note.kind() == Note.Kind.CONFIG) {
@@ -1155,6 +1164,7 @@ public final class ChatPanel extends Widget {
       case APPLY -> friends.actions().config((Friends.Line) target, true);
       case SAVE -> friends.actions().config((Friends.Line) target, false);
       case ADD -> friends.actions().waypoint((Friends.Line) target);
+      case CHART -> friends.actions().map((Friends.Line) target);
       case TRY -> friends.actions().tryOn((Friends.Line) target);
       case KEEP -> friends.actions().keep((Friends.Line) target);
       case REMOVE -> {

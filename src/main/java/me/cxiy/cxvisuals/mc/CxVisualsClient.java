@@ -17,6 +17,7 @@ import me.cxiy.cxvisuals.gui.ClipEditor;
 import me.cxiy.cxvisuals.gui.ConfigPanel;
 import me.cxiy.cxvisuals.gui.ConfirmRow;
 import me.cxiy.cxvisuals.gui.ContourPad;
+import me.cxiy.cxvisuals.gui.DownloadPanel;
 import me.cxiy.cxvisuals.gui.FriendsPanel;
 import me.cxiy.cxvisuals.gui.IdentityPanel;
 import me.cxiy.cxvisuals.gui.ModulesView;
@@ -35,6 +36,7 @@ import me.cxiy.cxvisuals.mc.modules.avatar.Avatars;
 import me.cxiy.cxvisuals.mc.modules.avatar.LibraryGallery;
 import me.cxiy.cxvisuals.mc.modules.chat.Chat;
 import me.cxiy.cxvisuals.mc.modules.deaths.DeathEffects;
+import me.cxiy.cxvisuals.mc.modules.download.Downloads;
 import me.cxiy.cxvisuals.mc.modules.donutsmp.DonutSMP;
 import me.cxiy.cxvisuals.mc.modules.environment.Environment;
 import me.cxiy.cxvisuals.mc.modules.fullbright.Fullbright;
@@ -44,6 +46,7 @@ import me.cxiy.cxvisuals.mc.modules.hud.Media;
 import me.cxiy.cxvisuals.mc.modules.hud.Mirror;
 import me.cxiy.cxvisuals.mc.modules.idlecamera.IdleCamera;
 import me.cxiy.cxvisuals.mc.modules.inventory.Inventory;
+import me.cxiy.cxvisuals.mc.modules.map.Maps;
 import me.cxiy.cxvisuals.mc.modules.motionblur.MotionBlur;
 import me.cxiy.cxvisuals.mc.modules.nametags.Nametags;
 import me.cxiy.cxvisuals.mc.modules.shaders.EntityTrails;
@@ -57,8 +60,10 @@ import me.cxiy.cxvisuals.mc.modules.waypoints.Markers;
 import me.cxiy.cxvisuals.mc.modules.zoom.Zoom;
 import me.cxiy.cxvisuals.modules.avatar.AvatarModule;
 import me.cxiy.cxvisuals.modules.avatar.library.LibraryClips;
+import me.cxiy.cxvisuals.modules.download.DownloadModule;
 import me.cxiy.cxvisuals.modules.friends.FriendsModule;
 import me.cxiy.cxvisuals.modules.hud.HudModule;
+import me.cxiy.cxvisuals.modules.map.MapModule;
 import me.cxiy.cxvisuals.modules.shaders.ShadersModule;
 import me.cxiy.cxvisuals.modules.social.SocialModule;
 import me.cxiy.cxvisuals.modules.waypoints.WaypointsModule;
@@ -89,6 +94,8 @@ public final class CxVisualsClient implements ClientModInitializer {
   private long listed;
   private AvatarModule avatars;
   private WaypointsModule waypoints;
+  private MapModule maps;
+  private DownloadModule downloads;
   private FriendsModule friends;
   private SocialModule social;
   private ShadersModule shaders;
@@ -138,6 +145,10 @@ public final class CxVisualsClient implements ClientModInitializer {
     registry.add(TextureMixer.create(keys, registry.client()));
     waypoints = Markers.create(keys);
     registry.add(waypoints);
+    maps = Maps.create(keys, registry.client());
+    registry.add(maps);
+    downloads = Downloads.create(keys);
+    registry.add(downloads);
     social = Social.create(keys);
     friends = FriendsLink.create(keys, social);
     registry.add(friends);
@@ -191,6 +202,7 @@ public final class CxVisualsClient implements ClientModInitializer {
         client -> {
           MenuStage.savePlaytime();
           TextureMixer.shutdown();
+          Maps.shutdown();
           flush();
           Media.shutdown();
           Mirror.shutdown();
@@ -230,6 +242,17 @@ public final class CxVisualsClient implements ClientModInitializer {
           }
           if (setting == shaders.circleShape) {
             return new ContourPad(shaders.contour);
+          }
+          if (setting == downloads.panel) {
+            return new DownloadPanel(downloads.recording);
+          }
+          if (setting == maps.storage) {
+            return new ConfirmRow(
+                Lang.tr("Delete this map"),
+                Lang.tr("Erases everything explored in this world and dimension. Waypoints stay."),
+                Lang.tr("Delete"),
+                Lang.tr("Confirm delete"),
+                Maps::erase);
           }
           if (setting == waypoints.list) {
             return new WaypointPanel(waypoints.waypoints);
@@ -347,6 +370,8 @@ public final class CxVisualsClient implements ClientModInitializer {
     Social.tick(mc);
     FriendsLink.tick(mc);
     Markers.tick(mc);
+    Maps.tick(mc);
+    Downloads.tick(mc);
     Hud.keys(playKey, nextKey, previousKey);
     if (dirty && System.nanoTime() - dirtySince > SAVE_DELAY_NANOS) {
       flush();

@@ -1,6 +1,7 @@
 package me.cxiy.cxvisuals.mc.mixin;
 
 import me.cxiy.cxvisuals.mc.modules.animations.BlockPopEffects;
+import me.cxiy.cxvisuals.mc.modules.map.Maps;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
@@ -18,5 +19,6 @@ public abstract class LevelMixin {
   private void cxvisuals$blockPop(
       BlockPos pos, BlockState state, int flags, int limit, CallbackInfoReturnable<Boolean> cir) {
     BlockPopEffects.beforeSetBlock((Level) (Object) this, pos, state);
+    Maps.changed((Level) (Object) this, pos);
   }
 }

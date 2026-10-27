@@ -27,6 +27,7 @@ import me.cxiy.cxvisuals.mc.McKeyBinder;
 import me.cxiy.cxvisuals.mc.gui.McCanvas;
 import me.cxiy.cxvisuals.mc.modules.avatar.Avatars;
 import me.cxiy.cxvisuals.mc.modules.hud.Hud;
+import me.cxiy.cxvisuals.mc.modules.map.Maps;
 import me.cxiy.cxvisuals.mc.modules.waypoints.Markers;
 import me.cxiy.cxvisuals.modules.avatar.bake.BakedAvatar;
 import me.cxiy.cxvisuals.modules.avatar.bake.Tune;
@@ -38,6 +39,7 @@ import me.cxiy.cxvisuals.modules.friends.Identity;
 import me.cxiy.cxvisuals.modules.friends.LinkCode;
 import me.cxiy.cxvisuals.modules.friends.Note;
 import me.cxiy.cxvisuals.modules.friends.Sealer;
+import me.cxiy.cxvisuals.modules.map.MapShare;
 import me.cxiy.cxvisuals.modules.social.Account;
 import me.cxiy.cxvisuals.modules.social.SharedAvatar;
 import me.cxiy.cxvisuals.modules.social.SocialModule;
@@ -203,6 +205,11 @@ public final class FriendsLink {
           }
 
           @Override
+          public void map(Friends.Line line) {
+            FriendsLink.receiveMap(line);
+          }
+
+          @Override
           public int preview(Friends.Line line) {
             return FriendsLink.preview(line);
           }
@@ -335,6 +342,46 @@ public final class FriendsLink {
             address(Minecraft.getInstance()),
             false));
     return true;
+  }
+
+  public static boolean shareMap(String uuid, String name, byte[] blob, int chunks) {
+    Friends.Friend friend = module != null && module.active() ? friends.friend(uuid) : null;
+    if (friend == null || friend.key.isEmpty()) {
+      return false;
+    }
+    if (blob.length == 0 || blob.length > MapShare.MAX_BYTES) {
+      friends.notice(Lang.tr("That area is too large to share. Pick a smaller one."));
+      return false;
+    }
+    long token = friends.pend(uuid, Note.map(name, "", "", "", chunks));
+    parcel(
+        uuid,
+        token,
+        blob,
+        Lang.key("Couldn't share the map."),
+        parts -> Note.map(name, parts[0], parts[1], parts[2], chunks));
+    return true;
+  }
+
+  private static void receiveMap(Friends.Line line) {
+    Note note = line.note();
+    if (note.kind() != Note.Kind.MAP) {
+      return;
+    }
+    friends.parcel(line, Friends.Parcel.WORKING);
+    Social.work(
+        () -> {
+          byte[] blob = fetch(note, MapShare.MAX_BYTES);
+          MapShare.Area area = blob == null ? null : MapShare.decode(blob, Maps.palette());
+          Social.later(
+              () -> {
+                if (area == null || !Maps.importArea(area)) {
+                  friends.parcel(line, Friends.Parcel.FAILED);
+                  return;
+                }
+                friends.parcel(line, Friends.Parcel.KEPT);
+              });
+        });
   }
 
   private static List<Friends.Item> items(Friends.Share kind) {

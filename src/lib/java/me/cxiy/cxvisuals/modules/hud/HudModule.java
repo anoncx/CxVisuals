@@ -23,6 +23,7 @@ import me.cxiy.cxvisuals.modules.hud.elements.GearElement;
 import me.cxiy.cxvisuals.modules.hud.elements.KeystrokesElement;
 import me.cxiy.cxvisuals.modules.hud.elements.LyricsElement;
 import me.cxiy.cxvisuals.modules.hud.elements.MediaElement;
+import me.cxiy.cxvisuals.modules.hud.elements.MinimapElement;
 import me.cxiy.cxvisuals.modules.hud.elements.MirrorElement;
 import me.cxiy.cxvisuals.modules.hud.elements.NetworkElement;
 import me.cxiy.cxvisuals.modules.hud.elements.PlayersElement;
@@ -96,6 +97,7 @@ public final class HudModule extends Module {
   public final ToastElement toasts;
   public final AchievementsElement achievements;
   public final CompassElement compass;
+  public final MinimapElement minimap;
   public final ServerElement server;
   public final NetworkElement network;
   public final TargetElement target;
@@ -389,6 +391,7 @@ public final class HudModule extends Module {
     toasts = add(new ToastElement(settings));
     achievements = add(new AchievementsElement(settings));
     compass = add(new CompassElement(settings));
+    minimap = add(new MinimapElement(settings));
 
     scoreboard = add(new HostedElement(settings, "scoreboard", "Scoreboard", true, true));
     bossBars = add(new HostedElement(settings, "boss_bars", "Boss bars", true, true, true));

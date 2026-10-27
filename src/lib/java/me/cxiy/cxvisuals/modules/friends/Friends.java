@@ -122,6 +122,8 @@ public final class Friends {
 
     void waypoint(Line line);
 
+    default void map(Line line) {}
+
     int preview(Line line);
 
     void tryOn(Line line);
@@ -570,6 +572,7 @@ public final class Friends {
           case MODEL -> Lang.tr("AVATAR");
           case CONFIG -> Lang.tr("CONFIG");
           case WAYPOINT -> Lang.tr(note.live() ? "LOCATION" : "WAYPOINT");
+          case MAP -> Lang.tr("MAP");
         };
     String text =
         switch (note.kind()) {
@@ -577,6 +580,7 @@ public final class Friends {
           case INVITE -> Lang.format("Invited you to {0}", note.text());
           case MODEL -> Lang.tr("Sent you an avatar") + " · " + note.text();
           case CONFIG -> Lang.tr("Sent you a config") + " · " + note.text();
+          case MAP -> Lang.tr("Sent you a map") + " · " + note.text();
           case WAYPOINT ->
               note.live()
                   ? Lang.tr("Shared their location")
