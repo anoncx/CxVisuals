@@ -182,7 +182,7 @@ public final class MapWorld implements TileBaker.Source {
       for (int i = 0; i < order.size() && surface.size() > KEEP_REGIONS; i++) {
         long key = order.get(i);
         Region region = surface.get(key);
-        if (region != null && !region.dirty() && key != nearRegion) {
+        if (region != null && !region.dirty() && region.flushed() && key != nearRegion) {
           surface.remove(key);
           touched.remove(key);
         }
@@ -427,14 +427,18 @@ public final class MapWorld implements TileBaker.Source {
       }
       int revision = region.revision();
       Region copy = region.copy();
+      Region source = region;
       region.saved(revision);
       worker.execute(
           () -> {
             Map<Long, Region> own = new LinkedHashMap<>();
             own.put(copy.key(), copy);
             int[] thumb = write(to, copy, new TileBaker(new Isolated(own)), style, palette, warn);
-            if (thumb != null && to.equals(folder)) {
-              thumbs.put(copy.key(), thumb);
+            if (thumb != null) {
+              source.flushed(revision);
+              if (to.equals(folder)) {
+                thumbs.put(copy.key(), thumb);
+              }
             }
           });
     }

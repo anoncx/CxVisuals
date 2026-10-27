@@ -38,6 +38,7 @@ public final class MapAtlas {
   private final boolean[] taken = new boolean[SLOTS];
   private final Set<Long> flight = new HashSet<>();
   private final Set<Long> dirtyEmpty = new HashSet<>();
+  private final Set<Long> redo = new HashSet<>();
   private final ConcurrentLinkedQueue<Done> done = new ConcurrentLinkedQueue<>();
   private final ConcurrentLinkedQueue<int[]> pool = new ConcurrentLinkedQueue<>();
   private Baker baker = (key, generation) -> {};
@@ -102,6 +103,9 @@ public final class MapAtlas {
   }
 
   public void invalidate(long key) {
+    if (flight.contains(key)) {
+      redo.add(key);
+    }
     Integer slot = slots.get(key);
     if (slot == null) {
       return;
@@ -117,6 +121,7 @@ public final class MapAtlas {
     generation++;
     slots.clear();
     flight.clear();
+    redo.clear();
     dirtyEmpty.clear();
     done.clear();
     for (int i = 1; i < SLOTS; i++) {
@@ -147,6 +152,7 @@ public final class MapAtlas {
         continue;
       }
       flight.remove(next.key);
+      boolean changed = redo.remove(next.key);
       Integer existing = slots.get(next.key);
       if (next.pixels == null) {
         if (existing != null && existing != EMPTY) {
@@ -154,6 +160,9 @@ public final class MapAtlas {
           used[existing] = 0L;
         }
         slots.put(next.key, EMPTY);
+        if (changed) {
+          dirtyEmpty.add(next.key);
+        }
         continue;
       }
       int slot = existing != null && existing != EMPTY ? existing : evict();
@@ -166,7 +175,8 @@ public final class MapAtlas {
       keys[slot] = next.key;
       taken[slot] = true;
       used[slot] = frame;
-      bakedAt[slot] = System.nanoTime();
+      bakedAt[slot] = changed ? 0L : System.nanoTime();
+      stale[slot] = changed;
       slots.put(next.key, slot);
       uploader.upload(slot, next.pixels, next.ids, next.grounds);
       recycle(next.pixels);

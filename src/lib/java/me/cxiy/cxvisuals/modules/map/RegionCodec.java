@@ -93,6 +93,7 @@ public final class RegionCodec {
       }
     }
     region.saved(region.revision());
+    region.flushed(region.revision());
     return region;
   }
 

@@ -20,6 +20,7 @@ public final class Region {
   final long[] stamps;
   private volatile int revision;
   private int saved;
+  private volatile int flushed;
   private int explored;
 
   public Region(int x, int z) {
@@ -86,6 +87,14 @@ public final class Region {
 
   public int revision() {
     return revision;
+  }
+
+  public void flushed(int at) {
+    flushed = at;
+  }
+
+  public boolean flushed() {
+    return flushed == revision;
   }
 
   public boolean dirty() {
