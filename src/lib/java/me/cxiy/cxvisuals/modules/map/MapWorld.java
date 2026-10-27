@@ -7,6 +7,8 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -26,7 +28,7 @@ public final class MapWorld implements TileBaker.Source {
   private static final int KEEP_REGIONS = 24;
   private static final int KEEP_THUMBS = 768;
   private static final int KEEP_CAVES = 12;
-  private static final int SEARCH_DISK = 600;
+  private static final long SEARCH_PUBLISH = 70_000_000L;
   private static final long SAVE_NANOS = 20_000_000_000L;
 
   private final MapAtlas atlas;
@@ -42,6 +44,7 @@ public final class MapWorld implements TileBaker.Source {
             return thread;
           });
   private volatile int searchTicket;
+  private final Map<Long, Index> indexes = new ConcurrentHashMap<>();
   private final ExecutorService worker;
   private final Consumer<String> warn;
   private final Map<Long, Region> surface = new ConcurrentHashMap<>();
@@ -395,45 +398,95 @@ public final class MapWorld implements TileBaker.Source {
     }
   }
 
+  private record Index(long size, long stamp, List<String> keys) {}
+
   public void search(String query, double nearX, double nearZ, Consumer<BlockSearch.Result> done) {
     Path dir = folder;
     BlockSearch.Accumulator accumulator =
         dir == null ? null : BlockSearch.accumulator(palette, query, nearX, nearZ);
     int ticket = ++searchTicket;
-    if (accumulator == null || accumulator.empty()) {
+    if (accumulator == null) {
       done.accept(BlockSearch.Result.NONE);
       return;
     }
-    List<Region> live = new ArrayList<>(surface.values());
-    Set<Long> disk = new HashSet<>(known);
-    for (Region region : live) {
-      disk.remove(region.key());
+    Map<Long, Region> live = new HashMap<>();
+    for (Region region : surface.values()) {
+      live.put(region.key(), region);
     }
+    List<Long> order = new ArrayList<>(live.keySet());
+    for (long key : known) {
+      if (!live.containsKey(key)) {
+        order.add(key);
+      }
+    }
+    order.sort(
+        Comparator.comparingDouble(
+            key -> {
+              double dx = (Region.keyX(key) + 0.5) * Region.SIZE - nearX;
+              double dz = (Region.keyZ(key) + 0.5) * Region.SIZE - nearZ;
+              return dx * dx + dz * dz;
+            }));
     searcher.execute(
         () -> {
-          for (Region region : live) {
-            accumulator.add(region);
-          }
-          int read = 0;
-          for (long key : disk) {
-            if (ticket != searchTicket || read++ >= SEARCH_DISK) {
-              break;
+          long published = System.nanoTime();
+          boolean fresh = false;
+          for (long key : order) {
+            if (ticket != searchTicket) {
+              return;
             }
-            Region region = read(dir, Region.keyX(key), Region.keyZ(key), palette);
+            Region region = live.get(key);
+            if (region == null) {
+              region = load(dir, key, accumulator);
+            }
             if (region != null) {
               accumulator.add(region);
+              fresh = true;
+            }
+            long now = System.nanoTime();
+            if (fresh && now - published > SEARCH_PUBLISH) {
+              publish(ticket, accumulator.snapshot(false), done);
+              published = now;
+              fresh = false;
             }
           }
-          if (ticket != searchTicket) {
-            return;
+          publish(ticket, accumulator.snapshot(true), done);
+        });
+  }
+
+  private Region load(Path dir, long key, BlockSearch.Accumulator accumulator) {
+    Path file = file(dir, Region.keyX(key), Region.keyZ(key));
+    try {
+      long size = Files.size(file);
+      long stamp = Files.getLastModifiedTime(file).toMillis();
+      Index index = indexes.get(key);
+      byte[] bytes = null;
+      if (index == null || index.size != size || index.stamp != stamp) {
+        bytes = Files.readAllBytes(file);
+        index = new Index(size, stamp, RegionCodec.keys(bytes));
+        indexes.put(key, index);
+      }
+      boolean any = false;
+      for (String name : index.keys) {
+        if (accumulator.accepts(name)) {
+          any = true;
+          break;
+        }
+      }
+      if (!any) {
+        return null;
+      }
+      return RegionCodec.decode(bytes != null ? bytes : Files.readAllBytes(file), palette);
+    } catch (IOException | RuntimeException e) {
+      return null;
+    }
+  }
+
+  private void publish(int ticket, BlockSearch.Result result, Consumer<BlockSearch.Result> done) {
+    later.add(
+        () -> {
+          if (ticket == searchTicket) {
+            done.accept(result);
           }
-          BlockSearch.Result result = accumulator.finish();
-          later.add(
-              () -> {
-                if (ticket == searchTicket) {
-                  done.accept(result);
-                }
-              });
         });
   }
 

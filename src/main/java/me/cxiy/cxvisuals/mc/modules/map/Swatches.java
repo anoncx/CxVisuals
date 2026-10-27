@@ -29,6 +29,7 @@ import net.minecraft.world.level.EmptyBlockGetter;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.SnowLayerBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import org.joml.Vector3f;
 
 final class Swatches {
   static final int NO_TINT = -1;
@@ -114,14 +115,13 @@ final class Swatches {
       parts.clear();
       random.setSeed(42L);
       model.collectParts(random, parts);
-      for (int i = 0; i < parts.size() && sprite == null; i++) {
-        List<BakedQuad> up = parts.get(i).getQuads(Direction.UP);
-        List<BakedQuad> quads = up.isEmpty() ? parts.get(i).getQuads(null) : up;
-        if (!quads.isEmpty()) {
-          BakedQuad quad = quads.get(0);
-          sprite = quad.materialInfo().sprite();
-          tint = quad.materialInfo().tintIndex();
-        }
+      BakedQuad top = largest(Direction.UP);
+      if (top == null) {
+        top = largest(null);
+      }
+      if (top != null) {
+        sprite = top.materialInfo().sprite();
+        tint = top.materialInfo().tintIndex();
       }
       for (int f = 0; f < FACES.length; f++) {
         for (int i = 0; i < parts.size() && sides[f] == 0; i++) {
@@ -167,6 +167,29 @@ final class Swatches {
             && state.getShape(EmptyBlockGetter.INSTANCE, BlockPos.ZERO).max(Direction.Axis.Y)
                 < THIN,
         BlockStateParser.serialize(state));
+  }
+
+  private BakedQuad largest(Direction direction) {
+    BakedQuad best = null;
+    float area = 0.0F;
+    for (int i = 0; i < parts.size(); i++) {
+      List<BakedQuad> quads = parts.get(i).getQuads(direction);
+      for (int q = 0; q < quads.size(); q++) {
+        BakedQuad quad = quads.get(q);
+        float size = area(quad);
+        if (best == null || size > area) {
+          best = quad;
+          area = size;
+        }
+      }
+    }
+    return best;
+  }
+
+  private static float area(BakedQuad quad) {
+    Vector3f a = new Vector3f(quad.position(2)).sub(quad.position(0));
+    Vector3f b = new Vector3f(quad.position(3)).sub(quad.position(1));
+    return a.cross(b).length() * 0.5F;
   }
 
   static int code(TextureAtlasSprite sprite) {

@@ -18,7 +18,15 @@ public final class BlockSearch {
   public static final class Result {
     public static final Result NONE =
         new Result(
-            "", List.of(), 0, new float[0], new float[0], new float[0], new int[0], new int[0]);
+            "",
+            List.of(),
+            0,
+            new float[0],
+            new float[0],
+            new float[0],
+            new int[0],
+            new int[0],
+            true);
 
     public final String query;
     public final List<Kind> kinds;
@@ -28,6 +36,7 @@ public final class BlockSearch {
     public final float[] z;
     public final int[] count;
     public final int[] kind;
+    public final boolean complete;
 
     Result(
         String query,
@@ -37,7 +46,8 @@ public final class BlockSearch {
         float[] y,
         float[] z,
         int[] count,
-        int[] kind) {
+        int[] kind,
+        boolean complete) {
       this.query = query;
       this.kinds = kinds;
       this.total = total;
@@ -46,6 +56,7 @@ public final class BlockSearch {
       this.z = z;
       this.count = count;
       this.kind = kind;
+      this.complete = complete;
     }
 
     public int size() {
@@ -89,83 +100,87 @@ public final class BlockSearch {
     if (plain.length() < MIN_QUERY) {
       return null;
     }
-    String[] tokens = plain.split("\\s+");
-    int size = palette.size();
-    boolean[] match = new boolean[size];
-    int[] group = new int[size];
-    Map<String, Integer> groups = new HashMap<>();
-    List<String> names = new ArrayList<>();
-    for (int id = 1; id < size; id++) {
-      String name = name(palette.key(id));
-      String spaced = name.replace('_', ' ');
-      boolean all = true;
-      for (String token : tokens) {
-        if (!spaced.contains(token)) {
-          all = false;
-          break;
-        }
-      }
-      if (!all) {
-        continue;
-      }
-      match[id] = true;
-      Integer known = groups.get(name);
-      if (known == null) {
-        known = names.size();
-        groups.put(name, known);
-        names.add(name);
-      }
-      group[id] = known;
-    }
-    return new Accumulator(plain, match, group, names, nearX, nearZ);
+    return new Accumulator(palette, plain, plain.split("\s+"), nearX, nearZ);
   }
 
   public static final class Accumulator {
+    private final BlockPalette palette;
     private final String query;
-    private final boolean[] match;
-    private final int[] group;
-    private final List<String> names;
-    private final int[] counts;
-    private final int[] byId;
-    private final double[] nearest;
-    private final double[] nearX;
-    private final double[] nearZ;
+    private final String[] tokens;
     private final double centreX;
     private final double centreZ;
+    private final Map<String, Integer> groups = new HashMap<>();
+    private final List<String> names = new ArrayList<>();
     private final Map<Long, int[]> cells = new HashMap<>(1024);
+    private boolean[] match = new boolean[0];
+    private int[] group = new int[0];
+    private int[] byId = new int[0];
+    private int[] counts = new int[8];
+    private double[] nearest = new double[8];
+    private double[] nearX = new double[8];
+    private double[] nearZ = new double[8];
+    private int synced = 1;
     private long lastKey = Long.MIN_VALUE;
     private int[] last;
     private int total;
 
     Accumulator(
-        String query,
-        boolean[] match,
-        int[] group,
-        List<String> names,
-        double centreX,
-        double centreZ) {
+        BlockPalette palette, String query, String[] tokens, double centreX, double centreZ) {
+      this.palette = palette;
       this.query = query;
-      this.match = match;
-      this.group = group;
-      this.names = names;
-      this.counts = new int[names.size()];
-      this.byId = new int[match.length];
-      this.nearest = new double[names.size()];
-      this.nearX = new double[names.size()];
-      this.nearZ = new double[names.size()];
-      java.util.Arrays.fill(nearest, Double.MAX_VALUE);
+      this.tokens = tokens;
       this.centreX = centreX;
       this.centreZ = centreZ;
+      sync();
     }
 
-    public boolean empty() {
-      return names.isEmpty();
+    public boolean accepts(String key) {
+      String spaced = name(key).replace('_', ' ');
+      for (String token : tokens) {
+        if (!spaced.contains(token)) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    public void sync() {
+      int size = palette.size();
+      if (size <= synced && match.length >= size) {
+        return;
+      }
+      match = java.util.Arrays.copyOf(match, size);
+      group = java.util.Arrays.copyOf(group, size);
+      byId = java.util.Arrays.copyOf(byId, size);
+      for (int id = synced; id < size; id++) {
+        String key = palette.key(id);
+        if (key.isEmpty() || !accepts(key)) {
+          continue;
+        }
+        String name = name(key);
+        Integer known = groups.get(name);
+        if (known == null) {
+          known = names.size();
+          groups.put(name, known);
+          names.add(name);
+          if (known >= counts.length) {
+            int grown = counts.length * 2;
+            counts = java.util.Arrays.copyOf(counts, grown);
+            nearest = java.util.Arrays.copyOf(nearest, grown);
+            nearX = java.util.Arrays.copyOf(nearX, grown);
+            nearZ = java.util.Arrays.copyOf(nearZ, grown);
+          }
+          counts[known] = 0;
+          nearest[known] = Double.MAX_VALUE;
+        }
+        match[id] = true;
+        group[id] = known;
+      }
+      synced = size;
     }
 
     public void add(Region region) {
-      if (names.isEmpty()) {
-        return;
-      }
+      sync();
       char[] top = region.block;
       char[] under = region.ground;
       int baseX = region.x << Region.SHIFT;
@@ -231,6 +246,10 @@ public final class BlockSearch {
     }
 
     public Result finish() {
+      return snapshot(true);
+    }
+
+    public Result snapshot(boolean complete) {
       List<Integer> order = new ArrayList<>();
       for (int g = 0; g < names.size(); g++) {
         if (counts[g] > 0) {
@@ -250,7 +269,7 @@ public final class BlockSearch {
       }
       int n = 0;
       for (int[] cell : cells.values()) {
-        if (remap[cell[4]] < MAX_KINDS) {
+        if (cell[3] > 0 && remap[cell[4]] < MAX_KINDS) {
           n++;
         }
       }
@@ -262,7 +281,7 @@ public final class BlockSearch {
       int at = 0;
       for (int[] cell : cells.values()) {
         int rank = remap[cell[4]];
-        if (rank >= MAX_KINDS) {
+        if (cell[3] == 0 || rank >= MAX_KINDS) {
           continue;
         }
         float inverse = 1.0F / cell[3];
@@ -273,7 +292,7 @@ public final class BlockSearch {
         kind[at] = rank;
         at++;
       }
-      return new Result(query, List.copyOf(kinds), total, x, y, z, count, kind);
+      return new Result(query, List.copyOf(kinds), total, x, y, z, count, kind, complete);
     }
   }
 }

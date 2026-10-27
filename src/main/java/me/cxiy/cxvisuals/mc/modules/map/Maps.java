@@ -11,6 +11,7 @@ import me.cxiy.cxvisuals.gui.map.MapPlayer;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
 import me.cxiy.cxvisuals.mc.McKeyBinder;
 import me.cxiy.cxvisuals.mc.modules.hud.Hud;
+import me.cxiy.cxvisuals.mc.modules.inventory.Stacks;
 import me.cxiy.cxvisuals.mc.modules.social.FriendsLink;
 import me.cxiy.cxvisuals.mc.modules.waypoints.Markers;
 import me.cxiy.cxvisuals.modules.map.BlockPalette;
@@ -31,6 +32,7 @@ import net.minecraft.client.multiplayer.PlayerInfo;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.item.ItemStack;
@@ -287,7 +289,20 @@ public final class Maps {
     if (who.isUsingItem()) {
       states.add(Lang.tr("Using an item"));
     }
-    ItemStack held = who.getMainHandItem();
+    ItemStack[] worn = {
+      who.getMainHandItem(),
+      who.getOffhandItem(),
+      who.getItemBySlot(EquipmentSlot.HEAD),
+      who.getItemBySlot(EquipmentSlot.CHEST),
+      who.getItemBySlot(EquipmentSlot.LEGS),
+      who.getItemBySlot(EquipmentSlot.FEET)
+    };
+    int[] gear = new int[worn.length];
+    String[] gearNames = new String[worn.length];
+    for (int i = 0; i < worn.length; i++) {
+      gear[i] = Stacks.of(worn[i]);
+      gearNames[i] = worn[i].isEmpty() ? "" : worn[i].getHoverName().getString();
+    }
     String mode =
         info == null || info.getGameMode() == null
             ? ""
@@ -304,7 +319,8 @@ public final class Maps {
         who.getArmorValue(),
         who.getFoodData().getFoodLevel(),
         who.experienceLevel,
-        held.isEmpty() ? "" : held.getHoverName().getString(),
+        gear,
+        gearNames,
         who.getTeam() == null ? "" : who.getTeam().getName(),
         who.getX(),
         who.getY(),

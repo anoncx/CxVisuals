@@ -199,6 +199,7 @@ public final class MapScreenView {
   private String typed = "";
   private long typedAt;
   private int focusKind = -1;
+  private String focusName = "";
   private float pulse;
   private int builtTab = -1;
   private int builtRevision = -1;
@@ -953,13 +954,17 @@ public final class MapScreenView {
       String empty =
           tab == 0
               ? builtQuery != null && !builtQuery.isEmpty()
-                  ? Lang.tr("Nothing found. Blocks only show up once you have explored them.")
+                  ? !requested.isEmpty() && !found.complete
+                      ? Lang.tr("Searching…")
+                      : Lang.tr("Nothing found. Blocks only show up once you have explored them.")
                   : Lang.tr("No waypoints in this dimension yet. Right-click the map to add one.")
               : Lang.tr("No friends are online.");
       wrap(c, t, empty, x + 22.0F, listTop + 12.0F, w - 44.0F);
     }
     c.popClip();
-    String hint = Lang.tr("Shift-drag to share or save an area");
+    boolean searching = !requested.isEmpty() && !found.complete;
+    String hint =
+        searching ? Lang.tr("Searching…") : Lang.tr("Shift-drag to share or save an area");
     c.text(
         FontStyle.SMALL,
         hint,
@@ -1050,6 +1055,15 @@ public final class MapScreenView {
     }
   }
 
+  private static int indexOf(BlockSearch.Result result, String name) {
+    for (int i = 0; i < result.kinds.size(); i++) {
+      if (result.kinds.get(i).name().equals(name)) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
   private void watchSearch(String query, HudData data, long now) {
     if (!query.equals(typed)) {
       typed = query;
@@ -1062,6 +1076,7 @@ public final class MapScreenView {
         found = BlockSearch.Result.NONE;
         requested = "";
         focusKind = -1;
+        focusName = "";
       }
       return;
     }
@@ -1074,7 +1089,7 @@ public final class MapScreenView {
           result -> {
             if (query.equals(requested)) {
               found = result;
-              focusKind = -1;
+              focusKind = indexOf(result, focusName);
             }
           });
     }
@@ -1348,6 +1363,14 @@ public final class MapScreenView {
   }
 
   private static final float CARD_W = 262.0F;
+  private static final float WELL = 34.0F;
+  private static final float WELL_GAP = 6.0F;
+
+  private float cardHeight() {
+    float team = card != null && !card.team().isEmpty() ? 16.0F : 0.0F;
+    float chips = card != null && !card.states().isEmpty() ? 30.0F : 0.0F;
+    return 78.0F + team + 40.0F + 26.0F + WELL + 14.0F + chips + 48.0F;
+  }
 
   private void playerCard(Canvas c, Theme t) {
     MapPlayer fresh = host.player(cardId);
@@ -1357,19 +1380,15 @@ public final class MapScreenView {
     }
     card = fresh;
     HudData data = host.data();
-    float h = 214.0F;
+    float h = cardHeight();
     float[] at = popBox(CARD_W, h);
     float x = at[0];
     float y = at[1];
     MapChrome.panel(c, t, frost, x, y, CARD_W, h, 18.0F);
     MapMarks.head(
         c, t, card.entityId(), card.name(), x + 16.0F + 20.0F, y + 16.0F + 20.0F, 40.0F, 1.0F);
-    c.text(
-        FontStyle.ROW,
-        c.fit(FontStyle.ROW, card.name(), CARD_W - 90.0F),
-        x + 70.0F,
-        y + 18.0F,
-        t.ink());
+    float textW = CARD_W - 90.0F;
+    c.text(FontStyle.ROW, c.fit(FontStyle.ROW, card.name(), textW), x + 70.0F, y + 16.0F, t.ink());
     String line = card.mode().isEmpty() ? "" : card.mode();
     if (card.ping() >= 0) {
       line += (line.isEmpty() ? "" : " · ") + card.ping() + " ms";
@@ -1378,30 +1397,27 @@ public final class MapScreenView {
       line += (line.isEmpty() ? "" : " · ") + Lang.format("Level {0}", card.level());
     }
     c.text(
-        FontStyle.CAPTION,
-        c.fit(FontStyle.CAPTION, line, CARD_W - 90.0F),
-        x + 70.0F,
-        y + 40.0F,
-        t.grey());
+        FontStyle.CAPTION, c.fit(FontStyle.CAPTION, line, textW), x + 70.0F, y + 38.0F, t.grey());
+    float cursor = y + 78.0F;
     if (!card.team().isEmpty()) {
       c.text(
           FontStyle.CAPTION,
-          c.fit(FontStyle.CAPTION, card.team(), CARD_W - 90.0F),
+          c.fit(FontStyle.CAPTION, card.team(), textW),
           x + 70.0F,
-          y + 56.0F,
+          y + 54.0F,
           t.ink2());
+      cursor += 16.0F;
     }
 
-    float barY = y + 80.0F;
     float barW = CARD_W - 32.0F;
     float fill =
         card.maxHealth() <= 0.0F
             ? 0.0F
             : Math.max(0.0F, Math.min(1.0F, card.health() / card.maxHealth()));
-    c.roundRect(x + 16.0F, barY, barW, 8.0F, 4.0F, Theme.withAlpha(t.ink(), 0.1F));
+    c.roundRect(x + 16.0F, cursor, barW, 8.0F, 4.0F, Theme.withAlpha(t.ink(), 0.1F));
     c.roundRect(
         x + 16.0F,
-        barY,
+        cursor,
         Math.max(8.0F, barW * fill),
         8.0F,
         4.0F,
@@ -1411,16 +1427,16 @@ public final class MapScreenView {
             + (card.absorption() > 0.0F
                 ? String.format(java.util.Locale.ROOT, " +%.0f", card.absorption())
                 : "");
-    c.text(FontStyle.MONO, hp, x + 16.0F, barY + 14.0F, t.ink2());
+    c.text(FontStyle.MONO, hp, x + 16.0F, cursor + 14.0F, t.ink2());
     String stats = Lang.format("Armor {0} · Food {1}", card.armor(), card.food());
     c.text(
         FontStyle.MONO,
         stats,
         x + CARD_W - 16.0F - c.textWidth(FontStyle.MONO, stats),
-        barY + 14.0F,
+        cursor + 14.0F,
         t.grey());
+    cursor += 40.0F;
 
-    float rowY = y + 120.0F;
     int metres = (int) Math.round(Math.hypot(card.x() - data.x, card.z() - data.z));
     String where =
         (long) Math.floor(card.x())
@@ -1428,29 +1444,55 @@ public final class MapScreenView {
             + (long) Math.floor(card.y())
             + "  "
             + (long) Math.floor(card.z());
-    c.text(FontStyle.MONO, where, x + 16.0F, rowY, t.ink());
+    c.text(FontStyle.MONO, where, x + 16.0F, cursor, t.ink());
     String away = WorldPins.range(metres);
     c.text(
         FontStyle.MONO,
         away,
         x + CARD_W - 16.0F - c.textWidth(FontStyle.MONO, away),
-        rowY,
+        cursor,
         t.grey());
-    String held = card.held().isEmpty() ? Lang.tr("Empty hands") : card.held();
-    c.text(
-        FontStyle.CAPTION,
-        Lang.tr("Holding") + "  " + c.fit(FontStyle.CAPTION, held, CARD_W - 110.0F),
-        x + 16.0F,
-        rowY + 20.0F,
-        t.ink2());
-    float chipX = x + 16.0F;
-    float chipY = rowY + 44.0F;
-    for (String state : card.states()) {
-      float width = c.textWidth(FontStyle.CAPTION, state) + 16.0F;
-      if (chipX + width > x + CARD_W - 16.0F) {
-        break;
+    cursor += 26.0F;
+
+    int[] order = {2, 3, 4, 5, 0, 1};
+    float gap = (CARD_W - 32.0F - WELL * order.length) / (order.length - 1);
+    int hovered = -1;
+    for (int i = 0; i < order.length; i++) {
+      float wx = x + 16.0F + i * (WELL + gap);
+      boolean over = MapChrome.hit(mouseX, mouseY, wx, cursor, WELL, WELL);
+      int slot = order[i];
+      boolean has = card.gear()[slot] >= 0;
+      c.roundRect(
+          wx,
+          cursor,
+          WELL,
+          WELL,
+          9.0F,
+          Theme.withAlpha(t.ink(), over && has ? 0.14F : has ? 0.08F : 0.04F));
+      if (has) {
+        c.stack(card.gear()[slot], wx + 5.0F, cursor + 5.0F, WELL - 10.0F);
+        if (over && !card.gearNames()[slot].isEmpty()) {
+          hovered = slot;
+        }
       }
-      chipX += MapChrome.chip(c, t, state, chipX, chipY, 0) + 6.0F;
+      if (i == 3) {
+        c.roundRect(wx - gap * 0.5F - 0.5F, cursor + 6.0F, 1.0F, WELL - 12.0F, 0.5F, t.hair());
+      }
+    }
+    if (hovered >= 0) {
+      MapMarks.label(c, t, card.gearNames()[hovered], mouseX, mouseY - 30.0F, 1.0F);
+    }
+    cursor += WELL + 14.0F;
+
+    if (!card.states().isEmpty()) {
+      float chipX = x + 16.0F;
+      for (String state : card.states()) {
+        float width = c.textWidth(FontStyle.CAPTION, state) + 16.0F;
+        if (chipX + width > x + CARD_W - 16.0F) {
+          break;
+        }
+        chipX += MapChrome.chip(c, t, state, chipX, cursor, 0) + 6.0F;
+      }
     }
     float by = y + h - 40.0F;
     float half = (CARD_W - 36.0F) / 2.0F;
@@ -1673,6 +1715,7 @@ public final class MapScreenView {
       }
       if (entry.kind == Row.BLOCK) {
         focusKind = focusKind == entry.entity ? -1 : entry.entity;
+        focusName = focusKind < 0 ? "" : found.kinds.get(focusKind).name();
       }
       if (entry.located) {
         glide(entry.x, entry.z);
@@ -1757,8 +1800,9 @@ public final class MapScreenView {
         dismiss();
       }
       case PLAYER -> {
-        float[] at = popBox(CARD_W, 214.0F);
-        float by = at[1] + 214.0F - 40.0F;
+        float height = cardHeight();
+        float[] at = popBox(CARD_W, height);
+        float by = at[1] + height - 40.0F;
         float half = (CARD_W - 36.0F) / 2.0F;
         if (card != null && MapChrome.hit(mx, my, at[0] + 12.0F, by, half, 26.0F)) {
           follow = false;
@@ -1769,7 +1813,7 @@ public final class MapScreenView {
           say(Lang.tr("Name copied"));
           Sound.play(Sound.Cue.ON);
         }
-        if (!MapChrome.hit(mx, my, at[0], at[1], CARD_W, 214.0F)
+        if (!MapChrome.hit(mx, my, at[0], at[1], CARD_W, height)
             || (card != null && MapChrome.hit(mx, my, at[0] + 12.0F, by, CARD_W - 24.0F, 26.0F))) {
           dismiss();
         }

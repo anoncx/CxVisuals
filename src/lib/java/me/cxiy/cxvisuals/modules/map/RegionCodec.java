@@ -5,6 +5,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.InflaterInputStream;
@@ -67,6 +69,27 @@ public final class RegionCodec {
     in.readInt();
     in.readInt();
     return thumbnail(in);
+  }
+
+  public static List<String> keys(byte[] file) throws IOException {
+    DataInputStream in = header(file);
+    in.readInt();
+    in.readInt();
+    in.skipNBytes(in.readInt());
+    int length = in.readInt();
+    byte[] packed = in.readNBytes(length);
+    DataInputStream body =
+        new DataInputStream(new InflaterInputStream(new ByteArrayInputStream(packed)));
+    body.skipNBytes(8L * CHUNK_SLOTS);
+    int count = body.readInt();
+    if (count < 0 || count >= BlockPalette.LIMIT) {
+      throw new IOException("bad palette");
+    }
+    List<String> keys = new ArrayList<>(count);
+    for (int i = 0; i < count; i++) {
+      keys.add(body.readUTF());
+    }
+    return keys;
   }
 
   public static Region decode(byte[] file, BlockPalette palette) throws IOException {
