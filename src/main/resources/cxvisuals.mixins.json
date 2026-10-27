@@ -56,6 +56,7 @@
     "ScreenMixin",
     "SliderAccessor",
     "TextCollectorMixin",
+    "TextDisplayRendererMixin",
     "TextureBindingAccessor",
     "ToastManagerMixin",
     "WeatherEffectRendererMixin"

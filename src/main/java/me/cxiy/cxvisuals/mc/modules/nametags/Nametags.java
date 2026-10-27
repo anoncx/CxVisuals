@@ -13,6 +13,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalDouble;
@@ -27,12 +28,17 @@ import me.cxiy.cxvisuals.mc.gui.McCanvas;
 import me.cxiy.cxvisuals.mc.modules.environment.WorldTextPipeline;
 import me.cxiy.cxvisuals.modules.nametags.NametagsModule;
 import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.entity.state.TextDisplayEntityRenderState;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.FontDescription;
 import net.minecraft.network.chat.Style;
 import net.minecraft.network.chat.TextColor;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.FormattedCharSink;
+import net.minecraft.world.entity.Display.TextDisplay;
+import net.minecraft.world.entity.Display.TextDisplay.CachedInfo;
+import net.minecraft.world.entity.Display.TextDisplay.CachedLine;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
@@ -46,6 +52,9 @@ public final class Nametags {
   private static final int MAX_PAGES = 16;
   private static final int MAX_PARSED = 512;
   private static final int SEGMENTS = 12;
+  private static final int LINE_HEIGHT = 10;
+  private static final float FONT_HEIGHT = 9.0F;
+  private static final int SEE_THROUGH = 2;
   private static final float RASTER = 2.0F;
   private static final float TEXEL = 1.0F / GlyphAtlas.PAGE_SIZE;
   private static final float CAP = 6.7F;
@@ -67,7 +76,10 @@ public final class Nametags {
   private static final Parsed[] TAGS = new Parsed[CAPACITY];
   private static final float[] OFFSETS = new float[CAPACITY];
   private static final boolean[] THROUGH = new boolean[CAPACITY];
-  private static final Map<Component, Parsed> PARSED = new HashMap<>();
+  private static final float[] PLATE_WIDTH = new float[CAPACITY];
+  private static final float[] PLATE_DEPTH = new float[CAPACITY];
+  private static final float[] PLATE_SHIFT = new float[CAPACITY];
+  private static final Map<Object, Parsed> PARSED = new HashMap<>();
   private static final Scan SCAN = new Scan();
   private static final int[] FIRST = new int[MAX_PAGES * 2];
   private static final int[] COUNT = new int[MAX_PAGES * 2];
@@ -161,7 +173,11 @@ public final class Nametags {
   }
 
   private static Parsed parse(Component name) {
-    Parsed known = PARSED.get(name);
+    return parse(name, name);
+  }
+
+  private static Parsed parse(Object key, Object source) {
+    Parsed known = PARSED.get(key);
     if (known != null) {
       return known.segments == 0 ? null : known;
     }
@@ -173,13 +189,85 @@ public final class Nametags {
     SCAN.current = null;
     SCAN.foreign = false;
     SCAN.run.setLength(0);
-    name.getVisualOrderText().accept(SCAN);
+    sequence(source).accept(SCAN);
     SCAN.flush();
     if (SCAN.foreign) {
       parsed.segments = 0;
     }
-    PARSED.put(name, parsed);
+    PARSED.put(key, parsed);
     return parsed.segments == 0 ? null : parsed;
+  }
+
+  private static FormattedCharSequence sequence(Object source) {
+    return source instanceof Component component
+        ? component.getVisualOrderText()
+        : (FormattedCharSequence) source;
+  }
+
+  public static boolean captureDisplay(TextDisplayEntityRenderState state, PoseStack poseStack) {
+    if (IrisCompat.isRenderingShadowPass()) {
+      return true;
+    }
+    CachedInfo info = state.cachedInfo;
+    if (module == null
+        || !module.enabled.get()
+        || !module.everything.get()
+        || info == null
+        || state.textRenderState == null
+        || !RenderSystem.isOnRenderThread()
+        || !WorldTextPipeline.usable()) {
+      return false;
+    }
+    List<CachedLine> lines = info.lines();
+    int rows = lines.size();
+    if (rows == 0 || count + rows > CAPACITY) {
+      return false;
+    }
+    Parsed[] parsed = new Parsed[rows];
+    float widest = 0.0F;
+    for (int i = 0; i < rows; i++) {
+      CachedLine line = lines.get(i);
+      if (line.width() == 0) {
+        continue;
+      }
+      Parsed tag = parse(line.contents(), line.contents());
+      if (tag == null) {
+        return false;
+      }
+      parsed[i] = tag;
+      widest = Math.max(widest, tag.width);
+    }
+    byte flags = state.textRenderState.flags();
+    boolean through = (flags & SEE_THROUGH) != 0;
+    TextDisplay.Align align = TextDisplay.getAlign(flags);
+    float top = rows * LINE_HEIGHT - 1;
+    boolean first = true;
+    for (int i = 0; i < rows; i++) {
+      Parsed tag = parsed[i];
+      if (tag == null) {
+        continue;
+      }
+      float shift =
+          switch (align) {
+            case LEFT -> (tag.width - widest) * 0.5F;
+            case RIGHT -> (widest - tag.width) * 0.5F;
+            default -> 0.0F;
+          };
+      POSES[count]
+          .set(poseStack.last().pose())
+          .rotate((float) Math.PI, 0.0F, 1.0F, 0.0F)
+          .scale(-0.025F, -0.025F, -0.025F)
+          .translate(shift, 0.0F, 0.0F);
+      TAGS[count] = tag;
+      OFFSETS[count] = i * LINE_HEIGHT - top;
+      THROUGH[count] = through;
+      PLATE_WIDTH[count] = first ? widest : 0.0F;
+      PLATE_DEPTH[count] = first ? top + PLATE_HEIGHT - FONT_HEIGHT : 0.0F;
+      PLATE_SHIFT[count] = first ? -shift : 0.0F;
+      first = false;
+      count++;
+    }
+    return true;
   }
 
   public static boolean capture(
@@ -217,6 +305,9 @@ public final class Nametags {
     TAGS[count] = parsed;
     OFFSETS[count] = offset;
     THROUGH[count] = seeThrough;
+    PLATE_WIDTH[count] = parsed.width;
+    PLATE_DEPTH[count] = PLATE_HEIGHT;
+    PLATE_SHIFT[count] = 0.0F;
     count++;
     return true;
   }
@@ -262,7 +353,7 @@ public final class Nametags {
         if (plate > 0.0F && disc.page() == page) {
           for (int i = 0; i < total; i++) {
             if (THROUGH[i] == flat) {
-              plate(POSES[i], TAGS[i], OFFSETS[i], plate);
+              plate(i, plate);
             }
           }
         }
@@ -350,15 +441,17 @@ public final class Nametags {
     return McCanvas.engine().atlas().place(coverage, DISC, DISC, 0.0F, 0.0F);
   }
 
-  private static void plate(Matrix4f pose, Parsed tag, float offset, float alpha) {
-    if (quads + 3 > MAX_QUADS) {
+  private static void plate(int index, float alpha) {
+    if (quads + 3 > MAX_QUADS || PLATE_WIDTH[index] == 0.0F) {
       return;
     }
-    float left = -tag.width * 0.5F - PAD_X;
-    float right = tag.width * 0.5F + PAD_X;
-    float top = offset + PLATE_TOP;
-    float bottom = top + PLATE_HEIGHT;
-    float radius = Math.min(PLATE_HEIGHT * 0.5F, (right - left) * 0.5F);
+    Matrix4f pose = POSES[index];
+    float height = PLATE_DEPTH[index];
+    float left = -PLATE_WIDTH[index] * 0.5F - PAD_X + PLATE_SHIFT[index];
+    float right = PLATE_WIDTH[index] * 0.5F + PAD_X + PLATE_SHIFT[index];
+    float top = OFFSETS[index] + PLATE_TOP;
+    float bottom = top + height;
+    float radius = Math.min(Math.min(PLATE_HEIGHT * 0.5F, height * 0.5F), (right - left) * 0.5F);
     float u0 = (disc.u() + 1.0F) * TEXEL;
     float u1 = (disc.u() + disc.width() - 1.0F) * TEXEL;
     float middle = (u0 + u1) * 0.5F;
