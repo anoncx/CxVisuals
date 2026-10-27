@@ -12,6 +12,7 @@ import java.util.OptionalDouble;
 import java.util.function.Supplier;
 import me.cxiy.cxvisuals.mc.gui.Backdrop;
 import me.cxiy.cxvisuals.mc.gui.GuiTilt;
+import me.cxiy.cxvisuals.mc.gui.McCanvas;
 import me.cxiy.cxvisuals.mc.gui.ScreenLayer;
 import me.cxiy.cxvisuals.mc.modules.avatar.Avatars;
 import me.cxiy.cxvisuals.mc.modules.shaders.CirclePreview;
@@ -55,6 +56,7 @@ public abstract class GuiRendererMixin {
     Avatars.flushPreviews();
     CirclePreview.flush();
     TrailPreview.flush();
+    McCanvas.flushTerrain();
   }
 
   @Inject(method = "render", at = @At("TAIL"))

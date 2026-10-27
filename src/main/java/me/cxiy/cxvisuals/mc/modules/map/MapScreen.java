@@ -162,6 +162,8 @@ public final class MapScreen extends Screen {
   public boolean mouseReleased(MouseButtonEvent event) {
     if (event.button() == 0) {
       view.mouseUp((float) event.x() * pointerScale, (float) event.y() * pointerScale);
+    } else if (event.button() == 1) {
+      view.secondaryUp((float) event.x() * pointerScale, (float) event.y() * pointerScale);
     }
     return true;
   }
@@ -170,6 +172,8 @@ public final class MapScreen extends Screen {
   public boolean mouseDragged(MouseButtonEvent event, double dragX, double dragY) {
     if (event.button() == 0) {
       view.mouseDrag((float) event.x() * pointerScale, (float) event.y() * pointerScale);
+    } else if (event.button() == 1) {
+      view.secondaryDrag((float) event.x() * pointerScale, (float) event.y() * pointerScale);
     }
     return true;
   }

@@ -42,6 +42,7 @@
     "LoadingOverlayMixin",
     "MinecraftAccessor",
     "MinecraftMixin",
+    "ModelPartAccessor",
     "MouseHandlerMixin",
     "MultiPlayerGameModeMixin",
     "NameTagMixin",

@@ -111,12 +111,27 @@ public final class MapMarks {
     c.roundRect(x - half, y - half, size, size, half, 0xFF1C1C1E);
   }
 
-  public static void mob(Canvas c, Theme t, float x, float y, float size, boolean hostile) {
+  public static void mob(
+      Canvas c, Theme t, float x, float y, float size, boolean hostile, int entityId) {
     float half = size * 0.5F;
+    if (entityId >= 0) {
+      float ring = Math.max(1.0F, size * 0.11F);
+      float outer = half + ring;
+      float corner = outer * 0.42F;
+      int rim = hostile ? t.red() : WHITE;
+      c.shadow(x - outer, y - outer, outer * 2.0F, outer * 2.0F, corner, 5.0F, 1.0F, SHADOW);
+      c.roundRect(x - outer, y - outer, outer * 2.0F, outer * 2.0F, corner, rim);
+      if (c.mobFace(entityId, x - half, y - half, size, half * 0.42F, rim)) {
+        return;
+      }
+    }
+    float dot = entityId >= 0 ? size * 0.45F : size;
+    float dotHalf = dot * 0.5F;
     int fill = hostile ? t.red() : 0xFFE5E5EA;
     int ring = hostile ? 0xE6FFFFFF : 0x99000000;
-    c.roundRect(x - half - 1.0F, y - half - 1.0F, size + 2.0F, size + 2.0F, half + 1.0F, ring);
-    c.roundRect(x - half, y - half, size, size, half, fill);
+    c.roundRect(
+        x - dotHalf - 1.0F, y - dotHalf - 1.0F, dot + 2.0F, dot + 2.0F, dotHalf + 1.0F, ring);
+    c.roundRect(x - dotHalf, y - dotHalf, dot, dot, dotHalf, fill);
   }
 
   public static void label(Canvas c, Theme t, String text, float x, float y, float alpha) {

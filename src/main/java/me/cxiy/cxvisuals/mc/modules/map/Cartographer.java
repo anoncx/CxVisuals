@@ -241,7 +241,7 @@ final class Cartographer {
         BlockState rock = chunk.getBlockState(cursor.set(x, start, z));
         Swatches.Swatch swatch = swatches.of(rock);
         column.color[i] = darken(swatches.color(swatch, rock, level, cursor), ROCK);
-        column.block[i] = (char) swatches.block(rock, world.palette());
+        column.block[i] = (char) swatches.block(rock, null, world.palette());
         column.height[i] = (short) start;
         column.water[i] = 0;
         return;
@@ -270,7 +270,8 @@ final class Cartographer {
     int surfaceY = y;
     if (!state.getFluidState().is(FluidTags.WATER)) {
       column.color[i] = swatches.color(swatch, state, level, cursor);
-      column.block[i] = (char) swatches.block(state, world.palette());
+      BlockState below = chunk.getBlockState(cursor.set(x, surfaceY - 1, z));
+      column.block[i] = (char) swatches.block(state, below, world.palette());
       column.height[i] = (short) surfaceY;
       column.water[i] = 0;
       return;
@@ -290,7 +291,7 @@ final class Cartographer {
     int floorColor = swatches.color(floorSwatch, floor, level, cursor);
     float cover = Math.min(WATER_MAX, WATER_MIN + depth * WATER_STEP);
     column.color[i] = Swatches.mix(floorColor, fluidColor, cover);
-    column.block[i] = (char) swatches.block(state, world.palette());
+    column.block[i] = (char) swatches.block(state, null, world.palette());
     column.height[i] = (short) surfaceY;
     column.water[i] = (byte) Math.min(255, depth);
   }

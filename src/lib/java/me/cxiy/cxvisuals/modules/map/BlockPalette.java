@@ -12,6 +12,8 @@ public final class BlockPalette {
   private final Map<String, Integer> ids = new ConcurrentHashMap<>(512);
   private volatile String[] keys = new String[256];
   private volatile int[] sprites = new int[256];
+  private volatile int[] sides = new int[256];
+  private volatile int[] overlays = new int[256];
   private volatile int size = 1;
   private volatile int revision;
 
@@ -30,6 +32,8 @@ public final class BlockPalette {
     if (id >= keys.length) {
       keys = Arrays.copyOf(keys, keys.length * 2);
       sprites = Arrays.copyOf(sprites, sprites.length * 2);
+      sides = Arrays.copyOf(sides, sides.length * 2);
+      overlays = Arrays.copyOf(overlays, overlays.length * 2);
     }
     keys[id] = key;
     size = id + 1;
@@ -58,8 +62,43 @@ public final class BlockPalette {
     }
   }
 
+  public synchronized void side(int id, int code) {
+    if (id > NONE && id < sides.length && sides[id] != code) {
+      sides[id] = code;
+      revision++;
+    }
+  }
+
+  public synchronized void overlay(int id, int code) {
+    if (id > NONE && id < overlays.length && overlays[id] != code) {
+      overlays[id] = code;
+      revision++;
+    }
+  }
+
+  public void overlays(int[] out) {
+    int[] all = overlays;
+    int count = Math.min(Math.min(size, all.length), Math.min(out.length, TABLE));
+    Arrays.fill(out, 0);
+    System.arraycopy(all, 0, out, 0, count);
+  }
+
+  public int side(int id) {
+    int[] all = sides;
+    return id > NONE && id < all.length ? all[id] : 0;
+  }
+
+  public void sides(int[] out) {
+    int[] all = sides;
+    int count = Math.min(Math.min(size, all.length), Math.min(out.length, TABLE));
+    Arrays.fill(out, 0);
+    System.arraycopy(all, 0, out, 0, count);
+  }
+
   public synchronized void forgetSprites() {
     sprites = new int[sprites.length];
+    sides = new int[sides.length];
+    overlays = new int[overlays.length];
     revision++;
   }
 

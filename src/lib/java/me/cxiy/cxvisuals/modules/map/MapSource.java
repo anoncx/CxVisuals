@@ -9,11 +9,15 @@ public interface MapSource {
 
   boolean clouds();
 
+  int terrain();
+
   boolean waypoints();
 
   boolean friends();
 
   int players(double[] x, double[] z, int max);
 
-  int mobs(double[] x, double[] z, boolean[] hostile, int max);
+  int mobs(double[] x, double[] z, boolean[] hostile, int[] ids, int max);
+
+  boolean mobHeads();
 }

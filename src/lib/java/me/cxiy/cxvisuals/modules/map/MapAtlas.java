@@ -21,6 +21,8 @@ public final class MapAtlas {
   public static final int EMPTY = 0;
   public static final int MISSING = -1;
   public static final int TABLE = SLOTS - 1;
+  public static final int SIDES = SLOTS - 2;
+  public static final int OVERLAYS = SLOTS - 3;
 
   private static final int IN_FLIGHT = 12;
   private static final long REBAKE_NANOS = 350_000_000L;
@@ -196,7 +198,7 @@ public final class MapAtlas {
   private int evict() {
     int best = MISSING;
     long oldest = Long.MAX_VALUE;
-    for (int i = 1; i < TABLE; i++) {
+    for (int i = 1; i < OVERLAYS; i++) {
       if (!taken[i]) {
         return i;
       }

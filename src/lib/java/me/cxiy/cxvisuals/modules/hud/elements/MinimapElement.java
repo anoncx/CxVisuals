@@ -46,6 +46,7 @@ public final class MinimapElement extends HudElement {
   private static final int MAX_PLAYERS = 24;
   private static final int MAX_MOBS = 96;
   private static final float MOB = 4.0F;
+  private static final float MOB_HEAD = 9.0F;
   private static final float ZOOM_STEP = 1.5F;
   private static final String CAVE = Lang.key("Cave");
 
@@ -62,6 +63,7 @@ public final class MinimapElement extends HudElement {
   private final double[] mobX = new double[MAX_MOBS];
   private final double[] mobZ = new double[MAX_MOBS];
   private final boolean[] mobHostile = new boolean[MAX_MOBS];
+  private final int[] mobIds = new int[MAX_MOBS];
   private MapSource source;
   private MapAtlas idle;
   private boolean glided;
@@ -146,12 +148,20 @@ public final class MinimapElement extends HudElement {
     boolean waypoints = source == null || source.waypoints();
     boolean friends = source == null || source.friends();
     if (source != null && source.active()) {
-      int mobs = source.mobs(mobX, mobZ, mobHostile, MAX_MOBS);
+      int mobs = source.mobs(mobX, mobZ, mobHostile, mobIds, MAX_MOBS);
+      boolean heads = source.mobHeads();
       for (int i = 0; i < mobs; i++) {
         float px = view.screenX(mobX[i], mobZ[i]) - centreX;
         float py = view.screenY(mobX[i], mobZ[i]) - centreY;
         if (inside(px, py, reach, circle)) {
-          MapMarks.mob(c, t, centreX + px, centreY + py, MOB, mobHostile[i]);
+          MapMarks.mob(
+              c,
+              t,
+              centreX + px,
+              centreY + py,
+              heads ? MOB_HEAD : MOB,
+              mobHostile[i],
+              heads ? mobIds[i] : -1);
         }
       }
       int count = source.players(otherX, otherZ, MAX_PLAYERS);

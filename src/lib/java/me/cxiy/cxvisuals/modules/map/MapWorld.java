@@ -506,7 +506,7 @@ public final class MapWorld implements TileBaker.Source {
           boolean any;
           try {
             any = tiles.bake(key, terrain, pixels);
-            if (any && TileKey.level(key) == 0) {
+            if (any && TileKey.level(key) <= TileKey.REGION_LEVEL) {
               ids = atlas.buffer();
               tiles.details(key, ids);
             }

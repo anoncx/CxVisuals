@@ -34,7 +34,20 @@ final class Swatches {
   private static final float SEE_THROUGH = 0.42F;
   private static final int STEP_LIMIT = 16;
 
-  record Swatch(int rgb, int tint, boolean skip, int sprite, String key) {}
+  record Swatch(
+      int rgb,
+      int tint,
+      boolean skip,
+      int sprite,
+      int side,
+      int overlay,
+      boolean thin,
+      String key) {}
+
+  private static final float THIN = 0.26F;
+  private static final String JOIN = "|";
+
+  private static final int TINTED = 1 << 30;
 
   private static final int VALID = 1 << 29;
   private static final int EDGE_LIMIT = 8191;
@@ -89,6 +102,8 @@ final class Swatches {
     BlockStateModel model = models.get(state);
     TextureAtlasSprite sprite = null;
     int tint = NO_TINT;
+    int side = 0;
+    int overlay = 0;
     if (!fluid) {
       parts.clear();
       random.setSeed(42L);
@@ -100,6 +115,21 @@ final class Swatches {
           BakedQuad quad = quads.get(0);
           sprite = quad.materialInfo().sprite();
           tint = quad.materialInfo().tintIndex();
+        }
+      }
+      for (int i = 0; i < parts.size() && side == 0; i++) {
+        List<BakedQuad> north = parts.get(i).getQuads(Direction.NORTH);
+        if (!north.isEmpty()) {
+          BakedQuad quad = north.get(0);
+          side =
+              code(quad.materialInfo().sprite())
+                  | (quad.materialInfo().tintIndex() >= 0 ? TINTED : 0);
+          for (int q = 1; q < north.size() && overlay == 0; q++) {
+            BakedQuad over = north.get(q);
+            if (over.materialInfo().tintIndex() >= 0 && side != 0 && (side & TINTED) == 0) {
+              overlay = code(over.materialInfo().sprite()) | TINTED;
+            }
+          }
         }
       }
     }
@@ -120,6 +150,12 @@ final class Swatches {
         tint < 0 ? NO_TINT : tint,
         skip,
         code(sprite),
+        side == 0 ? code(sprite) | (tint >= 0 ? TINTED : 0) : side,
+        overlay,
+        !fluid
+            && !state.isAir()
+            && state.getShape(EmptyBlockGetter.INSTANCE, BlockPos.ZERO).max(Direction.Axis.Y)
+                < THIN,
         BlockStateParser.serialize(state));
   }
 
@@ -139,12 +175,18 @@ final class Swatches {
     return VALID | (y << 16) | (size << 13) | x;
   }
 
-  int block(BlockState state, BlockPalette palette) {
+  int block(BlockState state, BlockState below, BlockPalette palette) {
     Swatch swatch = of(state);
-    int id = palette.id(swatch.key);
-    if (palette.sprite(id) != swatch.sprite) {
-      palette.sprite(id, swatch.sprite);
+    Swatch sides = swatch;
+    String key = swatch.key;
+    if (swatch.thin && below != null && !below.isAir() && below.getFluidState().isEmpty()) {
+      sides = of(below);
+      key = swatch.key + JOIN + sides.key;
     }
+    int id = palette.id(key);
+    palette.sprite(id, swatch.sprite);
+    palette.side(id, sides.side);
+    palette.overlay(id, sides.overlay);
     return id;
   }
 
@@ -154,16 +196,22 @@ final class Swatches {
         continue;
       }
       try {
-        BlockState state =
-            BlockStateParser.parseForBlock(BuiltInRegistries.BLOCK, palette.key(id), false)
-                .blockState();
-        palette.sprite(id, of(state).sprite);
+        String[] keys = palette.key(id).split("\\" + JOIN, 2);
+        Swatch swatch = of(parse(keys[0]));
+        Swatch sides = keys.length > 1 ? of(parse(keys[1])) : swatch;
+        palette.sprite(id, swatch.sprite);
+        palette.side(id, sides.side);
+        palette.overlay(id, sides.overlay);
         resolvedLate = true;
       } catch (CommandSyntaxException | RuntimeException ignored) {
         palette.sprite(id, 0);
       }
     }
     resolvedUpTo = Math.max(resolvedUpTo, palette.size() - 1);
+  }
+
+  private static BlockState parse(String key) throws CommandSyntaxException {
+    return BlockStateParser.parseForBlock(BuiltInRegistries.BLOCK, key, false).blockState();
   }
 
   boolean takeLate() {

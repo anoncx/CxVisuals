@@ -77,12 +77,13 @@ final class MapTextures {
     BlockPalette palette = atlas.palette();
     if (palette != null && palette.revision() != slot.table) {
       slot.table = palette.revision();
+      CommandEncoder tables = RenderSystem.getDevice().createCommandEncoder();
       palette.table(sprites);
-      write(
-          RenderSystem.getDevice().createCommandEncoder(),
-          slot.ids.getTexture(),
-          MapAtlas.TABLE,
-          sprites);
+      write(tables, slot.ids.getTexture(), MapAtlas.TABLE, sprites);
+      palette.sides(sprites);
+      write(tables, slot.ids.getTexture(), MapAtlas.SIDES, sprites);
+      palette.overlays(sprites);
+      write(tables, slot.ids.getTexture(), MapAtlas.OVERLAYS, sprites);
     }
     if (atlas.busy()) {
       CommandEncoder encoder = RenderSystem.getDevice().createCommandEncoder();

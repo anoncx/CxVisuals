@@ -10,6 +10,7 @@ import me.cxiy.cxvisuals.gui.Hsv;
 import me.cxiy.cxvisuals.gui.StyledText;
 import me.cxiy.cxvisuals.gui.TileSheet;
 import me.cxiy.cxvisuals.gui.map.ChartBatch;
+import me.cxiy.cxvisuals.gui.map.TerrainFrame;
 import me.cxiy.cxvisuals.gui.spatial.Warp;
 import me.cxiy.cxvisuals.gui.text.FontFace;
 import me.cxiy.cxvisuals.gui.text.TextEngine;
@@ -57,6 +58,10 @@ public final class McCanvas implements Canvas {
   private static final TileTextures TILES = new TileTextures();
   private static final FeedTextures FEEDS = new FeedTextures();
   private static final MapTextures MAPS = new MapTextures();
+  private static final MobFaces MOBS = new MobFaces();
+  private static final TerrainRenderer TERRAIN = new TerrainRenderer(MAPS);
+  private static final float TERRAIN_SAMPLES = 1.5F;
+  private static final float TERRAIN_LIMIT = 4096.0F;
   private static final ChatLines CHAT = new ChatLines();
   private static final FontStyle[] FONTS = FontStyle.values();
   private static ItemStack[] held;
@@ -679,6 +684,43 @@ public final class McCanvas implements Canvas {
   }
 
   @Override
+  public boolean mobFace(
+      int entityId, float x, float y, float size, float radius, int backing) {
+    if (!shapes || alpha <= 0.002F || !FacePipeline.usable()) {
+      return false;
+    }
+    MobFaces.Face face = MOBS.face(entityId);
+    if (face == null) {
+      return false;
+    }
+    Matrix3x2f matrix = pose();
+    ScreenRectangle bounds = bounds(matrix, x, y, x + size, y + size);
+    if (bounds == null) {
+      return true;
+    }
+    ScreenRectangle scissor = clipDepth > 0 ? clips[clipDepth - 1] : null;
+    int color = (Math.round(255.0F * Math.min(1.0F, alpha)) << 24) | (backing & 0x00FFFFFF);
+    state.addGuiElement(
+        new MobFaceRenderState(
+            matrix,
+            x,
+            y,
+            size,
+            radius,
+            face.u0(),
+            face.v0(),
+            face.u1(),
+            face.v1(),
+            color,
+            FacePipeline.MOB,
+            face.setup(),
+            scissor,
+            bounds,
+            depth()));
+    return true;
+  }
+
+  @Override
   public boolean icon(byte[] png, float x, float y, float size, float radius) {
     if (!shapes || alpha <= 0.002F || png == null || !FacePipeline.usable()) {
       return false;
@@ -764,6 +806,49 @@ public final class McCanvas implements Canvas {
     state.addGuiElement(
         ChartRenderState.of(
             matrix, batch, color, MapPipeline.MAP, setup, scissor, bounds, depth()));
+    return true;
+  }
+
+  public static void flushTerrain() {
+    TERRAIN.flush();
+  }
+
+  @Override
+  public boolean terrain(TerrainFrame frame) {
+    if (!shapes || alpha <= 0.002F || frame.count == 0 || !FeedPipeline.usable()) {
+      return false;
+    }
+    MAPS.setup(frame.atlas);
+    float sharp = Math.min(TERRAIN_SAMPLES, TERRAIN_LIMIT / Math.max(frame.width, frame.height) / uiScale);
+    int pixelW = Math.max(1, Math.round(frame.width * uiScale * sharp));
+    int pixelH = Math.max(1, Math.round(frame.height * uiScale * sharp));
+    TextureSetup setup = TERRAIN.request(frame, pixelW, pixelH);
+    if (setup == null) {
+      return false;
+    }
+    Matrix3x2f matrix = pose();
+    ScreenRectangle bounds =
+        bounds(matrix, frame.left, frame.top, frame.left + frame.width, frame.top + frame.height);
+    if (bounds == null) {
+      return true;
+    }
+    ScreenRectangle scissor = clipDepth > 0 ? clips[clipDepth - 1] : null;
+    int color = (Math.round(255.0F * Math.min(1.0F, alpha * frame.alpha)) << 24) | 0x00FFFFFF;
+    state.addGuiElement(
+        new FeedRenderState(
+            matrix,
+            frame.left,
+            frame.top,
+            frame.width,
+            frame.height,
+            0.0F,
+            color,
+            FeedPipeline.IMAGE,
+            setup,
+            scissor,
+            bounds,
+            depth(),
+            cut(matrix)));
     return true;
   }
 

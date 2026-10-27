@@ -23,6 +23,20 @@ public final class FeedPipeline {
           .withPrimitiveTopology(PrimitiveTopology.QUADS)
           .build();
 
+  public static final RenderPipeline IMAGE =
+      RenderPipeline.builder()
+          .withBindGroupLayout(BindGroupLayouts.MATRICES_PROJECTION)
+          .withBindGroupLayout(BindGroupLayouts.SAMPLER0)
+          .withLocation(
+              Identifier.fromNamespaceAndPath(CxVisualsClient.MOD_ID, "pipeline/map_image"))
+          .withVertexShader(Identifier.fromNamespaceAndPath(CxVisualsClient.MOD_ID, "core/feed"))
+          .withFragmentShader(
+              Identifier.fromNamespaceAndPath(CxVisualsClient.MOD_ID, "core/map_image"))
+          .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
+          .withVertexBinding(0, DefaultVertexFormat.ENTITY)
+          .withPrimitiveTopology(PrimitiveTopology.QUADS)
+          .build();
+
   private static boolean checked;
   private static boolean usable;
 
@@ -32,7 +46,9 @@ public final class FeedPipeline {
     if (!checked) {
       checked = true;
       try {
-        usable = RenderSystem.getDevice().precompilePipeline(FEED).isValid();
+        usable =
+            RenderSystem.getDevice().precompilePipeline(FEED).isValid()
+                && RenderSystem.getDevice().precompilePipeline(IMAGE).isValid();
       } catch (RuntimeException e) {
         usable = false;
         CxVisualsClient.LOG.error("Window feed shader failed to compile", e);

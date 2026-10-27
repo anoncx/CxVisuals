@@ -11,6 +11,11 @@ import me.cxiy.cxvisuals.core.settings.PanelSetting;
 import me.cxiy.cxvisuals.modules.map.Relief.Terrain;
 
 public final class MapModule extends Module {
+  public enum MobIcons {
+    HEADS,
+    DOTS
+  }
+
   public enum Caves {
     AUTO,
     OFF
@@ -30,6 +35,7 @@ public final class MapModule extends Module {
   public final BoolSetting friends;
   public final BoolSetting players;
   public final BoolSetting mobs;
+  public final EnumSetting<MobIcons> mobIcons;
   public final PanelSetting storage;
 
   public MapModule(KeyBinder keys, Runnable open) {
@@ -60,6 +66,10 @@ public final class MapModule extends Module {
             .bool("mobs", "Mobs", true)
             .describe(
                 "Animals as soft dots and monsters in red, in the range the game shows them.");
+    mobIcons =
+        marks
+            .enumOf("mob_icons", "Mob icons", MobIcons.HEADS, "Heads", "Dots")
+            .describe("Heads show each mob's face on a tile, red rimmed for monsters.");
     storage = page.group("This world").panel("storage");
     Group shortcuts = page.group("Shortcuts");
     shortcuts.key("open_key", "Open map", keys.bind(OPEN_KEY, "Open map", KEY_M));

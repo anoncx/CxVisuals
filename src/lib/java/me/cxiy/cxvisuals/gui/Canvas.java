@@ -1,6 +1,7 @@
 package me.cxiy.cxvisuals.gui;
 
 import me.cxiy.cxvisuals.gui.map.ChartBatch;
+import me.cxiy.cxvisuals.gui.map.TerrainFrame;
 import me.cxiy.cxvisuals.modules.hud.mirror.FrameStore;
 
 public interface Canvas {
@@ -96,6 +97,10 @@ public interface Canvas {
 
   boolean icon(byte[] png, float x, float y, float size, float radius);
 
+  default boolean mobFace(int entityId, float x, float y, float size, float radius, int backing) {
+    return false;
+  }
+
   int styleKey();
 
   int lines(int messageId, float width);
@@ -133,6 +138,10 @@ public interface Canvas {
   }
 
   default boolean chart(ChartBatch batch) {
+    return false;
+  }
+
+  default boolean terrain(TerrainFrame frame) {
     return false;
   }
 

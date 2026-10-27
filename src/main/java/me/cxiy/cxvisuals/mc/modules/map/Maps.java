@@ -68,6 +68,11 @@ public final class Maps {
         }
 
         @Override
+        public int terrain() {
+          return module.terrain.get().ordinal();
+        }
+
+        @Override
         public boolean waypoints() {
           return module.waypoints.get();
         }
@@ -97,7 +102,12 @@ public final class Maps {
         }
 
         @Override
-        public int mobs(double[] x, double[] z, boolean[] hostile, int max) {
+        public boolean mobHeads() {
+          return module.mobIcons.get() == MapModule.MobIcons.HEADS;
+        }
+
+        @Override
+        public int mobs(double[] x, double[] z, boolean[] hostile, int[] ids, int max) {
           Minecraft mc = Minecraft.getInstance();
           if (mc.level == null || mc.player == null || !module.mobs.get()) {
             return 0;
@@ -111,6 +121,7 @@ public final class Maps {
               x[count] = mob.getX();
               z[count] = mob.getZ();
               hostile[count] = mob instanceof Enemy;
+              ids[count] = mob.getId();
               count++;
             }
           }

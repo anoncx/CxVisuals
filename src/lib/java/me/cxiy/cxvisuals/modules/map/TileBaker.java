@@ -34,12 +34,14 @@ public final class TileBaker {
 
   public void details(long key, int[] ids) {
     Arrays.fill(ids, 0);
-    if (TileKey.level(key) != 0) {
+    int level = TileKey.level(key);
+    if (level > TileKey.REGION_LEVEL) {
       return;
     }
+    int step = 1 << level;
     int layer = TileKey.layer(key);
-    int originX = TileKey.x(key) * TileKey.EDGE;
-    int originZ = TileKey.z(key) * TileKey.EDGE;
+    int originX = TileKey.x(key) * TileKey.span(level);
+    int originZ = TileKey.z(key) * TileKey.span(level);
     Region region = source.region(layer, originX >> Region.SHIFT, originZ >> Region.SHIFT);
     if (region == null) {
       return;
@@ -48,13 +50,25 @@ public final class TileBaker {
     int baseZ = originZ & Region.MASK;
     for (int pz = 0; pz < TileKey.EDGE; pz++) {
       for (int px = 0; px < TileKey.EDGE; px++) {
-        int lx = baseX + px;
-        int lz = baseZ + pz;
-        if (region.seen(lx, lz)) {
-          int at = Region.index(lx, lz);
-          int block = Math.min(region.block[at], BlockPalette.TABLE - 1);
-          int height = Math.max(0, Math.min(HEIGHT_MAX, region.height[at] + HEIGHT_OFFSET));
-          int water = region.water[at] != 0 ? WATER_BIT : 0;
+        int best = -1;
+        int top = Integer.MIN_VALUE;
+        for (int dz = 0; dz < step; dz++) {
+          for (int dx = 0; dx < step; dx++) {
+            int lx = baseX + px * step + dx;
+            int lz = baseZ + pz * step + dz;
+            if (region.seen(lx, lz)) {
+              int at = Region.index(lx, lz);
+              if (region.height[at] > top) {
+                top = region.height[at];
+                best = at;
+              }
+            }
+          }
+        }
+        if (best >= 0) {
+          int block = Math.min(region.block[best], BlockPalette.TABLE - 1);
+          int height = Math.max(0, Math.min(HEIGHT_MAX, top + HEIGHT_OFFSET));
+          int water = region.water[best] != 0 ? WATER_BIT : 0;
           ids[(pz << TileKey.EDGE_SHIFT) | px] = block | (height << 16) | water;
         }
       }

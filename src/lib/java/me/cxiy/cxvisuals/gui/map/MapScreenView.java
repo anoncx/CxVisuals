@@ -82,11 +82,32 @@ public final class MapScreenView {
   private static final float SCALE_BAR = 110.0F;
   private static final int CHUNK = 16;
   private static final int FROST_LEVELS = 3;
+  private static final float TILT_SECONDS = 0.7F;
+  private static final float DEFAULT_PITCH = (float) Math.toRadians(52.0);
+  private static final float ORBIT_YAW = 0.006F;
+  private static final float ORBIT_PITCH = 0.005F;
+  private static final float FADE_UNTIL = 0.35F;
 
   private final MapHost host;
   private final Viewport view = new Viewport();
   private final ChartBatch batch = new ChartBatch();
   private final ChartBatch frostBatch = new ChartBatch();
+  private final TerrainFrame terrain = new TerrainFrame();
+  private final Anim tilt = new Anim(0.0F, TILT_SECONDS, Anim.Curve.SNAPPY);
+  private final Spring yawGlide = Spring.critical(160.0F);
+  private final Spring pitchGlide = Spring.critical(160.0F);
+  private final float[] projected = new float[3];
+  private final double[] ground = new double[2];
+  private float yawGoal;
+  private float pitchGoal = DEFAULT_PITCH;
+  private double groundY = Double.NaN;
+  private boolean orbiting;
+  private boolean orbitDrag;
+  private boolean orbitMoved;
+  private float orbitX;
+  private float orbitY;
+  private double pointX;
+  private double pointZ;
   private MapChrome.Frost frost;
   private Canvas frostCanvas;
   private Theme frostTheme;
@@ -104,6 +125,7 @@ public final class MapScreenView {
   private final double[] mobX = new double[160];
   private final double[] mobZ = new double[160];
   private final boolean[] mobHostile = new boolean[160];
+  private final int[] mobIds = new int[160];
 
   private float screenW = 1280.0F;
   private float screenH = 720.0F;
@@ -240,23 +262,48 @@ public final class MapScreenView {
       }
     }
 
+    tilt.update(dt);
+    yawGlide.step(dt, yawGoal);
+    pitchGlide.step(dt, pitchGoal);
+    float solid = solid();
+    if (solid > 0.0F) {
+      aim(data, solid, scale, dt);
+    } else if (tilt.target() == 0.0F && yawGoal != 0.0F) {
+      yawGoal = 0.0F;
+      yawGlide.snap(0.0F);
+    }
+
     frostCanvas = c;
     frostTheme = t;
     float shown = open.get();
     c.pushAlpha(shown);
     c.pushTransform(0.97F + 0.03F * shown, screenW * 0.5F, screenH * 0.5F);
     c.pushClip(0.0F, 0.0F, screenW, screenH);
-    batch.build(source.atlas(), view, TileKey.SURFACE, 0.0F, 0.0F, screenW, screenH, 4);
-    batch.masked = false;
-    batch.radius = 0.0F;
-    batch.clouds = source.clouds() ? 1.0F : 0.0F;
-    batch.fog = MapStyle.fog(t);
-    batch.alpha = 1.0F;
-    if (!c.chart(batch)) {
-      c.roundRect(0.0F, 0.0F, screenW, screenH, 0.0F, t.paper() | 0xFF000000);
+    boolean solidDrawn = false;
+    if (solid > 0.0F) {
+      int[] sky = MapStyle.sky(t);
+      c.roundRectGradient(0.0F, 0.0F, screenW, screenH, 0.0F, sky[0], sky[1]);
+      terrain.build(source.atlas(), TileKey.SURFACE, 0.0F, 0.0F, originX() * 2.0F, screenH);
+      terrain.fog = sky[1];
+      terrain.terrain = source.terrain();
+      terrain.alpha = 1.0F;
+      solidDrawn = c.terrain(terrain);
     }
-    grid(c, t, scale);
-    selection(c, t);
+    if (!solidDrawn || solid < FADE_UNTIL) {
+      batch.build(source.atlas(), view, TileKey.SURFACE, 0.0F, 0.0F, screenW, screenH, 4);
+      batch.masked = false;
+      batch.radius = 0.0F;
+      batch.clouds = source.clouds() ? 1.0F : 0.0F;
+      batch.fog = MapStyle.fog(t);
+      batch.alpha = solidDrawn ? 1.0F - solid / FADE_UNTIL : 1.0F;
+      if (!c.chart(batch) && !solidDrawn) {
+        c.roundRect(0.0F, 0.0F, screenW, screenH, 0.0F, t.paper() | 0xFF000000);
+      }
+    }
+    if (solid <= 0.0F) {
+      grid(c, t, scale);
+      selection(c, t);
+    }
     marks(c, t, data, source);
     c.popClip();
     c.popTransform();
@@ -273,6 +320,9 @@ public final class MapScreenView {
   }
 
   private void frosted(float x, float y, float w, float h, float radius) {
+    if (solid() > 0.0F) {
+      return;
+    }
     MapSource source = host.source();
     frostBatch.build(source.atlas(), view, TileKey.SURFACE, x, y, w, h, 2, FROST_LEVELS);
     frostBatch.masked = true;
@@ -281,6 +331,74 @@ public final class MapScreenView {
     frostBatch.fog = MapStyle.fog(frostTheme);
     frostBatch.alpha = 1.0F;
     frostCanvas.chart(frostBatch);
+  }
+
+  private float solid() {
+    float v = tilt.get();
+    return v <= 0.001F ? 0.0F : v;
+  }
+
+  public boolean solidView() {
+    return tilt.target() > 0.5F;
+  }
+
+  public void solidView(boolean on) {
+    if (on == solidView()) {
+      return;
+    }
+    tilt.set(on ? 1.0F : 0.0F);
+    if (on) {
+      pitchGoal = DEFAULT_PITCH;
+      pitchGlide.snap(DEFAULT_PITCH);
+      anchored = false;
+    } else {
+      yawGoal = 0.0F;
+    }
+    Sound.play(Sound.Cue.TAB);
+  }
+
+  private void aim(HudData data, float solid, float scale, float dt) {
+    int x = (int) Math.floor(camX);
+    int z = (int) Math.floor(camZ);
+    int height = host.height(x, z);
+    double want = height == Integer.MIN_VALUE ? data.y : height + 1.0;
+    groundY = Double.isNaN(groundY) ? want : groundY + (want - groundY) * Math.min(1.0F, dt * 5.0F);
+    Camera3D camera = terrain.camera;
+    camera.targetX = camX;
+    camera.targetY = groundY;
+    camera.targetZ = camZ;
+    camera.yaw = yawGlide.value() * solid;
+    float top = Camera3D.MAX_PITCH;
+    camera.pitch = top + (pitchGlide.value() - top) * solid;
+    camera.distance =
+        Math.max(
+            Camera3D.MIN_DISTANCE,
+            Math.min(Camera3D.MAX_DISTANCE, Camera3D.distanceFor(scale, screenH)));
+    camera.update(0.0F, 0.0F, originX() * 2.0F, screenH, false);
+  }
+
+  private boolean at(double x, double y, double z, float[] out) {
+    if (solid() > 0.0F) {
+      return terrain.camera.project(x, y, z, out);
+    }
+    out[0] = view.screenX(x, z);
+    out[1] = view.screenY(x, z);
+    out[2] = 1.0F;
+    return true;
+  }
+
+  private boolean pointer(float sx, float sy) {
+    if (solid() > 0.0F) {
+      if (!terrain.camera.ground(sx, sy, groundY, ground)) {
+        return false;
+      }
+      pointX = ground[0];
+      pointZ = ground[1];
+      return true;
+    }
+    pointX = view.worldX(sx, sy);
+    pointZ = view.worldZ(sx, sy);
+    return true;
   }
 
   private void step(HudData data, float dt) {
@@ -326,7 +444,7 @@ public final class MapScreenView {
       return;
     }
     zoomGoal = next;
-    if (!follow) {
+    if (!follow && solid() <= 0.0F) {
       anchored = true;
       anchorSX = sx;
       anchorSY = sy;
@@ -379,77 +497,81 @@ public final class MapScreenView {
   private void marks(Canvas c, Theme t, HudData data, MapSource source) {
     hoveredMark = -1;
     float best = HOVER_REACH;
-    if (pop == Pop.NONE && !dragging) {
+    float[] p = projected;
+    if (pop == Pop.NONE && !dragging && !orbiting) {
       for (int i = 0; i < data.markCount; i++) {
-        if (!wanted(data, source, i)) {
+        if (!wanted(data, source, i) || !at(data.markX[i], data.markY[i], data.markZ[i], p)) {
           continue;
         }
-        float d =
-            (float)
-                Math.hypot(
-                    view.screenX(data.markX[i], data.markZ[i]) - mouseX,
-                    view.screenY(data.markX[i], data.markZ[i]) - mouseY);
+        float d = (float) Math.hypot(p[0] - mouseX, p[1] - mouseY);
         if (d < best) {
           best = d;
           hoveredMark = i;
         }
       }
     }
-    int mobs = source.mobs(mobX, mobZ, mobHostile, mobX.length);
-    float mobSize = Math.max(4.0F, Math.min(9.0F, scale() * 0.6F));
+    int mobs = source.mobs(mobX, mobZ, mobHostile, mobIds, mobX.length);
+    boolean heads = source.mobHeads();
+    float pixels = solid() > 0.0F ? terrain.camera.pixelsPerBlock() : scale();
+    float mobSize =
+        heads
+            ? Math.max(9.0F, Math.min(22.0F, pixels * 1.2F))
+            : Math.max(4.0F, Math.min(9.0F, pixels * 0.6F));
     for (int i = 0; i < mobs; i++) {
-      MapMarks.mob(
-          c,
-          t,
-          view.screenX(mobX[i], mobZ[i]),
-          view.screenY(mobX[i], mobZ[i]),
-          mobSize,
-          mobHostile[i]);
+      if (at(mobX[i], surface(mobX[i], mobZ[i]) + 0.8, mobZ[i], p)) {
+        MapMarks.mob(c, t, p[0], p[1], mobSize, mobHostile[i], heads ? mobIds[i] : -1);
+      }
     }
     int others = source.players(otherX, otherZ, otherX.length);
     for (int i = 0; i < others; i++) {
-      MapMarks.other(
-          c, t, view.screenX(otherX[i], otherZ[i]), view.screenY(otherX[i], otherZ[i]), OTHER);
+      if (at(otherX[i], surface(otherX[i], otherZ[i]) + 1.0, otherZ[i], p)) {
+        MapMarks.other(c, t, p[0], p[1], OTHER);
+      }
     }
     for (int i = 0; i < data.markCount; i++) {
-      if (!wanted(data, source, i) || data.markFriend[i]) {
+      if (!wanted(data, source, i)
+          || data.markFriend[i]
+          || !at(data.markX[i], data.markY[i], data.markZ[i], p)) {
         continue;
       }
-      float sx = view.screenX(data.markX[i], data.markZ[i]);
-      float sy = view.screenY(data.markX[i], data.markZ[i]);
       float size = WAYPOINT * (i == hoveredMark ? 1.25F : 1.0F);
       if (data.markColor[i] == Waypoints.DEATH_COLOR) {
-        MapMarks.death(c, sx, sy, size + 1.0F, data.markColor[i], 1.0F);
+        MapMarks.death(c, p[0], p[1], size + 1.0F, data.markColor[i], 1.0F);
       } else {
-        MapMarks.waypoint(c, sx, sy, size, data.markColor[i], 1.0F);
+        MapMarks.waypoint(c, p[0], p[1], size, data.markColor[i], 1.0F);
       }
     }
     for (int i = 0; i < data.markCount; i++) {
-      if (!wanted(data, source, i) || !data.markFriend[i]) {
+      if (!wanted(data, source, i)
+          || !data.markFriend[i]
+          || !at(data.markX[i], data.markY[i], data.markZ[i], p)) {
         continue;
       }
-      float sx = view.screenX(data.markX[i], data.markZ[i]);
-      float sy = view.screenY(data.markX[i], data.markZ[i]);
-      MapMarks.friend(c, t, data.markEntity[i], data.markLabel[i], sx, sy, FRIEND, 1.0F);
-      MapMarks.label(c, t, data.markLabel[i], sx, sy + FRIEND * 0.5F + 5.0F, 0.92F);
+      MapMarks.friend(c, t, data.markEntity[i], data.markLabel[i], p[0], p[1], FRIEND, 1.0F);
+      MapMarks.label(c, t, data.markLabel[i], p[0], p[1] + FRIEND * 0.5F + 5.0F, 0.92F);
     }
-    float px = view.screenX(data.x, data.z);
-    float py = view.screenY(data.x, data.z);
-    MapMarks.player(c, t, px, py, ARROW, (float) Math.toRadians(data.yaw + 180.0F));
-    if (hoveredMark >= 0 && !data.markFriend[hoveredMark]) {
+    if (at(data.x, data.y + 0.2, data.z, p)) {
+      float heading = (float) Math.toRadians(data.yaw + 180.0F);
+      if (solid() > 0.0F) {
+        heading += terrain.camera.yaw;
+      }
+      MapMarks.player(c, t, p[0], p[1], ARROW, heading);
+    }
+    if (hoveredMark >= 0
+        && !data.markFriend[hoveredMark]
+        && at(data.markX[hoveredMark], data.markY[hoveredMark], data.markZ[hoveredMark], p)) {
       int metres =
           (int)
               Math.round(
                   Math.hypot(data.markX[hoveredMark] - data.x, data.markZ[hoveredMark] - data.z));
       String text = data.markLabel[hoveredMark] + " · " + WorldPins.range(metres);
-      MapMarks.label(
-          c,
-          t,
-          text,
-          view.screenX(data.markX[hoveredMark], data.markZ[hoveredMark]),
-          view.screenY(data.markX[hoveredMark], data.markZ[hoveredMark]) + WAYPOINT + 4.0F,
-          1.0F);
+      MapMarks.label(c, t, text, p[0], p[1] + WAYPOINT + 4.0F, 1.0F);
     }
+  }
+
+  private double surface(double x, double z) {
+    int height = host.height((int) Math.floor(x), (int) Math.floor(z));
+    return height == Integer.MIN_VALUE ? host.data().y : height + 1.0;
   }
 
   private static boolean wanted(HudData data, MapSource source, int i) {
@@ -466,12 +588,14 @@ public final class MapScreenView {
   private void titleCard(Canvas c, Theme t, HudData data, float shown) {
     String title = host.title();
     String dimension = Note.dimensionName(host.dimension());
-    float width =
-        Math.max(
-                c.textWidth(FontStyle.ROW, title),
-                c.textWidth(FontStyle.CAPTION, dimension) + 18.0F + 70.0F)
-            + 32.0F;
-    width = Math.min(width, Math.max(200.0F, screenW - panelW() - MARGIN * 4.0F - 200.0F));
+    boolean cave = host.source().layer() == TileKey.CAVE;
+    String note = cave ? "·  " + Lang.tr("Cave view on minimap") : "";
+    float line =
+        13.0F
+            + c.textWidth(FontStyle.CAPTION, dimension)
+            + (cave ? 10.0F + c.textWidth(FontStyle.CAPTION, note) : 0.0F);
+    float width = Math.max(c.textWidth(FontStyle.ROW, title), line) + 32.0F;
+    width = Math.max(150.0F, Math.min(width, screenW - panelW() - MARGIN * 5.0F - 120.0F));
     float x = MARGIN;
     float y = MARGIN - (1.0F - shown) * 12.0F;
     MapChrome.panel(c, t, frost, x, y, width, CARD_H, RADIUS * 0.8F);
@@ -480,23 +604,25 @@ public final class MapScreenView {
     float chipY = y + 33.0F;
     c.roundRect(x + 16.0F, chipY + 4.0F, 7.0F, 7.0F, 3.5F, Note.dimensionColor(host.dimension()));
     c.text(FontStyle.CAPTION, dimension, x + 29.0F, chipY + 1.0F, t.ink2());
-    if (host.source().layer() == TileKey.CAVE) {
+    if (cave) {
       float cx = x + 29.0F + c.textWidth(FontStyle.CAPTION, dimension) + 10.0F;
-      c.text(FontStyle.CAPTION, "· " + Lang.tr("Cave view on minimap"), cx, chipY + 1.0F, t.grey());
+      float room = x + width - 16.0F - cx;
+      c.text(FontStyle.CAPTION, c.fit(FontStyle.CAPTION, note, room), cx, chipY + 1.0F, t.grey());
     }
   }
 
   private void footer(Canvas c, Theme t, float shown) {
-    double wx = view.worldX(mouseX, mouseY);
-    double wz = view.worldZ(mouseX, mouseY);
-    int bx = (int) Math.floor(wx);
-    int bz = (int) Math.floor(wz);
+    boolean hit = pointer(mouseX, mouseY);
+    int bx = (int) Math.floor(pointX);
+    int bz = (int) Math.floor(pointZ);
     int height = host.height(bx, bz);
     String place =
-        height == Integer.MIN_VALUE
-            ? "X " + bx + "   Z " + bz
-            : "X " + bx + "   Y " + height + "   Z " + bz;
-    float scale = scale();
+        !hit
+            ? "—"
+            : height == Integer.MIN_VALUE
+                ? "X " + bx + "   Z " + bz
+                : "X " + bx + "   Y " + height + "   Z " + bz;
+    float scale = solid() > 0.0F ? terrain.camera.pixelsPerBlock() : scale();
     float metres = SCALE_BAR / scale;
     float nice = nice(metres);
     float bar = nice * scale;
@@ -533,55 +659,92 @@ public final class MapScreenView {
     return screenW - panelW() - MARGIN - MARGIN * panel.get() - MapChrome.BUTTON - 6.0F;
   }
 
+  private static final int CONTROLS = 4;
+
+  private float controlsTop() {
+    float size = MapChrome.BUTTON;
+    return screenH - MARGIN - (size * CONTROLS + 3.0F * (CONTROLS + 1));
+  }
+
   private void controls(Canvas c, Theme t, float shown, float dt) {
     float size = MapChrome.BUTTON;
     float x = controlsX();
-    float h = size * 3.0F + 12.0F;
-    float y = screenH - MARGIN - h + (1.0F - shown) * 12.0F;
+    float h = size * CONTROLS + 3.0F * (CONTROLS + 1);
+    float y = controlsTop() + (1.0F - shown) * 12.0F;
     MapChrome.panel(c, t, frost, x, y, size + 6.0F, h, (size + 6.0F) * 0.5F);
-    Glyph[] glyphs = {Glyph.PLUS, Glyph.MINUS, Glyph.LOCATE};
+    Glyph[] glyphs = {Glyph.PLUS, Glyph.MINUS, Glyph.LOCATE, Glyph.CUBE};
     for (int i = 0; i < glyphs.length; i++) {
       float by = y + 3.0F + i * (size + 3.0F);
       boolean over = MapChrome.hit(mouseX, mouseY, x + 3.0F, by, size, size) && pop == Pop.NONE;
       hovers[i].set(over ? 1.0F : 0.0F);
       hovers[i].update(dt);
-      boolean lit = i == 2 && follow;
+      boolean lit = (i == 2 && follow) || (i == 3 && solidView());
       MapChrome.button(
           c, t, glyphs[i], x + 3.0F, by, size, Math.max(hovers[i].get(), lit ? 1.0F : 0.0F), false);
       if (lit) {
         c.roundRect(x + 3.0F + size * 0.5F - 2.0F, by + size - 7.0F, 4.0F, 4.0F, 2.0F, t.red());
       }
     }
+    float solid = solid();
+    if (solid > 0.02F) {
+      float cy = y - size - 12.0F;
+      c.pushAlpha(Math.min(1.0F, solid * 1.5F));
+      MapChrome.panel(c, t, frost, x, cy, size + 6.0F, size + 6.0F, (size + 6.0F) * 0.5F);
+      compass(c, t, x + 3.0F + size * 0.5F, cy + 3.0F + size * 0.5F, size * 0.36F);
+      c.popAlpha();
+    }
     float sy = MARGIN - (1.0F - shown) * 12.0F;
     float sx = x;
     MapChrome.panel(c, t, frost, sx, sy, size + 6.0F, size + 6.0F, (size + 6.0F) * 0.5F);
     boolean over = MapChrome.hit(mouseX, mouseY, sx + 3.0F, sy + 3.0F, size, size);
-    hovers[3].set(over ? 1.0F : 0.0F);
-    hovers[3].update(dt);
-    MapChrome.button(c, t, Glyph.SIDEBAR, sx + 3.0F, sy + 3.0F, size, hovers[3].get(), false);
+    hovers[4].set(over ? 1.0F : 0.0F);
+    hovers[4].update(dt);
+    MapChrome.button(c, t, Glyph.SIDEBAR, sx + 3.0F, sy + 3.0F, size, hovers[4].get(), false);
+  }
+
+  private void compass(Canvas c, Theme t, float cx, float cy, float r) {
+    float yaw = terrain.camera.yaw;
+    float nx = cx + (float) Math.sin(yaw) * r;
+    float ny = cy - (float) Math.cos(yaw) * r;
+    c.roundRectBorder(cx - r, cy - r, r * 2.0F, r * 2.0F, r, 1.4F, t.ink2());
+    c.roundRect(nx - 3.5F, ny - 3.5F, 7.0F, 7.0F, 3.5F, t.red());
+    float w = c.textWidth(FontStyle.CAPTION, "N");
+    c.text(
+        FontStyle.CAPTION,
+        "N",
+        cx - w * 0.5F,
+        cy - c.lineHeight(FontStyle.CAPTION) * 0.5F,
+        t.ink());
   }
 
   private boolean controlsDown(float mx, float my) {
     float size = MapChrome.BUTTON;
     float x = controlsX();
-    float h = size * 3.0F + 12.0F;
-    float y = screenH - MARGIN - h;
-    for (int i = 0; i < 3; i++) {
+    float h = size * CONTROLS + 3.0F * (CONTROLS + 1);
+    float y = controlsTop();
+    for (int i = 0; i < CONTROLS; i++) {
       float by = y + 3.0F + i * (size + 3.0F);
       if (MapChrome.hit(mx, my, x + 3.0F, by, size, size)) {
         switch (i) {
           case 0 -> zoomAt(originX(), originY(), 3.0F);
           case 1 -> zoomAt(originX(), originY(), -3.0F);
-          default -> {
+          case 2 -> {
             follow = true;
             gliding = false;
             velX = 0.0F;
             velZ = 0.0F;
           }
+          default -> solidView(!solidView());
         }
         Sound.play(Sound.Cue.STEP);
         return true;
       }
+    }
+    if (solid() > 0.02F && MapChrome.hit(mx, my, x, y - size - 12.0F, size + 6.0F, size + 6.0F)) {
+      float turns = Math.round(yawGoal / (float) (Math.PI * 2.0));
+      yawGoal = turns * (float) (Math.PI * 2.0);
+      Sound.play(Sound.Cue.STEP);
+      return true;
     }
     if (MapChrome.hit(mx, my, x, MARGIN, size + 6.0F, size + 6.0F)) {
       panel.set(panel.target() > 0.5F ? 0.0F : 1.0F);
@@ -1104,7 +1267,8 @@ public final class MapScreenView {
     velX = 0.0F;
     velZ = 0.0F;
     hasSelection = false;
-    if (shift || selectArmed) {
+    orbitDrag = shift && solidView();
+    if ((shift || selectArmed) && !solidView()) {
       selecting = true;
       selectArmed = false;
       selFromX = view.worldX(mx, my);
@@ -1115,7 +1279,7 @@ public final class MapScreenView {
     long now = System.nanoTime();
     if (!selecting && now - clickNanos < DOUBLE_NANOS) {
       zoomAt(mx, my, 3.0F);
-      if (follow) {
+      if (follow && !solidView()) {
         follow = false;
         anchored = true;
         anchorSX = mx;
@@ -1295,6 +1459,7 @@ public final class MapScreenView {
   }
 
   public void mouseUp(float mx, float my) {
+    orbitDrag = false;
     search.release();
     naming.release();
     if (!dragging) {
@@ -1341,9 +1506,28 @@ public final class MapScreenView {
     follow = false;
     gliding = false;
     anchored = false;
-    float scale = scale();
-    float dx = (mx - lastX) / scale;
-    float dz = (my - lastY) / scale;
+    if (orbitDrag) {
+      orbit(mx - lastX, my - lastY);
+      lastX = mx;
+      lastY = my;
+      return;
+    }
+    float dx;
+    float dz;
+    if (solid() > 0.0F) {
+      Camera3D camera = terrain.camera;
+      float ppb = Math.max(0.001F, camera.pixelsPerBlock());
+      float sx = (mx - lastX) / ppb;
+      float sy = (my - lastY) / (ppb * (float) Math.max(0.35, Math.sin(camera.pitch)));
+      float cos = (float) Math.cos(camera.yaw);
+      float sin = (float) Math.sin(camera.yaw);
+      dx = sx * cos + sy * sin;
+      dz = -sx * sin + sy * cos;
+    } else {
+      float scale = scale();
+      dx = (mx - lastX) / scale;
+      dz = (my - lastY) / scale;
+    }
     camX -= dx;
     camZ -= dz;
     long now = System.nanoTime();
@@ -1360,12 +1544,48 @@ public final class MapScreenView {
       dismiss();
       return;
     }
-    popWX = view.worldX(mx, my);
-    popWZ = view.worldZ(mx, my);
+    orbiting = true;
+    orbitMoved = false;
+    orbitX = mx;
+    orbitY = my;
+    downX = mx;
+    downY = my;
+  }
+
+  public void secondaryDrag(float mx, float my) {
+    if (!orbiting) {
+      return;
+    }
+    if (Math.hypot(mx - downX, my - downY) > DRAG_SLOP) {
+      orbitMoved = true;
+    }
+    if (orbitMoved && solidView()) {
+      orbit(mx - orbitX, my - orbitY);
+    }
+    orbitX = mx;
+    orbitY = my;
+  }
+
+  public void secondaryUp(float mx, float my) {
+    if (!orbiting) {
+      return;
+    }
+    orbiting = false;
+    if (orbitMoved || !pointer(mx, my)) {
+      return;
+    }
+    popWX = pointX;
+    popWZ = pointZ;
     selFromX = popWX;
     selFromZ = popWZ;
     show(Pop.MENU, mx + 6.0F, my + 6.0F);
     Sound.play(Sound.Cue.STEP);
+  }
+
+  private void orbit(float dx, float dy) {
+    yawGoal -= dx * ORBIT_YAW;
+    pitchGoal =
+        Math.max(Camera3D.MIN_PITCH, Math.min(Camera3D.MAX_PITCH, pitchGoal + dy * ORBIT_PITCH));
   }
 
   public void scroll(float mx, float my, float amount) {
