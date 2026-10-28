@@ -22,6 +22,8 @@ import me.cxiy.cxvisuals.gui.TrendChart;
 import me.cxiy.cxvisuals.gui.TrendsView;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
 import me.cxiy.cxvisuals.mc.McKeyBinder;
+import me.cxiy.cxvisuals.mc.compat.Keys;
+import me.cxiy.cxvisuals.mc.compat.Tooltips;
 import me.cxiy.cxvisuals.mc.gui.McCanvas;
 import me.cxiy.cxvisuals.mc.gui.TrendsScreen;
 import me.cxiy.cxvisuals.mc.modules.hud.Hud;
@@ -297,7 +299,8 @@ public final class DonutSMP {
         .ifPresent(
             image -> parts.add(Math.min(1, parts.size()), ClientTooltipComponent.create(image)));
     parts.add(new PriceTooltip(lines, themes.get()));
-    graphics.tooltip(
+    Tooltips.show(
+        graphics,
         mc.font,
         parts,
         mouseX,
@@ -575,8 +578,7 @@ public final class DonutSMP {
       return show == Show.ALWAYS;
     }
     int code = InputConstants.getKey(previewKey.saveString()).getValue();
-    return code != InputConstants.UNKNOWN.getValue()
-        && InputConstants.isKeyDown(mc.getWindow(), code);
+    return code != InputConstants.UNKNOWN.getValue() && Keys.down(code);
   }
 
   private static boolean browsable(AbstractContainerScreen<?> screen) {

@@ -2,6 +2,7 @@ package me.cxiy.cxvisuals.mc.gui;
 
 import com.mojang.blaze3d.platform.Window;
 import me.cxiy.cxvisuals.gui.hud.HudEditor;
+import me.cxiy.cxvisuals.mc.compat.Keys;
 import me.cxiy.cxvisuals.mc.modules.hud.Hud;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
@@ -100,7 +101,7 @@ public final class HudEditorScreen extends Screen {
 
   @Override
   public boolean keyPressed(KeyEvent event) {
-    if (editor.keyDown(event.key(), event.hasShiftDown())) {
+    if (editor.keyDown(Keys.code(event), event.hasShiftDown())) {
       return true;
     }
     return super.keyPressed(event);

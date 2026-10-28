@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 import me.cxiy.cxvisuals.core.module.KeyBinder;
 import me.cxiy.cxvisuals.core.settings.KeyHandle;
+import me.cxiy.cxvisuals.mc.compat.Keys;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.resources.Identifier;
@@ -18,7 +19,8 @@ public final class McKeyBinder implements KeyBinder {
   @Override
   public KeyHandle bind(String id, String title, int defaultKey) {
     KeyMapping mapping =
-        KeyMappingHelper.registerKeyMapping(new KeyMapping(PREFIX + id, defaultKey, category));
+        KeyMappingHelper.registerKeyMapping(
+            new KeyMapping(PREFIX + id, Keys.vanilla(defaultKey), category));
     mappings.put(id, mapping);
     return new McKeyHandle(mapping);
   }

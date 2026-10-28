@@ -4,6 +4,7 @@ import com.mojang.blaze3d.platform.Window;
 import java.util.function.Supplier;
 import me.cxiy.cxvisuals.gui.LanguagePicker;
 import me.cxiy.cxvisuals.gui.Theme;
+import me.cxiy.cxvisuals.mc.compat.Keys;
 import me.cxiy.cxvisuals.mc.menu.MenuStage;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
@@ -91,7 +92,7 @@ public final class LanguageScreen extends Screen {
 
   @Override
   public boolean keyPressed(KeyEvent event) {
-    return picker.keyDown(event.key(), event.hasShiftDown());
+    return picker.keyDown(Keys.code(event), event.hasShiftDown());
   }
 
   @Override

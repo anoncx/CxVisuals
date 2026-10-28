@@ -1,6 +1,6 @@
 package me.cxiy.cxvisuals.mc.gui;
 
-import com.mojang.blaze3d.buffers.GpuBufferSlice;
+import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
 import java.util.BitSet;
 import me.cxiy.cxvisuals.gui.spatial.Warp;
 import me.cxiy.cxvisuals.mc.mixin.GuiGraphicsExtractorAccessor;

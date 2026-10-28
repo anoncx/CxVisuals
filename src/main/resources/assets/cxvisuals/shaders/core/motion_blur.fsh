@@ -1,4 +1,5 @@
 #version 330
+#extension GL_ARB_separate_shader_objects : require
 
 layout(std140) uniform Globals {
     ivec3 CameraBlockPos;
@@ -20,9 +21,9 @@ layout(std140) uniform MotionBlur {
     vec4 Hand;
 };
 
-in vec2 texCoord;
+layout(location = 0) in vec2 texCoord;
 
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
 
 const int MAX_SAMPLES = 16;
 

@@ -1,9 +1,9 @@
 package me.cxiy.cxvisuals.mc.modules.avatar;
 
-import com.mojang.blaze3d.PrimitiveTopology;
-import com.mojang.blaze3d.pipeline.BlendFunction;
-import com.mojang.blaze3d.pipeline.ColorTargetState;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
+import com.mojang.renderpearl.api.pipeline.BlendFunction;
+import com.mojang.renderpearl.api.pipeline.ColorTargetState;
+import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 import java.util.HashMap;
 import java.util.Map;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
@@ -23,6 +23,7 @@ final class AvatarTypes {
           .withShaderDefine("ALPHA_CUTOUT", 0.1F)
           .withBindGroupLayout(BindGroupLayouts.SAMPLER1)
           .withPrimitiveTopology(PrimitiveTopology.TRIANGLES)
+          .withColorTargetState(ColorTargetState.DEFAULT)
           .build();
   static final RenderPipeline DOUBLE_SIDED =
       RenderPipeline.builder(RenderPipelines.ENTITY_SNIPPET)
@@ -32,6 +33,7 @@ final class AvatarTypes {
           .withBindGroupLayout(BindGroupLayouts.SAMPLER1)
           .withPrimitiveTopology(PrimitiveTopology.TRIANGLES)
           .withCull(false)
+          .withColorTargetState(ColorTargetState.DEFAULT)
           .build();
   static final RenderPipeline TRANSLUCENT =
       RenderPipeline.builder(RenderPipelines.ENTITY_SNIPPET)

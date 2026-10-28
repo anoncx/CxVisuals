@@ -1,7 +1,7 @@
 package me.cxiy.cxvisuals.mc.gui;
 
-import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 import me.cxiy.cxvisuals.gui.text.GlyphAtlas;
 import me.cxiy.cxvisuals.gui.text.TextRun;
 import net.minecraft.client.gui.navigation.ScreenRectangle;

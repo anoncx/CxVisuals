@@ -5,7 +5,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
@@ -15,6 +14,8 @@ import me.cxiy.cxvisuals.gui.TextureMixerView;
 import me.cxiy.cxvisuals.gui.Themes;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
 import me.cxiy.cxvisuals.mc.McKeyBinder;
+import me.cxiy.cxvisuals.mc.compat.FileDialog;
+import me.cxiy.cxvisuals.mc.compat.Packs;
 import me.cxiy.cxvisuals.mc.gui.TextureMixerScreen;
 import me.cxiy.cxvisuals.modules.texturemixer.Live;
 import me.cxiy.cxvisuals.modules.texturemixer.PackWriter;
@@ -28,9 +29,6 @@ import net.minecraft.server.packs.PackType;
 import net.minecraft.server.packs.metadata.pack.PackFormat;
 import net.minecraft.server.packs.repository.Pack;
 import net.minecraft.server.packs.repository.PackRepository;
-import org.lwjgl.PointerBuffer;
-import org.lwjgl.system.MemoryStack;
-import org.lwjgl.util.tinyfd.TinyFileDialogs;
 
 public final class TextureMixer implements Studio.Host, Live {
   private static final String MIX_FOLDER = "CxVisuals Mix";
@@ -41,8 +39,6 @@ public final class TextureMixer implements Studio.Host, Live {
   private static final long SAVE_NANOS = 450_000_000L;
   private static final String DIALOG_TITLE = Lang.key("Add texture packs");
   private static final String DIALOG_FILTER = Lang.key("Resource packs (ZIP)");
-  private static final boolean MAC =
-      System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("mac");
 
   private static volatile boolean quiet;
   private static TextureMixer self;
@@ -223,9 +219,7 @@ public final class TextureMixer implements Studio.Host, Live {
                         quiet = false;
                         busy = false;
                         state =
-                            error != null
-                                ? State.FAILED
-                                : dirty ? State.WAITING : State.APPLIED;
+                            error != null ? State.FAILED : dirty ? State.WAITING : State.APPLIED;
                       }));
     } catch (RuntimeException e) {
       CxVisualsClient.LOG.warn("Texture mix could not be applied: {}", e.toString());
@@ -268,7 +262,7 @@ public final class TextureMixer implements Studio.Host, Live {
 
   @Override
   public me.cxiy.cxvisuals.modules.texturemixer.Assets vanilla() {
-    return new VanillaAssets(Minecraft.getInstance().getVanillaPackResources());
+    return new VanillaAssets(Packs.vanillaClient());
   }
 
   @Override
@@ -299,48 +293,28 @@ public final class TextureMixer implements Studio.Host, Live {
     if (!dialog.compareAndSet(false, true)) {
       return;
     }
-    if (MAC) {
-      ask();
-      return;
-    }
-    Thread thread = new Thread(this::ask, "CxVisuals File Dialog");
-    thread.setDaemon(true);
-    thread.start();
-  }
-
-  private void ask() {
     try {
-      String chosen;
-      try (MemoryStack stack = MemoryStack.stackPush()) {
-        PointerBuffer patterns = stack.mallocPointer(1);
-        patterns.put(stack.UTF8("*.zip"));
-        patterns.flip();
-        chosen =
-            TinyFileDialogs.tinyfd_openFileDialog(
-                Lang.tr(DIALOG_TITLE), home(), patterns, Lang.tr(DIALOG_FILTER), true);
-      }
-      if (chosen == null || chosen.isBlank()) {
-        return;
-      }
-      List<Path> files = new ArrayList<>();
-      for (String part : chosen.split("\\|")) {
-        if (!part.isBlank()) {
-          files.add(Path.of(part));
-        }
-      }
-      studio.importFiles(files);
+      FileDialog.open(
+          Lang.tr(DIALOG_TITLE),
+          Lang.tr(DIALOG_FILTER),
+          List.of("zip"),
+          home(),
+          files -> {
+            dialog.set(false);
+            if (!files.isEmpty()) {
+              studio.importFiles(files);
+            }
+          });
     } catch (RuntimeException | LinkageError e) {
-      CxVisualsClient.LOG.error("The file dialog could not open, drop packs onto the window", e);
-    } finally {
       dialog.set(false);
+      CxVisualsClient.LOG.error("The file dialog could not open, drop packs onto the window", e);
     }
   }
 
-  private static String home() {
-    String user = System.getProperty("user.home", ".");
-    Path downloads = Path.of(user, "Downloads");
-    String folder = Files.isDirectory(downloads) ? downloads.toString() : user;
-    return folder.endsWith(java.io.File.separator) ? folder : folder + java.io.File.separator;
+  private static Path home() {
+    Path user = Path.of(System.getProperty("user.home", "."));
+    Path downloads = user.resolve("Downloads");
+    return Files.isDirectory(downloads) ? downloads : user;
   }
 
   @Override

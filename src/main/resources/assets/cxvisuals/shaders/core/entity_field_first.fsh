@@ -1,11 +1,12 @@
 #version 330
+#extension GL_ARB_separate_shader_objects : require
 
 #moj_import <cxvisuals:entity_block.glsl>
 
 uniform sampler2D MaskSampler;
 uniform sampler2D MaskDepthSampler;
 
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
 
 void main() {
     ivec2 base = ivec2(gl_FragCoord.xy) * 2;

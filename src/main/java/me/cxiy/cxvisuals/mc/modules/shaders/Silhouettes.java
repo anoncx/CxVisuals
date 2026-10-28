@@ -1,15 +1,15 @@
 package me.cxiy.cxvisuals.mc.modules.shaders;
 
 import com.mojang.blaze3d.ProjectionType;
-import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
+import me.cxiy.cxvisuals.mc.compat.Features;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.client.renderer.entity.state.EntityRenderState;
-import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fStack;
@@ -91,14 +91,9 @@ public final class Silhouettes {
     Matrix4fStack stack = RenderSystem.getModelViewStack();
     stack.pushMatrix().set(view);
     RenderSystem.setProjectionMatrix(projection, projectionType);
-    RenderSystem.outputColorTextureOverride = target.getColorTextureView();
-    RenderSystem.outputDepthTextureOverride = target.getDepthTextureView();
-    try (FeatureRenderDispatcher.PreparedFrame frame =
-        renderer.featureRenderDispatcher().prepareFrame(storage)) {
-      frame.executeOutline();
+    try {
+      Features.outline(renderer, storage, target);
     } finally {
-      RenderSystem.outputColorTextureOverride = null;
-      RenderSystem.outputDepthTextureOverride = null;
       RenderSystem.setProjectionMatrix(lens, lensType);
       stack.popMatrix();
     }

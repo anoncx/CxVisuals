@@ -4,6 +4,7 @@ import com.mojang.blaze3d.platform.Window;
 import java.util.function.Supplier;
 import me.cxiy.cxvisuals.gui.Theme;
 import me.cxiy.cxvisuals.gui.accounts.SwitchView;
+import me.cxiy.cxvisuals.mc.compat.Keys;
 import me.cxiy.cxvisuals.mc.menu.MenuStage;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
@@ -93,7 +94,7 @@ public final class SwitchScreen extends Screen {
 
   @Override
   public boolean keyPressed(KeyEvent event) {
-    return view.keyDown(event.key()) || super.keyPressed(event);
+    return view.keyDown(Keys.code(event)) || super.keyPressed(event);
   }
 
   @Override

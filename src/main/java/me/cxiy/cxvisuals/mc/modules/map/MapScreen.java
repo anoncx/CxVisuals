@@ -11,6 +11,7 @@ import me.cxiy.cxvisuals.gui.map.MapHost;
 import me.cxiy.cxvisuals.gui.map.MapPlayer;
 import me.cxiy.cxvisuals.gui.map.MapScreenView;
 import me.cxiy.cxvisuals.gui.map.ShareHost;
+import me.cxiy.cxvisuals.mc.compat.Keys;
 import me.cxiy.cxvisuals.mc.gui.GlassPipeline;
 import me.cxiy.cxvisuals.mc.gui.McCanvas;
 import me.cxiy.cxvisuals.mc.gui.ShapePipeline;
@@ -242,7 +243,7 @@ public final class MapScreen extends Screen {
       view.close();
       return true;
     }
-    return view.keyDown(event.key(), event.hasControlDown(), event.hasShiftDown())
+    return view.keyDown(Keys.code(event), event.hasControlDown(), event.hasShiftDown())
         || super.keyPressed(event);
   }
 

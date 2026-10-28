@@ -1,24 +1,25 @@
 package me.cxiy.cxvisuals.mc.modules.shaders;
 
-import com.mojang.blaze3d.GpuFormat;
-import com.mojang.blaze3d.PrimitiveTopology;
-import com.mojang.blaze3d.buffers.GpuBuffer;
-import com.mojang.blaze3d.pipeline.BindGroupLayout;
-import com.mojang.blaze3d.pipeline.ColorTargetState;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.mojang.blaze3d.pipeline.TextureTarget;
-import com.mojang.blaze3d.shaders.UniformType;
-import com.mojang.blaze3d.systems.CommandEncoder;
-import com.mojang.blaze3d.systems.GpuDevice;
-import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.FilterMode;
-import com.mojang.blaze3d.textures.GpuSampler;
-import com.mojang.blaze3d.textures.GpuTexture;
-import com.mojang.blaze3d.textures.GpuTextureView;
+import com.mojang.renderpearl.api.GpuFormat;
+import com.mojang.renderpearl.api.buffers.GpuBuffer;
+import com.mojang.renderpearl.api.commands.CommandEncoder;
+import com.mojang.renderpearl.api.commands.RenderPass;
+import com.mojang.renderpearl.api.device.GpuDevice;
+import com.mojang.renderpearl.api.pipeline.BindGroupLayout;
+import com.mojang.renderpearl.api.pipeline.ColorTargetState;
+import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
+import com.mojang.renderpearl.api.pipeline.UniformType;
+import com.mojang.renderpearl.api.textures.FilterMode;
+import com.mojang.renderpearl.api.textures.GpuSampler;
+import com.mojang.renderpearl.api.textures.GpuTexture;
+import com.mojang.renderpearl.api.textures.GpuTextureView;
 import java.util.Optional;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
+import me.cxiy.cxvisuals.mc.compat.Gpu;
+import me.cxiy.cxvisuals.mc.compat.Targets;
 import me.cxiy.cxvisuals.modules.shaders.GlowField;
 import me.cxiy.cxvisuals.modules.shaders.ScreenBounds;
 import net.minecraft.resources.Identifier;
@@ -42,8 +43,8 @@ final class FieldPasses {
           "entity_field_first",
           target(GpuFormat.RGBA16_FLOAT),
           BindGroupLayout.builder()
-              .withSampler(MASK)
-              .withSampler(MASK_DEPTH)
+              .withUniform(MASK, UniformType.COMBINED_IMAGE_SAMPLER)
+              .withUniform(MASK_DEPTH, UniformType.COMBINED_IMAGE_SAMPLER)
               .withUniform(BLOCK, UniformType.UNIFORM_BUFFER)
               .build());
   private static final RenderPipeline DOWN =
@@ -51,7 +52,7 @@ final class FieldPasses {
           "entity_field_down",
           target(GpuFormat.RGBA16_FLOAT),
           BindGroupLayout.builder()
-              .withSampler(FIELD)
+              .withUniform(FIELD, UniformType.COMBINED_IMAGE_SAMPLER)
               .withUniform(BLOCK, UniformType.UNIFORM_BUFFER)
               .build());
   private static final RenderPipeline UP =
@@ -59,8 +60,8 @@ final class FieldPasses {
           "entity_field_up",
           target(GpuFormat.RGBA16_FLOAT),
           BindGroupLayout.builder()
-              .withSampler(FIELD)
-              .withSampler(LEVEL)
+              .withUniform(FIELD, UniformType.COMBINED_IMAGE_SAMPLER)
+              .withUniform(LEVEL, UniformType.COMBINED_IMAGE_SAMPLER)
               .withUniform(BLOCK, UniformType.UNIFORM_BUFFER)
               .build());
 
@@ -98,21 +99,15 @@ final class FieldPasses {
     if (main.width <= 0 || main.height <= 0 || main.getDepthTextureView() == null) {
       return false;
     }
-    if (!compiled) {
+    if (!compiled && Gpu.ready()) {
       compiled = true;
-      if (!device.precompilePipeline(FIRST).isValid()
-          || !device.precompilePipeline(DOWN).isValid()
-          || !device.precompilePipeline(UP).isValid()) {
+      if (!Gpu.usable(FIRST) || !Gpu.usable(DOWN) || !Gpu.usable(UP)) {
         throw new IllegalStateException("glow field shaders failed to compile");
       }
     }
     if (worldMask == null) {
-      worldMask =
-          new TextureTarget(
-              "CxVisuals entity mask", main.width, main.height, true, GpuFormat.RGBA8_UNORM);
-      handMask =
-          new TextureTarget(
-              "CxVisuals hand mask", main.width, main.height, true, GpuFormat.RGBA8_UNORM);
+      worldMask = Targets.create("CxVisuals entity mask", main.width, main.height);
+      handMask = Targets.create("CxVisuals hand mask", main.width, main.height);
       mask = worldMask;
     } else if (worldMask.width != main.width || worldMask.height != main.height) {
       worldMask.resize(main.width, main.height);
@@ -159,15 +154,7 @@ final class FieldPasses {
   }
 
   static void wipe(CommandEncoder encoder, ScreenBounds bounds) {
-    encoder.clearColorAndDepthTextures(
-        mask.getColorTexture(),
-        NOTHING,
-        mask.getDepthTexture(),
-        0.0,
-        bounds.x(),
-        bounds.y(),
-        bounds.width(),
-        bounds.height());
+    Targets.clear(encoder, mask, NOTHING, bounds.x(), bounds.y(), bounds.width(), bounds.height());
   }
 
   static RenderTarget mask() {
@@ -179,22 +166,22 @@ final class FieldPasses {
     GpuSampler linear = RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR);
     try (RenderPass pass =
         encoder.createRenderPass(() -> "CxVisuals glow field", downView[1], Optional.empty())) {
-      pass.setPipeline(FIRST);
+      Gpu.use(pass, FIRST);
       pass.enableScissor(bounds.x(1), bounds.y(1), bounds.width(1), bounds.height(1));
       pass.setUniform(BLOCK, uniforms);
-      pass.bindTexture(MASK, mask.getColorTextureView(), nearest);
-      pass.bindTexture(MASK_DEPTH, mask.getDepthTextureView(), nearest);
+      Gpu.bind(pass, MASK, mask.getColorTextureView(), nearest);
+      Gpu.bind(pass, MASK_DEPTH, mask.getDepthTextureView(), nearest);
       pass.draw(3, 1, 0, 0);
     }
     for (int level = 2; level <= LEVELS; level++) {
       try (RenderPass pass =
           encoder.createRenderPass(
               () -> "CxVisuals glow field", downView[level], Optional.empty())) {
-        pass.setPipeline(DOWN);
+        Gpu.use(pass, DOWN);
         pass.enableScissor(
             bounds.x(level), bounds.y(level), bounds.width(level), bounds.height(level));
         pass.setUniform(BLOCK, uniforms);
-        pass.bindTexture(FIELD, downView[level - 1], linear);
+        Gpu.bind(pass, FIELD, downView[level - 1], linear);
         pass.draw(3, 1, 0, 0);
       }
     }
@@ -202,12 +189,12 @@ final class FieldPasses {
     for (int level = LEVELS - 1; level >= 1; level--) {
       try (RenderPass pass =
           encoder.createRenderPass(() -> "CxVisuals glow field", upView[level], Optional.empty())) {
-        pass.setPipeline(UP);
+        Gpu.use(pass, UP);
         pass.enableScissor(
             bounds.x(level), bounds.y(level), bounds.width(level), bounds.height(level));
         pass.setUniform(BLOCK, uniforms);
-        pass.bindTexture(FIELD, from, linear);
-        pass.bindTexture(LEVEL, downView[level], nearest);
+        Gpu.bind(pass, FIELD, from, linear);
+        Gpu.bind(pass, LEVEL, downView[level], nearest);
         pass.draw(3, 1, 0, 0);
       }
       from = upView[level];

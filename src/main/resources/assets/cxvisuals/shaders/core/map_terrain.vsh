@@ -1,4 +1,5 @@
 #version 330
+#extension GL_ARB_separate_shader_objects : require
 
 layout(std140) uniform MapTerrain {
     mat4 ViewProj;
@@ -22,20 +23,20 @@ uniform sampler2D Sampler0;
 uniform sampler2D Sampler1;
 uniform sampler2D Sampler3;
 
-in vec3 Position;
-in vec2 UV0;
+layout(location = 0) in vec3 Position;
+layout(location = 1) in vec2 UV0;
 
-out vec2 local;
-out float fogDistance;
-flat out vec3 raw;
-flat out int block;
-flat out int topBlock;
-flat out int face;
-flat out int side;
-flat out int layer;
-flat out float sideHeight;
-flat out int water;
-flat out int groundWet;
+layout(location = 0) out vec2 local;
+layout(location = 1) out float fogDistance;
+layout(location = 2) flat out vec3 raw;
+layout(location = 3) flat out int block;
+layout(location = 4) flat out int topBlock;
+layout(location = 5) flat out int face;
+layout(location = 6) flat out int side;
+layout(location = 7) flat out int layer;
+layout(location = 8) flat out float sideHeight;
+layout(location = 9) flat out int water;
+layout(location = 10) flat out int groundWet;
 
 const int EDGE = 128;
 const int GRID = 16;
@@ -139,7 +140,7 @@ void hide() {
 void main() {
     int stride = Slots.y;
     int perRow = EDGE / stride;
-    ivec2 col = ivec2(gl_InstanceID % perRow, gl_InstanceID / perRow) * stride;
+    ivec2 col = ivec2(gl_InstanceIndex % perRow, gl_InstanceIndex / perRow) * stride;
     Column here = fetchColumn(col);
     int kind = int(UV0.x + 0.5);
     layer = kind / 3;

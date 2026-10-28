@@ -9,9 +9,9 @@ layout(std140) uniform Sky {
 
 uniform sampler2D DepthSampler;
 
-in vec2 texCoord;
+layout(location = 0) in vec2 texCoord;
 
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
 
 bool skyRay(out vec3 world, out vec3 dir) {
     world = vec3(0.0, 1.0, 0.0);

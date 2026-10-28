@@ -261,16 +261,16 @@ final class WorldRenderer {
               case EAST -> 180.0F;
               default -> 0.0F;
             };
-        poseStack.mulPose(Axis.YP.rotationDegrees(angle));
+        poseStack.rotate(Axis.YP.rotationDegrees(angle));
       }
-      poseStack.mulPose(Axis.ZP.rotationDegrees(90.0F));
-      poseStack.mulPose(Axis.YP.rotationDegrees(90.0F));
+      poseStack.rotate(Axis.ZP.rotationDegrees(90.0F));
+      poseStack.rotate(Axis.YP.rotationDegrees(90.0F));
       return;
     }
-    poseStack.mulPose(Axis.YP.rotationDegrees(-state.bodyRot));
+    poseStack.rotate(Axis.YP.rotationDegrees(-state.bodyRot));
     if (state.deathTime > 0.0F) {
       float fall = Math.min(1.0F, (float) Math.sqrt((state.deathTime - 1.0F) / 20.0F * 1.6F));
-      poseStack.mulPose(Axis.ZP.rotationDegrees(fall * 90.0F));
+      poseStack.rotate(Axis.ZP.rotationDegrees(fall * 90.0F));
     }
   }
 
@@ -283,7 +283,7 @@ final class WorldRenderer {
     motion.yawRate = (player.yBodyRot - player.yBodyRotO) * 20.0F;
     motion.pitch = player.getXRot();
     motion.swim = state.swimAmount;
-    motion.attack = state.attackTime;
+    motion.attack = state.swingAnimation;
     motion.deathTime = state.deathTime;
     motion.hurt = state.hasRedOverlay && state.deathTime <= 0.0F;
     motion.onGround = player.onGround();

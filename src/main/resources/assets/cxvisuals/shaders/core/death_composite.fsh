@@ -1,4 +1,5 @@
 #version 330
+#extension GL_ARB_separate_shader_objects : require
 
 layout(std140) uniform Death {
     mat4 Unproject;
@@ -15,9 +16,9 @@ uniform sampler2D CorpseSampler;
 uniform sampler2D CorpseDepthSampler;
 uniform sampler2D SceneDepthSampler;
 
-in vec2 texCoord;
+layout(location = 0) in vec2 texCoord;
 
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
 
 const int RITUAL = 0;
 const int DISSOLVE = 1;

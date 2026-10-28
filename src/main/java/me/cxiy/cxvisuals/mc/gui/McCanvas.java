@@ -1,7 +1,7 @@
 package me.cxiy.cxvisuals.mc.gui;
 
 import com.mojang.blaze3d.platform.cursor.CursorTypes;
-import com.mojang.blaze3d.textures.GpuTextureView;
+import com.mojang.renderpearl.api.textures.GpuTextureView;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import me.cxiy.cxvisuals.gui.Canvas;
@@ -685,8 +685,7 @@ public final class McCanvas implements Canvas {
   }
 
   @Override
-  public boolean blockIcon(
-      int sprite, float x, float y, float size, float radius, int backing) {
+  public boolean blockIcon(int sprite, float x, float y, float size, float radius, int backing) {
     if (!shapes || alpha <= 0.002F || (sprite & SPRITE_VALID) == 0 || !FacePipeline.usable()) {
       return false;
     }
@@ -726,8 +725,7 @@ public final class McCanvas implements Canvas {
   }
 
   @Override
-  public boolean mobFace(
-      int entityId, float x, float y, float size, float radius, int backing) {
+  public boolean mobFace(int entityId, float x, float y, float size, float radius, int backing) {
     if (!shapes || alpha <= 0.002F || !FacePipeline.usable()) {
       return false;
     }
@@ -796,8 +794,7 @@ public final class McCanvas implements Canvas {
   }
 
   @Override
-  public boolean tile(
-      TileSheet sheet, int cell, float x, float y, float w, float h, float radius) {
+  public boolean tile(TileSheet sheet, int cell, float x, float y, float w, float h, float radius) {
     if (!shapes || alpha <= 0.002F || cell < 0 || !TilePipeline.usable()) {
       return false;
     }
@@ -861,7 +858,8 @@ public final class McCanvas implements Canvas {
       return false;
     }
     MAPS.setup(frame.atlas);
-    float sharp = Math.min(TERRAIN_SAMPLES, TERRAIN_LIMIT / Math.max(frame.width, frame.height) / uiScale);
+    float sharp =
+        Math.min(TERRAIN_SAMPLES, TERRAIN_LIMIT / Math.max(frame.width, frame.height) / uiScale);
     int pixelW = Math.max(1, Math.round(frame.width * uiScale * sharp));
     int pixelH = Math.max(1, Math.round(frame.height * uiScale * sharp));
     TextureSetup setup = TERRAIN.request(frame, pixelW, pixelH);

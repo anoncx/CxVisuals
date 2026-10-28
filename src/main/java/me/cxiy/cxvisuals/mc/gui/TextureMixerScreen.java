@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.function.Supplier;
 import me.cxiy.cxvisuals.gui.TextureMixerView;
 import me.cxiy.cxvisuals.gui.Theme;
+import me.cxiy.cxvisuals.mc.compat.Keys;
 import me.cxiy.cxvisuals.mc.menu.MenuStage;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
@@ -115,7 +116,7 @@ public final class TextureMixerScreen extends Screen {
 
   @Override
   public boolean keyPressed(KeyEvent event) {
-    return view.keyDown(event.key(), event.hasControlDown(), event.hasShiftDown())
+    return view.keyDown(Keys.code(event), event.hasControlDown(), event.hasShiftDown())
         || super.keyPressed(event);
   }
 

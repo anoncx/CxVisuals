@@ -13,7 +13,7 @@
   "mixins": ["cxvisuals.mixins.json", "cxvisuals-sodium.mixins.json"],
   "depends": {
     "java": ">=${jdk_version}",
-    "minecraft": "~26.2",
+    "minecraft": "${minecraft_range}",
     "fabricloader": ">=${loader_version}",
     "fabric-api": "*"
   }

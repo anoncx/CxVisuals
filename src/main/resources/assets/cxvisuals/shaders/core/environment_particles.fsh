@@ -1,12 +1,13 @@
 #version 330
+#extension GL_ARB_separate_shader_objects : require
 
-in vec4 tint;
-in vec2 local;
-flat in int shape;
-flat in float detail;
-flat in float seed;
+layout(location = 0) in vec4 tint;
+layout(location = 1) in vec2 local;
+layout(location = 2) flat in int shape;
+layout(location = 3) flat in float detail;
+layout(location = 4) flat in float seed;
 
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
 
 const int GLOW = 0;
 const int PETAL = 1;

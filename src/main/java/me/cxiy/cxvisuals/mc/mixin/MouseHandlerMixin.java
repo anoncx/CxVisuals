@@ -74,7 +74,8 @@ public abstract class MouseHandlerMixin {
   }
 
   @Inject(method = "onMove", at = @At("HEAD"))
-  private void cxvisuals$move(long handle, double x, double y, CallbackInfo ci) {
+  private void cxvisuals$move(
+      long handle, double x, double y, double xrel, double yrel, CallbackInfo ci) {
     IdleCamera.IDLE.mouseMoved(x, y);
   }
 

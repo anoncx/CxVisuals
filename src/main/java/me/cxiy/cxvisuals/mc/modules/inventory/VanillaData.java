@@ -4,24 +4,16 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import me.cxiy.cxvisuals.mc.compat.Recipes;
 import me.cxiy.cxvisuals.modules.inventory.Handles;
 import me.cxiy.cxvisuals.modules.inventory.Kind;
 import me.cxiy.cxvisuals.modules.inventory.Recipe;
 import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.server.packs.PackType;
-import net.minecraft.server.packs.VanillaPackResources;
-import net.minecraft.server.packs.repository.ServerPacksSource;
-import net.minecraft.server.packs.resources.MultiPackResourceManager;
-import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.util.context.ContextMap;
-import net.minecraft.util.profiling.InactiveProfiler;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.RecipeHolder;
-import net.minecraft.world.item.crafting.RecipeManager;
-import net.minecraft.world.item.crafting.RecipeMap;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.item.crafting.display.FurnaceRecipeDisplay;
 import net.minecraft.world.item.crafting.display.RecipeDisplay;
@@ -59,32 +51,17 @@ final class VanillaData {
 
   static List<Recipe> recipes(ClientLevel level) {
     List<Recipe> out = new ArrayList<>(2048);
-    VanillaPackResources pack = ServerPacksSource.createVanillaPackSource();
-    try (MultiPackResourceManager manager =
-        new MultiPackResourceManager(PackType.SERVER_DATA, List.of(pack))) {
-      RecipeMap map = new Loader(level.registryAccess()).load(manager);
-      ContextMap context = SlotDisplayContext.fromLevel(level);
-      for (RecipeHolder<?> holder : map.values()) {
-        Kind kind = kindOf(holder.value().getType());
-        for (RecipeDisplay display : holder.value().display()) {
-          Recipe recipe = convert(display, kind, context);
-          if (recipe != null) {
-            out.add(recipe);
-          }
+    ContextMap context = SlotDisplayContext.fromLevel(level);
+    for (RecipeHolder<?> holder : Recipes.vanilla(level)) {
+      Kind kind = kindOf(holder.value().getType());
+      for (RecipeDisplay display : holder.value().display()) {
+        Recipe recipe = convert(display, kind, context);
+        if (recipe != null) {
+          out.add(recipe);
         }
       }
     }
     return out;
-  }
-
-  private static final class Loader extends RecipeManager {
-    Loader(HolderLookup.Provider registries) {
-      super(registries);
-    }
-
-    RecipeMap load(ResourceManager manager) {
-      return prepare(manager, InactiveProfiler.INSTANCE);
-    }
   }
 
   private static Kind kindOf(RecipeType<?> type) {

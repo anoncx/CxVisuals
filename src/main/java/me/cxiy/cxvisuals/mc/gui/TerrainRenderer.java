@@ -1,23 +1,24 @@
 package me.cxiy.cxvisuals.mc.gui;
 
-import com.mojang.blaze3d.GpuFormat;
-import com.mojang.blaze3d.PrimitiveTopology;
-import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.Std140Builder;
 import com.mojang.blaze3d.buffers.Std140SizeCalculator;
-import com.mojang.blaze3d.pipeline.BindGroupLayout;
-import com.mojang.blaze3d.pipeline.DepthStencilState;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
-import com.mojang.blaze3d.platform.CompareOp;
-import com.mojang.blaze3d.shaders.UniformType;
-import com.mojang.blaze3d.systems.CommandEncoder;
-import com.mojang.blaze3d.systems.GpuDevice;
-import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.FilterMode;
-import com.mojang.blaze3d.textures.GpuTexture;
-import com.mojang.blaze3d.textures.GpuTextureView;
-import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.renderpearl.api.GpuFormat;
+import com.mojang.renderpearl.api.buffers.GpuBuffer;
+import com.mojang.renderpearl.api.commands.CommandEncoder;
+import com.mojang.renderpearl.api.commands.RenderPass;
+import com.mojang.renderpearl.api.device.GpuDevice;
+import com.mojang.renderpearl.api.pipeline.BindGroupLayout;
+import com.mojang.renderpearl.api.pipeline.ColorTargetState;
+import com.mojang.renderpearl.api.pipeline.CompareOp;
+import com.mojang.renderpearl.api.pipeline.DepthStencilState;
+import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
+import com.mojang.renderpearl.api.pipeline.UniformType;
+import com.mojang.renderpearl.api.textures.FilterMode;
+import com.mojang.renderpearl.api.textures.GpuTexture;
+import com.mojang.renderpearl.api.textures.GpuTextureView;
+import com.mojang.renderpearl.api.vertex.VertexFormat;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Optional;
@@ -25,6 +26,7 @@ import java.util.OptionalDouble;
 import me.cxiy.cxvisuals.gui.map.Camera3D;
 import me.cxiy.cxvisuals.gui.map.TerrainFrame;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
+import me.cxiy.cxvisuals.mc.compat.Gpu;
 import me.cxiy.cxvisuals.modules.map.MapAtlas;
 import me.cxiy.cxvisuals.modules.map.TileKey;
 import net.minecraft.client.gui.render.TextureSetup;
@@ -83,15 +85,16 @@ final class TerrainRenderer {
           .withPrimitiveTopology(PrimitiveTopology.TRIANGLES)
           .withDepthStencilState(new DepthStencilState(CompareOp.GREATER_THAN_OR_EQUAL, false))
           .withCull(false)
+          .withColorTargetState(ColorTargetState.DEFAULT)
           .build();
   private static final RenderPipeline PIPELINE =
       RenderPipeline.builder()
           .withBindGroupLayout(
               BindGroupLayout.builder()
-                  .withSampler("Sampler0")
-                  .withSampler("Sampler1")
-                  .withSampler("Sampler2")
-                  .withSampler("Sampler3")
+                  .withUniform("Sampler0", UniformType.COMBINED_IMAGE_SAMPLER)
+                  .withUniform("Sampler1", UniformType.COMBINED_IMAGE_SAMPLER)
+                  .withUniform("Sampler2", UniformType.COMBINED_IMAGE_SAMPLER)
+                  .withUniform("Sampler3", UniformType.COMBINED_IMAGE_SAMPLER)
                   .withUniform(FRAME, UniformType.UNIFORM_BUFFER)
                   .withUniform(TILE, UniformType.UNIFORM_BUFFER)
                   .build())
@@ -105,6 +108,7 @@ final class TerrainRenderer {
           .withPrimitiveTopology(PrimitiveTopology.TRIANGLES)
           .withDepthStencilState(new DepthStencilState(CompareOp.GREATER_THAN_OR_EQUAL, true))
           .withCull(false)
+          .withColorTargetState(ColorTargetState.DEFAULT)
           .build();
 
   private final MapTextures textures;
@@ -294,19 +298,19 @@ final class TerrainRenderer {
       try (RenderPass pass =
           encoder.createRenderPass(
               () -> "CxVisuals map terrain", colorView, CLEAR, depthView, CLEAR_DEPTH)) {
-        pass.setPipeline(PIPELINE);
+        Gpu.use(pass, PIPELINE);
         pass.setUniform(FRAME, frameUniforms);
-        pass.bindTexture("Sampler0", maps.texure0(), maps.sampler0());
-        pass.bindTexture("Sampler1", maps.texure1(), maps.sampler1());
-        pass.bindTexture("Sampler2", maps.texure2(), maps.sampler2());
-        pass.bindTexture("Sampler3", textures.grounds(atlas), maps.sampler1());
+        Gpu.bind(pass, "Sampler0", maps.texure0(), maps.sampler0());
+        Gpu.bind(pass, "Sampler1", maps.texure1(), maps.sampler1());
+        Gpu.bind(pass, "Sampler2", maps.texure2(), maps.sampler2());
+        Gpu.bind(pass, "Sampler3", textures.grounds(atlas), maps.sampler1());
         pass.setVertexBuffer(0, template.slice());
         for (int i = 0; i < count; i++) {
           int per = TileKey.EDGE / stride[i];
           pass.setUniform(TILE, tileUniforms.slice((long) i * tileStride, TILE_SIZE));
           pass.draw(VERTICES, per * per, 0, 0);
         }
-        pass.setPipeline(CLOUDS);
+        Gpu.use(pass, CLOUDS);
         pass.setUniform(FRAME, frameUniforms);
         pass.setVertexBuffer(0, template.slice());
         pass.draw(3, 1, 0, 0);
@@ -317,10 +321,9 @@ final class TerrainRenderer {
   }
 
   private boolean compile(GpuDevice device) {
-    if (!compiled) {
+    if (!compiled && Gpu.ready()) {
       compiled = true;
-      if (!device.precompilePipeline(PIPELINE).isValid()
-          || !device.precompilePipeline(CLOUDS).isValid()) {
+      if (!Gpu.usable(PIPELINE) || !Gpu.usable(CLOUDS)) {
         broken = true;
         CxVisualsClient.LOG.warn("Map terrain shader failed to compile, 3D view is off");
         return false;

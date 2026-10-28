@@ -19,8 +19,9 @@ import net.minecraft.client.renderer.item.ItemStackRenderState;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.client.renderer.state.level.QuadParticleRenderState;
-import net.minecraft.client.renderer.texture.TextureAtlasSprite;
+import net.minecraft.client.renderer.texture.UvMapping;
 import net.minecraft.client.resources.model.geometry.BakedQuad;
+import net.minecraft.client.resources.model.geometry.ItemQuads;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.item.ItemDisplayContext;
@@ -47,6 +48,10 @@ final class MaskStorage extends SubmitNodeStorage {
   }
 
   private final class Silhouette extends SubmitNodeCollection {
+    Silhouette() {
+      super(false, seeThrough());
+    }
+
     @Override
     public void submitShadow(
         PoseStack poseStack, float radius, List<EntityRenderState.ShadowPiece> pieces) {}
@@ -90,16 +95,37 @@ final class MaskStorage extends SubmitNodeStorage {
         int lightCoords,
         int overlayCoords,
         int tintedColor,
-        TextureAtlasSprite sprite,
-        int outlineColor,
-        ModelFeatureRenderer.CrumblingOverlay crumblingOverlay) {
+        UvMapping uvMapping,
+        int outlineColor) {
       RenderType mask = MaskTypes.of(renderType);
       if (mask != null) {
         place(poseStack);
         super.submitModel(
-            model, state, poseStack, mask, lightCoords, overlayCoords, SOLID, sprite, SOLID, null);
+            model, state, poseStack, mask, lightCoords, overlayCoords, SOLID, uvMapping, SOLID);
       }
     }
+
+    @Override
+    public <S> void submitCrumblingOverlay(
+        Model<? super S> model,
+        S state,
+        PoseStack poseStack,
+        RenderType renderType,
+        int lightCoords,
+        int overlayCoords,
+        int tintedColor,
+        ModelFeatureRenderer.CrumblingOverlay crumblingOverlay) {}
+
+    @Override
+    public void submitTextBackground(
+        PoseStack poseStack,
+        float x0,
+        float y0,
+        float x1,
+        float y1,
+        int color,
+        Font.DisplayMode displayMode,
+        int lightCoords) {}
 
     @Override
     public void submitMovingBlock(
@@ -123,7 +149,10 @@ final class MaskStorage extends SubmitNodeStorage {
 
     @Override
     public void submitBreakingBlockModel(
-        PoseStack poseStack, List<BlockStateModelPart> parts, int progress) {}
+        PoseStack poseStack,
+        List<BlockStateModelPart> parts,
+        int progress,
+        boolean isBlockTranslucent) {}
 
     @Override
     public void submitShapeOutline(
@@ -142,8 +171,9 @@ final class MaskStorage extends SubmitNodeStorage {
         int overlayCoords,
         int outlineColor,
         int[] tintLayers,
-        List<BakedQuad> quads,
+        ItemQuads items,
         ItemStackRenderState.FoilType foilType) {
+      List<BakedQuad> quads = items.all();
       RenderType previous = null;
       for (int i = 0; i < quads.size(); i++) {
         RenderType mask = MaskTypes.of(quads.get(i).materialInfo().itemRenderType());

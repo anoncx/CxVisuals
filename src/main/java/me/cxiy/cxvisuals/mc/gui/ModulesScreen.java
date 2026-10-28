@@ -6,6 +6,7 @@ import java.util.List;
 import me.cxiy.cxvisuals.gui.ModulesView;
 import me.cxiy.cxvisuals.gui.Themes;
 import me.cxiy.cxvisuals.mc.CxVisuals;
+import me.cxiy.cxvisuals.mc.compat.Keys;
 import me.cxiy.cxvisuals.mc.menu.MenuStage;
 import me.cxiy.cxvisuals.mc.modules.avatar.Avatars;
 import me.cxiy.cxvisuals.modules.avatar.AvatarModule;
@@ -123,7 +124,8 @@ public final class ModulesScreen extends Screen {
 
   @Override
   public boolean keyPressed(KeyEvent event) {
-    if (view.keyDown(event.key(), event.scancode(), event.hasControlDown(), event.hasShiftDown())) {
+    if (view.keyDown(
+        Keys.code(event), Keys.scan(event), event.hasControlDown(), event.hasShiftDown())) {
       return true;
     }
     return super.keyPressed(event);

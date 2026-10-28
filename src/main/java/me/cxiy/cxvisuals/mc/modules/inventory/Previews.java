@@ -162,7 +162,7 @@ final class Previews {
       card.tint = color == null ? PLAIN_SHULKER : color.getTextureDiffuseColor();
       card.slots = SHULKER_SLOTS;
       ItemContainerContents data = stack.get(DataComponents.CONTAINER);
-      return data == null ? List.of() : data.allItemsCopyStream().toList();
+      return data == null ? List.of() : data.itemCopies().toList();
     }
     if (isEnder) {
       card.tint = ENDER;
@@ -171,14 +171,14 @@ final class Previews {
     }
     BundleContents bundle = stack.get(DataComponents.BUNDLE_CONTENTS);
     if (bundle != null && bundle.size() > 0) {
-      List<ItemStack> list = bundle.itemCopyStream().toList();
+      List<ItemStack> list = bundle.itemCopies().toList();
       card.tint = 0;
       card.slots = rounded(list.size());
       return list;
     }
     ItemContainerContents data = stack.get(DataComponents.CONTAINER);
     if (data != null && data != ItemContainerContents.EMPTY) {
-      List<ItemStack> list = data.allItemsCopyStream().toList();
+      List<ItemStack> list = data.itemCopies().toList();
       if (list.stream().anyMatch(each -> !each.isEmpty())) {
         card.tint = 0;
         card.slots = rounded(list.size());

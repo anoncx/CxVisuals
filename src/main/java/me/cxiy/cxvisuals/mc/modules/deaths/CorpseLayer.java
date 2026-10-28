@@ -1,31 +1,31 @@
 package me.cxiy.cxvisuals.mc.modules.deaths;
 
-import com.mojang.blaze3d.GpuFormat;
-import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.ProjectionType;
-import com.mojang.blaze3d.buffers.GpuBuffer;
-import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.buffers.Std140Builder;
 import com.mojang.blaze3d.buffers.Std140SizeCalculator;
-import com.mojang.blaze3d.pipeline.BindGroupLayout;
-import com.mojang.blaze3d.pipeline.BlendFunction;
-import com.mojang.blaze3d.pipeline.ColorTargetState;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.mojang.blaze3d.pipeline.TextureTarget;
-import com.mojang.blaze3d.shaders.UniformType;
-import com.mojang.blaze3d.systems.CommandEncoder;
-import com.mojang.blaze3d.systems.GpuDevice;
-import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.FilterMode;
-import com.mojang.blaze3d.textures.GpuSampler;
+import com.mojang.renderpearl.api.buffers.GpuBuffer;
+import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
+import com.mojang.renderpearl.api.commands.CommandEncoder;
+import com.mojang.renderpearl.api.commands.RenderPass;
+import com.mojang.renderpearl.api.device.GpuDevice;
+import com.mojang.renderpearl.api.pipeline.BindGroupLayout;
+import com.mojang.renderpearl.api.pipeline.BlendFunction;
+import com.mojang.renderpearl.api.pipeline.ColorTargetState;
+import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
+import com.mojang.renderpearl.api.pipeline.UniformType;
+import com.mojang.renderpearl.api.textures.FilterMode;
+import com.mojang.renderpearl.api.textures.GpuSampler;
 import java.nio.ByteBuffer;
 import java.util.Optional;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
+import me.cxiy.cxvisuals.mc.compat.Features;
+import me.cxiy.cxvisuals.mc.compat.Gpu;
+import me.cxiy.cxvisuals.mc.compat.Targets;
 import me.cxiy.cxvisuals.modules.shaders.ScreenBounds;
 import net.minecraft.client.renderer.GameRenderer;
-import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
 import net.minecraft.resources.Identifier;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fStack;
@@ -76,9 +76,9 @@ final class CorpseLayer {
       RenderPipeline.builder()
           .withBindGroupLayout(
               BindGroupLayout.builder()
-                  .withSampler(CORPSE)
-                  .withSampler(CORPSE_DEPTH)
-                  .withSampler(SCENE_DEPTH)
+                  .withUniform(CORPSE, UniformType.COMBINED_IMAGE_SAMPLER)
+                  .withUniform(CORPSE_DEPTH, UniformType.COMBINED_IMAGE_SAMPLER)
+                  .withUniform(SCENE_DEPTH, UniformType.COMBINED_IMAGE_SAMPLER)
                   .withUniform(BLOCK, UniformType.UNIFORM_BUFFER)
                   .build())
           .withLocation(
@@ -97,7 +97,7 @@ final class CorpseLayer {
   private ProjectionType projectionType;
 
   static boolean compiles(GpuDevice device) {
-    return device.precompilePipeline(COMPOSITE).isValid() && CorpseTypes.compiles(device);
+    return Gpu.usable(COMPOSITE) && CorpseTypes.compiles(device);
   }
 
   void lens() {
@@ -114,9 +114,7 @@ final class CorpseLayer {
       return false;
     }
     if (body == null) {
-      body =
-          new TextureTarget(
-              "CxVisuals corpse", main.width, main.height, true, GpuFormat.RGBA8_UNORM);
+      body = Targets.create("CxVisuals corpse", main.width, main.height);
       uniforms =
           device.createBuffer(() -> "cxvisuals_death_composite", UNIFORM_USAGE, UNIFORM_SIZE);
     } else if (body.width != main.width || body.height != main.height) {
@@ -132,28 +130,15 @@ final class CorpseLayer {
       ScreenBounds bounds,
       Look look) {
     RenderTarget main = renderer.mainRenderTarget();
-    encoder.clearColorAndDepthTextures(
-        body.getColorTexture(),
-        NOTHING,
-        body.getDepthTexture(),
-        0.0,
-        bounds.x(),
-        bounds.y(),
-        bounds.width(),
-        bounds.height());
+    Targets.clear(encoder, body, NOTHING, bounds.x(), bounds.y(), bounds.width(), bounds.height());
     GpuBufferSlice lens = RenderSystem.getProjectionMatrixBuffer();
     ProjectionType lensType = RenderSystem.getProjectionType();
     Matrix4fStack stack = RenderSystem.getModelViewStack();
     stack.pushMatrix().set(view);
     RenderSystem.setProjectionMatrix(projection, projectionType);
-    RenderSystem.outputColorTextureOverride = body.getColorTextureView();
-    RenderSystem.outputDepthTextureOverride = body.getDepthTextureView();
-    try (FeatureRenderDispatcher.PreparedFrame frame =
-        renderer.featureRenderDispatcher().prepareFrame(storage)) {
-      frame.executeSolid();
+    try {
+      Features.solid(renderer, storage, body);
     } finally {
-      RenderSystem.outputColorTextureOverride = null;
-      RenderSystem.outputDepthTextureOverride = null;
       RenderSystem.setProjectionMatrix(lens, lensType);
       stack.popMatrix();
     }
@@ -187,12 +172,12 @@ final class CorpseLayer {
     try (RenderPass pass =
         encoder.createRenderPass(
             () -> "CxVisuals death composite", main.getColorTextureView(), Optional.empty())) {
-      pass.setPipeline(COMPOSITE);
+      Gpu.use(pass, COMPOSITE);
       pass.enableScissor(bounds.x(), bounds.y(), bounds.width(), bounds.height());
       pass.setUniform(BLOCK, uniforms);
-      pass.bindTexture(CORPSE, body.getColorTextureView(), nearest);
-      pass.bindTexture(CORPSE_DEPTH, body.getDepthTextureView(), nearest);
-      pass.bindTexture(SCENE_DEPTH, main.getDepthTextureView(), nearest);
+      Gpu.bind(pass, CORPSE, body.getColorTextureView(), nearest);
+      Gpu.bind(pass, CORPSE_DEPTH, body.getDepthTextureView(), nearest);
+      Gpu.bind(pass, SCENE_DEPTH, main.getDepthTextureView(), nearest);
       pass.draw(3, 1, 0, 0);
     }
   }

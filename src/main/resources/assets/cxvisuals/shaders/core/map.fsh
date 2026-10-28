@@ -1,10 +1,11 @@
 #version 330
+#extension GL_ARB_separate_shader_objects : require
 
 layout(std140) uniform DynamicTransforms {
     mat4 ModelViewMat;
+    mat4 TextureMat;
     vec4 ColorModulator;
     vec3 ModelOffset;
-    mat4 TextureMat;
 };
 layout(std140) uniform Globals {
     ivec3 CameraBlockPos;
@@ -20,13 +21,13 @@ uniform sampler2D Sampler0;
 uniform sampler2D Sampler1;
 uniform sampler2D Sampler2;
 
-in vec4 tint;
-in vec2 texUv;
-in vec2 maskPos;
-in vec2 cloudPos;
-flat in vec3 params;
+layout(location = 0) in vec4 tint;
+layout(location = 1) in vec2 texUv;
+layout(location = 2) in vec2 maskPos;
+layout(location = 3) in vec2 cloudPos;
+layout(location = 4) flat in vec3 params;
 
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
 
 const int PERIOD = 256;
 const int GRID = 16;

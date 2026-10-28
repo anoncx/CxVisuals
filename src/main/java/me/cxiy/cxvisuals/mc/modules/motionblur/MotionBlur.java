@@ -1,25 +1,27 @@
 package me.cxiy.cxvisuals.mc.modules.motionblur;
 
-import com.mojang.blaze3d.GpuFormat;
-import com.mojang.blaze3d.PrimitiveTopology;
-import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.Std140Builder;
 import com.mojang.blaze3d.buffers.Std140SizeCalculator;
-import com.mojang.blaze3d.pipeline.BindGroupLayout;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.mojang.blaze3d.shaders.UniformType;
-import com.mojang.blaze3d.systems.CommandEncoder;
-import com.mojang.blaze3d.systems.GpuDevice;
-import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.FilterMode;
-import com.mojang.blaze3d.textures.GpuTexture;
-import com.mojang.blaze3d.textures.GpuTextureView;
+import com.mojang.renderpearl.api.GpuFormat;
+import com.mojang.renderpearl.api.buffers.GpuBuffer;
+import com.mojang.renderpearl.api.commands.CommandEncoder;
+import com.mojang.renderpearl.api.commands.RenderPass;
+import com.mojang.renderpearl.api.device.GpuDevice;
+import com.mojang.renderpearl.api.pipeline.BindGroupLayout;
+import com.mojang.renderpearl.api.pipeline.ColorTargetState;
+import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
+import com.mojang.renderpearl.api.pipeline.UniformType;
+import com.mojang.renderpearl.api.textures.FilterMode;
+import com.mojang.renderpearl.api.textures.GpuTexture;
+import com.mojang.renderpearl.api.textures.GpuTextureView;
 import java.nio.ByteBuffer;
 import java.util.Optional;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
 import me.cxiy.cxvisuals.mc.McKeyBinder;
+import me.cxiy.cxvisuals.mc.compat.Gpu;
 import me.cxiy.cxvisuals.mc.compat.IrisCompat;
 import me.cxiy.cxvisuals.modules.motionblur.MotionBlurModule;
 import me.cxiy.cxvisuals.modules.motionblur.Reprojection;
@@ -49,8 +51,8 @@ public final class MotionBlur {
           .withBindGroupLayout(BindGroupLayouts.GLOBALS)
           .withBindGroupLayout(
               BindGroupLayout.builder()
-                  .withSampler(COLOR)
-                  .withSampler(DEPTH)
+                  .withUniform(COLOR, UniformType.COMBINED_IMAGE_SAMPLER)
+                  .withUniform(DEPTH, UniformType.COMBINED_IMAGE_SAMPLER)
                   .withUniform(UNIFORMS, UniformType.UNIFORM_BUFFER)
                   .build())
           .withLocation(
@@ -59,6 +61,7 @@ public final class MotionBlur {
           .withFragmentShader(
               Identifier.fromNamespaceAndPath(CxVisualsClient.MOD_ID, "core/motion_blur"))
           .withPrimitiveTopology(PrimitiveTopology.TRIANGLES)
+          .withColorTargetState(ColorTargetState.DEFAULT)
           .build();
 
   private static final Reprojection REPROJECTION = new Reprojection();
@@ -174,12 +177,16 @@ public final class MotionBlur {
     try (RenderPass pass =
         encoder.createRenderPass(
             () -> "CxVisuals motion blur", main.getColorTextureView(), Optional.empty())) {
-      pass.setPipeline(PIPELINE);
+      Gpu.use(pass, PIPELINE);
       RenderSystem.bindDefaultUniforms(pass);
       pass.setUniform(UNIFORMS, uniforms);
-      pass.bindTexture(
-          COLOR, scratchView, RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR));
-      pass.bindTexture(
+      Gpu.bind(
+          pass,
+          COLOR,
+          scratchView,
+          RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR));
+      Gpu.bind(
+          pass,
           DEPTH,
           main.getDepthTextureView(),
           RenderSystem.getSamplerCache().getClampToEdge(FilterMode.NEAREST));
@@ -192,9 +199,9 @@ public final class MotionBlur {
     if (main.width <= 0 || main.height <= 0 || main.getDepthTextureView() == null) {
       return false;
     }
-    if (!compiled) {
+    if (!compiled && Gpu.ready()) {
       compiled = true;
-      if (!device.precompilePipeline(PIPELINE).isValid()) {
+      if (!Gpu.usable(PIPELINE)) {
         broken = true;
         CxVisualsClient.LOG.warn("Motion blur shader failed to compile, the module does nothing");
         return false;

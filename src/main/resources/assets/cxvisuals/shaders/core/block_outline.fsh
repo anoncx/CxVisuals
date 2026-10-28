@@ -1,4 +1,5 @@
 #version 330
+#extension GL_ARB_separate_shader_objects : require
 
 layout(std140) uniform Outline {
     mat4 Unproject;
@@ -14,9 +15,9 @@ layout(std140) uniform Outline {
 
 uniform sampler2D DepthSampler;
 
-in vec2 texCoord;
+layout(location = 0) in vec2 texCoord;
 
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
 
 void main() {
     float depth = texelFetch(DepthSampler, ivec2(gl_FragCoord.xy), 0).r;

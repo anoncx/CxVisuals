@@ -75,15 +75,15 @@ public final class Achievements {
     }
     DisplayInfo info = display.get();
     Achievement.Kind kind =
-        switch (info.getType()) {
+        switch (info.type()) {
           case CHALLENGE -> Achievement.Kind.CHALLENGE;
           case GOAL -> Achievement.Kind.GOAL;
           case TASK -> Achievement.Kind.TASK;
         };
     return new Achievement(
         kind,
-        info.getTitle().getString(),
-        info.getDescription().getString(),
+        info.title().getString(),
+        info.description().getString(),
         icon(access.cxvisuals$icon()));
   }
 

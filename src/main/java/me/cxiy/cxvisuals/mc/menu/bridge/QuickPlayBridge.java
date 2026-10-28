@@ -22,6 +22,7 @@ import me.cxiy.cxvisuals.core.i18n.Lang;
 import me.cxiy.cxvisuals.gui.StyledText;
 import me.cxiy.cxvisuals.mc.CxVisuals;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
+import me.cxiy.cxvisuals.mc.compat.Desktop;
 import me.cxiy.cxvisuals.menu.model.Item;
 import me.cxiy.cxvisuals.menu.model.QuickPlay;
 import net.minecraft.SharedConstants;
@@ -35,7 +36,6 @@ import net.minecraft.client.multiplayer.ServerStatusPinger;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.server.network.EventLoopGroupHolder;
-import net.minecraft.util.Util;
 import net.minecraft.world.level.storage.LevelStorageSource;
 import net.minecraft.world.level.storage.LevelSummary;
 
@@ -387,7 +387,7 @@ public final class QuickPlayBridge implements QuickPlay {
   public void openShots() {
     File directory = shots(Minecraft.getInstance());
     if (directory.isDirectory() || directory.mkdirs()) {
-      Util.getPlatform().openFile(directory);
+      Desktop.openPath(directory.toPath());
     }
   }
 }

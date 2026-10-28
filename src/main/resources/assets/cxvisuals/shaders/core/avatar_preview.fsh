@@ -1,4 +1,5 @@
 #version 330
+#extension GL_ARB_separate_shader_objects : require
 
 layout(std140) uniform AvatarPreview {
     mat4 Mvp;
@@ -12,11 +13,11 @@ layout(std140) uniform AvatarPreview {
 
 uniform sampler2D Albedo;
 
-in vec3 normal;
-in vec2 uv;
-in vec4 tint;
+layout(location = 0) in vec3 normal;
+layout(location = 1) in vec2 uv;
+layout(location = 2) in vec4 tint;
 
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
 
 void main() {
     vec4 albedo = texture(Albedo, uv) * tint;

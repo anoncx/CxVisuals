@@ -1,5 +1,6 @@
 package me.cxiy.cxvisuals.mc.menu;
 
+import me.cxiy.cxvisuals.mc.compat.Keys;
 import me.cxiy.cxvisuals.menu.views.MenuView;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.options.controls.KeyBindsScreen;
@@ -50,7 +51,7 @@ public final class MenuInput {
   }
 
   public static boolean key(MenuView view, KeyEvent event) {
-    view.keyDown(event.key(), event.scancode(), event.modifiers());
+    view.keyDown(Keys.code(event), Keys.scan(event), Keys.mods(event));
     return true;
   }
 

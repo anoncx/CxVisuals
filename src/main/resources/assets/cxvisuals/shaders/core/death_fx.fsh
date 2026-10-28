@@ -1,4 +1,5 @@
 #version 330
+#extension GL_ARB_separate_shader_objects : require
 
 layout(std140) uniform DeathFx {
     mat4 ViewProj;
@@ -6,14 +7,14 @@ layout(std140) uniform DeathFx {
     vec4 Second;
 };
 
-in vec2 local;
-in float progress;
-in float alpha;
-flat in int kind;
-flat in float seed;
-flat in float size;
+layout(location = 0) in vec2 local;
+layout(location = 1) in float progress;
+layout(location = 2) in float alpha;
+layout(location = 3) flat in int kind;
+layout(location = 4) flat in float seed;
+layout(location = 5) flat in float size;
 
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
 
 const int SIGIL = 0;
 const int EMBER = 1;

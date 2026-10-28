@@ -1,4 +1,5 @@
 #version 330
+#extension GL_ARB_separate_shader_objects : require
 
 layout(std140) uniform Dots {
     vec4 Paper;
@@ -8,7 +9,7 @@ layout(std140) uniform Dots {
     vec4 Cursor;
 };
 
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
 
 const float PITCH = 22.0;
 const float BASE = 1.1;

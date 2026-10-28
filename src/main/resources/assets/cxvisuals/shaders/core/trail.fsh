@@ -1,4 +1,5 @@
 #version 330
+#extension GL_ARB_separate_shader_objects : require
 
 layout(std140) uniform Trail {
     mat4 ViewProj;
@@ -8,17 +9,17 @@ layout(std140) uniform Trail {
     vec4 Cut;
 };
 
-in vec3 offset;
-in vec2 local;
-in float progress;
-in float alpha;
-in float aux;
-in float tone;
-flat in int kind;
-flat in float seed;
-flat in float extra;
+layout(location = 0) in vec3 offset;
+layout(location = 1) in vec2 local;
+layout(location = 2) in float progress;
+layout(location = 3) in float alpha;
+layout(location = 4) in float aux;
+layout(location = 5) in float tone;
+layout(location = 6) flat in int kind;
+layout(location = 7) flat in float seed;
+layout(location = 8) flat in float extra;
 
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
 
 const int SMOKE = 0;
 const int STREAK = 1;

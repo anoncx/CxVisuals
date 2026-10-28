@@ -1,23 +1,24 @@
 package me.cxiy.cxvisuals.mc.modules.shaders;
 
-import com.mojang.blaze3d.GpuFormat;
-import com.mojang.blaze3d.buffers.GpuBuffer;
-import com.mojang.blaze3d.pipeline.BindGroupLayout;
-import com.mojang.blaze3d.pipeline.BlendFunction;
-import com.mojang.blaze3d.pipeline.ColorTargetState;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.mojang.blaze3d.shaders.UniformType;
-import com.mojang.blaze3d.systems.CommandEncoder;
-import com.mojang.blaze3d.systems.GpuDevice;
-import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.FilterMode;
-import com.mojang.blaze3d.textures.GpuSampler;
-import com.mojang.blaze3d.textures.GpuTexture;
-import com.mojang.blaze3d.textures.GpuTextureView;
+import com.mojang.renderpearl.api.GpuFormat;
+import com.mojang.renderpearl.api.buffers.GpuBuffer;
+import com.mojang.renderpearl.api.commands.CommandEncoder;
+import com.mojang.renderpearl.api.commands.RenderPass;
+import com.mojang.renderpearl.api.device.GpuDevice;
+import com.mojang.renderpearl.api.pipeline.BindGroupLayout;
+import com.mojang.renderpearl.api.pipeline.BlendFunction;
+import com.mojang.renderpearl.api.pipeline.ColorTargetState;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
+import com.mojang.renderpearl.api.pipeline.UniformType;
+import com.mojang.renderpearl.api.textures.FilterMode;
+import com.mojang.renderpearl.api.textures.GpuSampler;
+import com.mojang.renderpearl.api.textures.GpuTexture;
+import com.mojang.renderpearl.api.textures.GpuTextureView;
 import java.util.Optional;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
+import me.cxiy.cxvisuals.mc.compat.Gpu;
 import me.cxiy.cxvisuals.modules.shaders.Effect;
 import me.cxiy.cxvisuals.modules.shaders.ScreenBounds;
 
@@ -40,12 +41,12 @@ final class EffectPass {
     for (int i = 0; i < EFFECTS.length; i++) {
       BindGroupLayout.Builder layout =
           BindGroupLayout.builder()
-              .withSampler(FieldPasses.MASK)
-              .withSampler(FieldPasses.MASK_DEPTH)
-              .withSampler(SCENE_DEPTH)
-              .withSampler(FIELD);
+              .withUniform(FieldPasses.MASK, UniformType.COMBINED_IMAGE_SAMPLER)
+              .withUniform(FieldPasses.MASK_DEPTH, UniformType.COMBINED_IMAGE_SAMPLER)
+              .withUniform(SCENE_DEPTH, UniformType.COMBINED_IMAGE_SAMPLER)
+              .withUniform(FIELD, UniformType.COMBINED_IMAGE_SAMPLER);
       if (reshades(EFFECTS[i])) {
-        layout.withSampler(SCENE);
+        layout.withUniform(SCENE, UniformType.COMBINED_IMAGE_SAMPLER);
       }
       PIPELINES[i] =
           FieldPasses.pass(
@@ -64,11 +65,11 @@ final class EffectPass {
         || effect == Effect.SIGNAL;
   }
 
-  static boolean ready(GpuDevice device, Effect effect) {
+  static boolean ready(Effect effect) {
     int index = effect.ordinal();
-    if (!COMPILED[index]) {
+    if (!COMPILED[index] && Gpu.ready()) {
       COMPILED[index] = true;
-      if (!device.precompilePipeline(PIPELINES[index]).isValid()) {
+      if (!Gpu.usable(PIPELINES[index])) {
         BROKEN[index] = true;
         CxVisualsClient.LOG.warn(
             "Entity shader {} failed to compile and does nothing", effect.shader());
@@ -116,16 +117,16 @@ final class EffectPass {
     try (RenderPass pass =
         encoder.createRenderPass(
             () -> "CxVisuals entity shader", main.getColorTextureView(), Optional.empty())) {
-      pass.setPipeline(PIPELINES[effect.ordinal()]);
+      Gpu.use(pass, PIPELINES[effect.ordinal()]);
       pass.enableScissor(bounds.x(), bounds.y(), bounds.width(), bounds.height());
       pass.setUniform(FieldPasses.BLOCK, uniforms);
-      pass.bindTexture(FieldPasses.MASK, mask.getColorTextureView(), sampler);
-      pass.bindTexture(FieldPasses.MASK_DEPTH, mask.getDepthTextureView(), sampler);
-      pass.bindTexture(SCENE_DEPTH, main.getDepthTextureView(), sampler);
-      pass.bindTexture(
-          FIELD, field, RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR));
+      Gpu.bind(pass, FieldPasses.MASK, mask.getColorTextureView(), sampler);
+      Gpu.bind(pass, FieldPasses.MASK_DEPTH, mask.getDepthTextureView(), sampler);
+      Gpu.bind(pass, SCENE_DEPTH, main.getDepthTextureView(), sampler);
+      Gpu.bind(
+          pass, FIELD, field, RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR));
       if (reshade) {
-        pass.bindTexture(SCENE, sceneView, sampler);
+        Gpu.bind(pass, SCENE, sceneView, sampler);
       }
       pass.draw(3, 1, 0, 0);
     }

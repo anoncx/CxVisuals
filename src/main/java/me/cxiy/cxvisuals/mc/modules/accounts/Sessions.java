@@ -1,14 +1,15 @@
 package me.cxiy.cxvisuals.mc.modules.accounts;
 
 import com.mojang.authlib.minecraft.UserApiService;
-import com.mojang.authlib.yggdrasil.FriendsService;
-import com.mojang.authlib.yggdrasil.YggdrasilAuthenticationService;
+import com.mojang.authlib.services.FriendsService;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import me.cxiy.cxvisuals.core.i18n.Lang;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
+import me.cxiy.cxvisuals.mc.compat.Auth;
+import me.cxiy.cxvisuals.mc.compat.Desktop;
 import me.cxiy.cxvisuals.mc.mixin.MinecraftAccessor;
 import me.cxiy.cxvisuals.modules.accounts.Hub;
 import me.cxiy.cxvisuals.modules.accounts.Ids;
@@ -73,7 +74,7 @@ final class Sessions implements Platform {
 
   @Override
   public void open(String url) {
-    Util.getPlatform().openUri(url);
+    Desktop.openUri(url);
   }
 
   @Override
@@ -144,11 +145,10 @@ final class Sessions implements Platform {
       Minecraft mc = Minecraft.getInstance();
       MinecraftAccessor accessor = (MinecraftAccessor) mc;
       User user = new User(ready.name(), id, ready.token(), Optional.empty(), Optional.empty());
-      YggdrasilAuthenticationService auth = new YggdrasilAuthenticationService(mc.getProxy());
       boolean online = !ready.token().isEmpty();
-      UserApiService api =
-          online ? auth.createUserApiService(user.getAccessToken()) : UserApiService.OFFLINE;
-      FriendsService friends = auth.createFriendsService(user.getAccessToken());
+      Auth.Services services = Auth.create(mc.getProxy(), user.getAccessToken(), online);
+      UserApiService api = services.api();
+      FriendsService friends = services.friends();
       accessor.cxvisuals$user(user);
       accessor.cxvisuals$userApiService(api);
       accessor.cxvisuals$playerSocialManager(

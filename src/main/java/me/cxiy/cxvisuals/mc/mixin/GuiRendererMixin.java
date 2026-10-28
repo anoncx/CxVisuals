@@ -1,11 +1,11 @@
 package me.cxiy.cxvisuals.mc.mixin;
 
 import com.llamalad7.mixinextras.sugar.Local;
-import com.mojang.blaze3d.buffers.GpuBufferSlice;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
+import com.mojang.renderpearl.api.commands.RenderPass;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalDouble;
@@ -32,9 +32,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(GuiRenderer.class)
 public abstract class GuiRendererMixin {
   private static final String PROJECT =
-      "Lcom/mojang/blaze3d/systems/RenderSystem;setProjectionMatrix(Lcom/mojang/blaze3d/buffers/GpuBufferSlice;Lcom/mojang/blaze3d/ProjectionType;)V";
+      "Lcom/mojang/blaze3d/systems/RenderSystem;setProjectionMatrix(Lcom/mojang/renderpearl/api/buffers/GpuBufferSlice;Lcom/mojang/blaze3d/ProjectionType;)V";
   private static final String SCISSOR =
-      "Lnet/minecraft/client/gui/render/GuiRenderer;enableScissor(Lnet/minecraft/client/gui/navigation/ScreenRectangle;Lcom/mojang/blaze3d/systems/RenderPass;)V";
+      "Lnet/minecraft/client/gui/render/GuiRenderer;enableScissor(Lnet/minecraft/client/gui/navigation/ScreenRectangle;Lcom/mojang/renderpearl/api/commands/RenderPass;)V";
 
   @Shadow @Final private List<?> draws;
 
@@ -133,7 +133,7 @@ public abstract class GuiRendererMixin {
                       label,
                       main.getColorTextureView(),
                       Optional.empty(),
-                      main.useDepth ? main.getDepthTextureView() : null,
+                      main.getDepthTextureView(),
                       OptionalDouble.empty())) {
         RenderSystem.bindDefaultUniforms(pass);
         pass.setUniform("DynamicTransforms", transforms);

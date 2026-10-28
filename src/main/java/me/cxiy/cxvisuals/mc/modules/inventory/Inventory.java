@@ -13,6 +13,8 @@ import me.cxiy.cxvisuals.gui.Themes;
 import me.cxiy.cxvisuals.gui.spatial.Spring;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
 import me.cxiy.cxvisuals.mc.McKeyBinder;
+import me.cxiy.cxvisuals.mc.compat.Keys;
+import me.cxiy.cxvisuals.mc.compat.Tooltips;
 import me.cxiy.cxvisuals.mc.gui.McCanvas;
 import me.cxiy.cxvisuals.modules.inventory.Catalog;
 import me.cxiy.cxvisuals.modules.inventory.Favorites;
@@ -868,8 +870,7 @@ public final class Inventory implements InventoryHost {
 
   private boolean keyHeld(Minecraft mc) {
     int code = InputConstants.getKey(previewKey.saveString()).getValue();
-    return code != InputConstants.UNKNOWN.getValue()
-        && InputConstants.isKeyDown(mc.getWindow(), code);
+    return code != InputConstants.UNKNOWN.getValue() && Keys.down(code);
   }
 
   public static boolean previewTooltip(
@@ -915,7 +916,8 @@ public final class Inventory implements InventoryHost {
     parts.add(
         new ContainerTooltip(
             previews, card.slots, card.columns, module.tint.get() ? card.tint : 0));
-    graphics.tooltip(
+    Tooltips.show(
+        graphics,
         mc.font,
         parts,
         mouseX,
@@ -950,7 +952,8 @@ public final class Inventory implements InventoryHost {
       parts.add(ClientTooltipComponent.create(line.getVisualOrderText()));
     }
     parts.add(new MapTooltip(maps.state(0)));
-    graphics.tooltip(
+    Tooltips.show(
+        graphics,
         mc.font,
         parts,
         mouseX,
@@ -1140,11 +1143,11 @@ public final class Inventory implements InventoryHost {
         }
         return true;
       }
-      recipes.keyDown(event.key());
+      recipes.keyDown(Keys.code(event));
       return true;
     }
     if (placed && explorer.typing()) {
-      return explorer.keyDown(event.key(), event.hasControlDown(), event.hasShiftDown());
+      return explorer.keyDown(Keys.code(event), event.hasControlDown(), event.hasShiftDown());
     }
     if (!module.listing()) {
       return false;

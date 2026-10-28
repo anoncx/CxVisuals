@@ -2,8 +2,8 @@ package me.cxiy.cxvisuals.mc.gui;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.FilterMode;
-import com.mojang.blaze3d.textures.GpuTextureView;
+import com.mojang.renderpearl.api.textures.FilterMode;
+import com.mojang.renderpearl.api.textures.GpuTextureView;
 import java.util.ArrayList;
 import java.util.List;
 import me.cxiy.cxvisuals.gui.text.GlyphAtlas;

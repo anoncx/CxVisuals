@@ -1,12 +1,13 @@
 #version 330
+#extension GL_ARB_separate_shader_objects : require
 
 uniform sampler2D Sampler0;
 
-in vec4 vertexColor;
-in vec2 glyphUv;
-flat in vec2 erode;
+layout(location = 0) in vec4 vertexColor;
+layout(location = 1) in vec2 glyphUv;
+layout(location = 2) flat in vec2 erode;
 
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
 
 float hash(vec2 p) {
     vec3 q = fract(vec3(p.xyx) * 0.1031);

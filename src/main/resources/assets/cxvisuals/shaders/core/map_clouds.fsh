@@ -1,4 +1,5 @@
 #version 330
+#extension GL_ARB_separate_shader_objects : require
 
 layout(std140) uniform MapTerrain {
     mat4 ViewProj;
@@ -12,9 +13,9 @@ layout(std140) uniform MapTerrain {
     vec4 CloudTop;
 };
 
-in vec2 ndc;
+layout(location = 0) in vec2 ndc;
 
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
 
 const int PERIOD = 256;
 

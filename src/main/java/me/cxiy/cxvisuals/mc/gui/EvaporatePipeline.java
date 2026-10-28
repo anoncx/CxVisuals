@@ -1,19 +1,20 @@
 package me.cxiy.cxvisuals.mc.gui;
 
-import com.mojang.blaze3d.PrimitiveTopology;
-import com.mojang.blaze3d.pipeline.BlendFunction;
-import com.mojang.blaze3d.pipeline.ColorTargetState;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
-import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.renderpearl.api.pipeline.BlendFunction;
+import com.mojang.renderpearl.api.pipeline.ColorTargetState;
+import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
+import me.cxiy.cxvisuals.mc.compat.Gpu;
 import net.minecraft.client.renderer.BindGroupLayouts;
 import net.minecraft.resources.Identifier;
 
 public final class EvaporatePipeline {
   public static final RenderPipeline EVAPORATE =
       RenderPipeline.builder()
-          .withBindGroupLayout(BindGroupLayouts.MATRICES_PROJECTION)
+          .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
+          .withBindGroupLayout(BindGroupLayouts.PROJECTION)
           .withBindGroupLayout(BindGroupLayouts.SAMPLER0)
           .withLocation(
               Identifier.fromNamespaceAndPath(CxVisualsClient.MOD_ID, "pipeline/evaporate"))
@@ -32,10 +33,10 @@ public final class EvaporatePipeline {
   private EvaporatePipeline() {}
 
   public static boolean usable() {
-    if (!checked) {
+    if (!checked && Gpu.ready()) {
       checked = true;
       try {
-        usable = RenderSystem.getDevice().precompilePipeline(EVAPORATE).isValid();
+        usable = Gpu.usable(EVAPORATE);
       } catch (RuntimeException e) {
         usable = false;
         CxVisualsClient.LOG.error("Evaporate shader failed to compile", e);
