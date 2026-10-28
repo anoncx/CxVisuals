@@ -2,7 +2,7 @@
 
 Client-side Fabric mod for Minecraft 26.2 and 26.3: a set of visual modules behind one settings window.
 
-It only changes what you see. Your player's position and rotation are never touched and nothing extra is sent to the server.
+It only changes what you see. Your player's position and rotation are never touched. The social modules (friends, shared maps, presence, prices) use the CxVisuals cloud and are described under Privacy; everything else stays on your computer.
 
 ## Modules
 
@@ -83,6 +83,64 @@ Numbers roll: when a reading changes, only the digits that changed slide out and
 Adaptive text reads what is behind each pixel of HUD text and draws it dark over bright surroundings and light over dark ones, so labels stay readable over sky, snow or caves. Accent colours such as the red facing letter keep their colour.
 
 Positions are stored relative to the nearest screen edge or centre, so a layout survives a change of resolution. Background picks the card style (Window, Solid, Clear, Glass) and Size scales all info elements together.
+
+### World Map
+A minimap and a full map with relief shading, a cave view, clouds and a 3D mode with overhangs.
+
+- Block textures fade in as you zoom close, up to 40 px per block
+- Search for blocks, place waypoints, see player heads and cards
+- Zoom out without a limit, with chunk previews
+- Shared live maps: friends fill one end-to-end encrypted map together, with an optional backfill of what you already explored
+- Live location per friend, off by default, for a duration you choose
+- Explore: publish a map to a public page or browse maps others published
+- A button on DonutSMP shows the server regions
+
+### World Download
+Records the chunks you load and the containers you open into `saves/<name>`, so the world opens in singleplayer. Only the Overworld is written as void; the Nether and End use vanilla generators. Maps you explored earlier cannot become a world because they store no blocks.
+
+### Texture Mixer
+Pick single textures from any pack, per item and block, and compare every version side by side. Changes apply while you play through a generated `CxVisuals Mix` pack, and Modrinth is searchable from inside the game.
+
+### Avatar
+Import a glTF, GLB, OBJ, Blockbench, PLY, STL or VOX model and it replaces your player model for everyone who has the mod. Assign your own idle, walk, run and jump animations.
+
+### Accounts
+Switch between Microsoft, offline and token accounts without restarting. The list is kept in a local vault protected by your password and is never uploaded. The mod can rejoin the server you were on.
+
+### World effects
+- **Sky:** galaxies, planets, auroras, sunsets and storms
+- **Atmosphere:** fireflies, petals, snow, butterflies, lanterns, meteors, fireworks
+- **Entity glow:** plasma, aura, frost, outline, hologram, glitch and signal on players, mobs and your hand
+- **Jump circles** and **entity trails**
+- **Death effects:** ritual, beam, dissolve, glitch, matrix, void
+- **Block outline:** animated edges, corners or scan
+- **Fullbright:** luminance, gamma or night vision with an optional tint
+- **Swing trails:** smooth ribbons behind weapons, in the world and in first person
+
+### Social and utility
+- Friends and chat with end-to-end sealed messages and files
+- Presence: nearby players see your avatar and the song you play
+- Auction house prices merged into one median per item (shown on the website)
+- Item list with recipes, container previews, chat filter, zoom, nametags, live lyrics
+
+## Privacy
+
+Nothing leaves your computer unless you use a cloud feature. The modules that talk to the CxVisuals cloud are Friends, Presence, Shared maps, Explore and Prices.
+
+| Data | Where it goes |
+|---|---|
+| Minecraft UUID and name, block list, the one avatar you share, friends and requests, your public key | Stored on the cloud |
+| Friend messages and files | Sealed on your device, the server cannot read them, deleted after 30 days |
+| Shared map rooms | Sealed with a key only members hold, kept up to 60 days after the last activity and deleted when the owner rotates the key |
+| Location | Off until you enable it, per friend, sealed for one friend, held in server memory for 10 seconds and never written to disk |
+| Explore maps | Public once you publish: title, server, dimension, size, preview and your name (or Anonymous). Remove them any time |
+| Auction prices | Only from donutsmp.net, filed under a one-way code, deleted after 48 hours |
+| Listening and status | Memory only, forgotten shortly after you stop |
+| Accounts you add | Local vault only, never uploaded |
+
+Your Minecraft access token, password, audio, in-game chat and your position are never sent without you choosing a friend and a duration. Account, then Delete cloud data, erases your account, friends, requests, messages and files immediately.
+
+The mod is not affiliated with Mojang, Microsoft or DonutSMP.
 
 ## Use
 
