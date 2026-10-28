@@ -1,0 +1,65 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to release, for example v0.1.1
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Check the tag matches the mod version
+        run: |
+          version="$(grep -m1 '^mod_version=' gradle.properties | cut -d= -f2-)"
+          if [ "$TAG" != "v$version" ]; then
+            echo "Tag $TAG does not match mod_version $version" >&2
+            exit 1
+          fi
+      - name: Build every supported version
+        run: ./buildall.sh
+      - name: Write checksums
+        run: |
+          cd build/libs
+          sha256sum cxvisuals-*.jar > SHA256SUMS.txt
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          previous="$(git describe --tags --abbrev=0 "$TAG^" 2>/dev/null || true)"
+          if [ -n "$previous" ]; then
+            range="$previous..$TAG"
+          else
+            range="$TAG"
+          fi
+          {
+            echo "Builds for Minecraft $(ls build/libs/cxvisuals-*.jar | sed -E 's/.*\+(.*)\.jar/\1/' | sort -r | paste -sd' ' - | sed 's/ / and /g')."
+            echo
+            echo "Pick the jar that matches your Minecraft version. SHA-256 sums are in SHA256SUMS.txt."
+            echo
+            echo "Changes"
+            git log --no-merges --format='- %s' "$range" | sed -E 's/^- \[[^]]*\] /- /; s/ - [A-Za-z ]+$//'
+          } > notes.md
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" build/libs/cxvisuals-*.jar build/libs/SHA256SUMS.txt --clobber
+          else
+            gh release create "$TAG" build/libs/cxvisuals-*.jar build/libs/SHA256SUMS.txt --title "CxVisuals ${TAG#v}" --notes-file notes.md
+          fi

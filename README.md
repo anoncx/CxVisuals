@@ -188,6 +188,10 @@ The jar for the newest version is written to `build/libs/`. Pick another with `-
 
 starts a dev client.
 
+## Releases
+
+Pushing a tag that matches `mod_version`, for example `v0.1.1`, runs the Release workflow. It builds every supported version, writes `SHA256SUMS.txt` and publishes a GitHub release with one jar per Minecraft version and notes taken from the commits since the previous tag. The Build workflow compiles both versions on every push and pull request.
+
 ## Layout
 
 | Path | Contents | May import Minecraft |
