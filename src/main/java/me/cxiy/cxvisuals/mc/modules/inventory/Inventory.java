@@ -49,6 +49,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.saveddata.maps.MapId;
+import me.cxiy.cxvisuals.mc.compat.Mouse;
 
 public final class Inventory implements InventoryHost {
   private static final float FROST = 22.0F;
@@ -1070,18 +1071,18 @@ public final class Inventory implements InventoryHost {
     float mx = (float) event.x() * pointer;
     float my = (float) event.y() * pointer;
     if (recipeOpen) {
-      recipes.mouseDown(mx, my, event.button());
+      recipes.mouseDown(mx, my, Mouse.button(event));
       return true;
     }
     int card = overCard(mx, my);
     if (card >= 0 && cardSide[card]) {
-      takeFromPreview(card, event.button(), event.hasShiftDown());
+      takeFromPreview(card, Mouse.button(event), event.hasShiftDown());
       return true;
     }
     if (!placed || !live) {
       return false;
     }
-    return explorer.mouseDown(mx, my, event.button(), event.hasShiftDown(), event.hasControlDown());
+    return explorer.mouseDown(mx, my, Mouse.button(event), event.hasShiftDown(), event.hasControlDown());
   }
 
   private void takeFromPreview(int card, int button, boolean shift) {

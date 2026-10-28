@@ -1,7 +1,7 @@
 #version 330
 #extension GL_ARB_separate_shader_objects : require
 
-#moj_import <cxvisuals:sky.glsl>
+#include <cxvisuals:sky.glsl>
 
 const float RATE = 0.3;
 

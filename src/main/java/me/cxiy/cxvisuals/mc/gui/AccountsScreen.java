@@ -12,6 +12,7 @@ import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
+import me.cxiy.cxvisuals.mc.compat.Mouse;
 
 public final class AccountsScreen extends Screen {
   private static final float MAX_FRAME_SECONDS = 0.1F;
@@ -80,7 +81,7 @@ public final class AccountsScreen extends Screen {
   public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
     float x = (float) event.x() * pointerScale;
     float y = (float) event.y() * pointerScale;
-    if (event.button() == 0 && !view.mouseDown(x, y) && view.outside(x, y)) {
+    if (Mouse.button(event) == 0 && !view.mouseDown(x, y) && view.outside(x, y)) {
       view.close();
     }
     return true;
@@ -88,7 +89,7 @@ public final class AccountsScreen extends Screen {
 
   @Override
   public boolean mouseReleased(MouseButtonEvent event) {
-    if (event.button() == 0) {
+    if (Mouse.button(event) == 0) {
       view.mouseUp((float) event.x() * pointerScale, (float) event.y() * pointerScale);
     }
     return true;
@@ -96,7 +97,7 @@ public final class AccountsScreen extends Screen {
 
   @Override
   public boolean mouseDragged(MouseButtonEvent event, double dragX, double dragY) {
-    if (event.button() == 0) {
+    if (Mouse.button(event) == 0) {
       view.mouseDrag((float) event.x() * pointerScale);
     }
     return true;

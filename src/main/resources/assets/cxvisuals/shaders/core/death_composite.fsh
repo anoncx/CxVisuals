@@ -134,8 +134,8 @@ void main() {
     if (fate == GLITCH) {
         float burst = smoothstep(0.0, 0.08, t) * (1.0 - smoothstep(0.38, 0.48, t));
         float band = floor((pixel.y - bottom) / tall * 26.0);
-        float active = step(0.62, hash(vec2(band, floor(time * 11.0))));
-        at.x += sin(band * 1.7 + time * 9.0) * tall * 0.045 * active * burst;
+        float lit = step(0.62, hash(vec2(band, floor(time * 11.0))));
+        at.x += sin(band * 1.7 + time * 9.0) * tall * 0.045 * lit * burst;
         float block = max(1.0, floor(tall / 34.0 * burst + 1.0));
         at = (floor(at / block) + 0.5) * block;
     } else if (fate == VOID) {

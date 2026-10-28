@@ -1,7 +1,7 @@
 #version 330
 #extension GL_ARB_separate_shader_objects : require
 
-#moj_import <cxvisuals:entity_block.glsl>
+#include <cxvisuals:entity_block.glsl>
 
 uniform sampler2D FieldSampler;
 uniform sampler2D LevelSampler;

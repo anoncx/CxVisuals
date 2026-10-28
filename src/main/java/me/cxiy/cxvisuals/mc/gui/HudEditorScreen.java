@@ -9,6 +9,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
+import me.cxiy.cxvisuals.mc.compat.Mouse;
 
 public final class HudEditorScreen extends Screen {
   private static final float MAX_FRAME_SECONDS = 0.1F;
@@ -65,13 +66,13 @@ public final class HudEditorScreen extends Screen {
   public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
     float x = (float) event.x() * pointerScale;
     float y = (float) event.y() * pointerScale;
-    if (event.button() == 0) {
+    if (Mouse.button(event) == 0) {
       boolean modified = event.hasShiftDown() || event.hasControlDown();
       if (!modified && Hud.click(event.x(), event.y())) {
         return true;
       }
       editor.mouseDown(x, y, modified);
-    } else if (event.button() == 1) {
+    } else if (Mouse.button(event) == 1) {
       editor.secondaryDown(x, y);
     }
     return true;
@@ -79,7 +80,7 @@ public final class HudEditorScreen extends Screen {
 
   @Override
   public boolean mouseReleased(MouseButtonEvent event) {
-    if (event.button() == 0) {
+    if (Mouse.button(event) == 0) {
       editor.mouseUp((float) event.x() * pointerScale, (float) event.y() * pointerScale);
     }
     return true;
@@ -87,7 +88,7 @@ public final class HudEditorScreen extends Screen {
 
   @Override
   public boolean mouseDragged(MouseButtonEvent event, double dragX, double dragY) {
-    if (event.button() == 0) {
+    if (Mouse.button(event) == 0) {
       editor.mouseDrag((float) event.x() * pointerScale, (float) event.y() * pointerScale);
     }
     return true;

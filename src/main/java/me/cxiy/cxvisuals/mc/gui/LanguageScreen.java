@@ -11,6 +11,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
+import me.cxiy.cxvisuals.mc.compat.Mouse;
 
 public final class LanguageScreen extends Screen {
   private static final float MAX_FRAME_SECONDS = 0.1F;
@@ -76,7 +77,7 @@ public final class LanguageScreen extends Screen {
 
   @Override
   public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
-    if (event.button() == 0) {
+    if (Mouse.button(event) == 0) {
       picker.mouseDown((float) event.x() * pointerScale, (float) event.y() * pointerScale);
     }
     return true;
@@ -84,7 +85,7 @@ public final class LanguageScreen extends Screen {
 
   @Override
   public boolean mouseReleased(MouseButtonEvent event) {
-    if (event.button() == 0) {
+    if (Mouse.button(event) == 0) {
       picker.mouseUp((float) event.x() * pointerScale, (float) event.y() * pointerScale);
     }
     return true;

@@ -23,6 +23,7 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import me.cxiy.cxvisuals.mc.compat.Mouse;
 
 @Mixin(MouseHandler.class)
 public abstract class MouseHandlerMixin {
@@ -50,7 +51,7 @@ public abstract class MouseHandlerMixin {
       return;
     }
     if (action == PRESS) {
-      Probe.click(info.button());
+      Probe.click(Mouse.button(info));
     }
   }
 

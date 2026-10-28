@@ -1,8 +1,8 @@
 #version 330
 #extension GL_ARB_separate_shader_objects : require
 
-#moj_import <cxvisuals:entity_block.glsl>
-#moj_import <cxvisuals:entity_fx.glsl>
+#include <cxvisuals:entity_block.glsl>
+#include <cxvisuals:entity_fx.glsl>
 
 float beam(float gap, float width) {
     float near = width / (abs(gap) + width);
