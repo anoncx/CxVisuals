@@ -14,13 +14,14 @@ import me.cxiy.cxvisuals.mc.modules.hud.Hud;
 import me.cxiy.cxvisuals.mc.modules.social.Social;
 import me.cxiy.cxvisuals.modules.friends.Friends;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 
 public final class Updates {
-  private static final String PATH = "/v2/client";
+  private static final String PATH = "/v2/client?mc=";
   private static final long FIRST_CHECK = 15_000_000_000L;
   private static final long EVERY = 1_800_000_000_000L;
   private static final int BUFFER = 65536;
@@ -30,6 +31,7 @@ public final class Updates {
   private static final String TAG = Lang.key("NEW");
 
   private static ClientSettings settings;
+  private static final String MINECRAFT = SharedConstants.getCurrentVersion().name();
   private static volatile String installed = "";
   private static volatile Release latest = Release.NONE;
   private static String announced = "";
@@ -126,7 +128,7 @@ public final class Updates {
 
   private static void fetch() {
     try {
-      latest = Release.parse(Social.read(PATH));
+      latest = Release.parse(Social.read(PATH + MINECRAFT), MINECRAFT);
     } catch (IOException | RuntimeException e) {
       CxVisualsClient.LOG.debug("Update check failed: {}", e.toString());
     } finally {

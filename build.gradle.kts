@@ -26,6 +26,26 @@ val lib: SourceSet = sourceSets.create("lib") {
     java.srcDir("src/lib/java")
 }
 
+val portDir = layout.projectDirectory.dir("versions/$mc")
+
+if (portDir.file("imports.txt").asFile.isFile) {
+    val port = { kind: String, name: String ->
+        tasks.register<PortSources>("port$name") {
+            source.set(layout.projectDirectory.dir("src/main/$kind"))
+            layout.projectDirectory.dir("src/mc/$mc/$kind").takeIf { it.asFile.isDirectory }?.let { overlay.set(it) }
+            rules.set(portDir)
+            this.kind.set(if (kind == "java") "java" else "shader")
+            output.set(layout.buildDirectory.dir("ported/$mc/$kind"))
+        }
+    }
+    val portJava = port("java", "Java")
+    val portResources = port("resources", "Resources")
+    sourceSets.main {
+        java.setSrcDirs(listOf(portJava.flatMap { it.output }))
+        resources.setSrcDirs(listOf(portResources.flatMap { it.output }))
+    }
+}
+
 repositories {
     mavenCentral()
     exclusiveContent {

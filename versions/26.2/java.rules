@@ -1,0 +1,9 @@
+\.withUniform\(([^,()]+), UniformType\.COMBINED_IMAGE_SAMPLER\)	.withSampler($1)
+\.rotate\(((?:Axis\.|turn\.rotation|camera\.orientation)[^;]*)\);	.mulPose($1);
+state\.swingAnimation	state.attackTime
+info\.type\(\)	info.getType()
+info\.title\(\)	info.getTitle()
+info\.description\(\)	info.getDescription()
+data\.itemCopies\(\)	data.allItemsCopyStream()
+bundle\.itemCopies\(\)	bundle.itemCopyStream()
+  @Override\n  public VertexConsumer setUv3\(float u, float v\) \{\n    return this;\n  \}\n\n	
