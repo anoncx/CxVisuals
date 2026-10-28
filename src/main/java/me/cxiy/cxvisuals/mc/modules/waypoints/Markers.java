@@ -5,8 +5,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import me.cxiy.cxvisuals.core.i18n.Lang;
 import me.cxiy.cxvisuals.gui.hud.WorldPins;
@@ -15,6 +18,7 @@ import me.cxiy.cxvisuals.mc.McKeyBinder;
 import me.cxiy.cxvisuals.mc.gui.McCanvas;
 import me.cxiy.cxvisuals.mc.modules.hud.Hud;
 import me.cxiy.cxvisuals.mc.modules.social.FriendsLink;
+import me.cxiy.cxvisuals.mc.modules.social.RoomLink;
 import me.cxiy.cxvisuals.modules.friends.Friends;
 import me.cxiy.cxvisuals.modules.hud.HudData;
 import me.cxiy.cxvisuals.modules.waypoints.Waypoints;
@@ -237,6 +241,7 @@ public final class Markers {
       return;
     }
     String here = waypoints.dimension();
+    Set<String> placed = new HashSet<>();
     if (FriendsLink.module() != null && FriendsLink.module().active()) {
       List<Friends.Friend> friends = FriendsLink.module().friends.friends();
       for (int i = 0; i < friends.size(); i++) {
@@ -244,6 +249,7 @@ public final class Markers {
         if (!friend.online || !friend.located || !friend.dimension.equals(here)) {
           continue;
         }
+        placed.add(friend.uuid);
         Entity entity =
             friend.entityId == Friends.NO_ENTITY ? null : mc.level.getEntity(friend.entityId);
         data.mark(
@@ -255,6 +261,21 @@ public final class Markers {
             true,
             entity == null ? HudData.NONE : entity.getId());
       }
+    }
+    for (RoomLink.Spot spot : RoomLink.spots(here)) {
+      if (placed.contains(spot.uuid())) {
+        continue;
+      }
+      Entity entity = mc.level.getPlayerByUUID(UUID.fromString(spot.uuid()));
+      int alpha = Math.round(spot.alpha() * 255.0F);
+      data.mark(
+          spot.name(),
+          spot.x(),
+          spot.y() + HEAD,
+          spot.z(),
+          (alpha << 24) | (FRIEND & 0xFFFFFF),
+          true,
+          entity == null ? HudData.NONE : entity.getId());
     }
     if (module.enabled.get()) {
       long now = System.currentTimeMillis();

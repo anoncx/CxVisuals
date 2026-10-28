@@ -3,6 +3,7 @@ package me.cxiy.cxvisuals.modules.friends;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import me.cxiy.cxvisuals.core.i18n.Lang;
 import me.cxiy.cxvisuals.modules.social.SocialProtocol;
 
@@ -23,9 +24,13 @@ public record Note(
     MODEL,
     CONFIG,
     WAYPOINT,
-    MAP
+    MAP,
+    ROOM_INVITE
   }
 
+  public static final int SCOPE_LIMIT = 96;
+  public static final int ROOM_EPOCH_LIMIT = 1_000_000;
+  public static final int ROOM_CHUNK_LIMIT = 1 << 20;
   public static final int TEXT_LIMIT = 500;
   public static final int NAME_LIMIT = 40;
   public static final int SERVER_LIMIT = 64;
@@ -127,8 +132,48 @@ public record Note(
         Kind.MAP, clean(name, NAME_LIMIT), parcel, key, hash, Math.max(0, chunks), 0, 0, "");
   }
 
+  public static Note room(
+      String name,
+      String roomId,
+      String key,
+      String scope,
+      int epoch,
+      boolean backfill,
+      int chunks) {
+    return new Note(
+        Kind.ROOM_INVITE,
+        clean(name, NAME_LIMIT),
+        roomId,
+        key,
+        backfill ? "1" : "",
+        epoch,
+        chunks,
+        0,
+        clean(scope, SCOPE_LIMIT));
+  }
+
   public int chunks() {
-    return kind == Kind.MAP ? x : 0;
+    return kind == Kind.MAP ? x : kind == Kind.ROOM_INVITE ? y : 0;
+  }
+
+  public String roomId() {
+    return kind == Kind.ROOM_INVITE ? parcel : "";
+  }
+
+  public String roomKey() {
+    return kind == Kind.ROOM_INVITE ? key : "";
+  }
+
+  public String roomScope() {
+    return kind == Kind.ROOM_INVITE ? place : "";
+  }
+
+  public int epoch() {
+    return kind == Kind.ROOM_INVITE ? x : 0;
+  }
+
+  public boolean backfill() {
+    return kind == Kind.ROOM_INVITE && !hash.isEmpty();
   }
 
   public static Note waypoint(String name, int x, int y, int z, String dimension) {
@@ -200,6 +245,7 @@ public record Note(
       case CONFIG -> Lang.tr("Config") + " · " + text;
       case WAYPOINT -> Lang.tr("Waypoint") + " · " + text;
       case MAP -> Lang.tr("Map") + " · " + text;
+      case ROOM_INVITE -> Lang.tr("Shared map") + " · " + text;
     };
   }
 
@@ -225,6 +271,16 @@ public record Note(
     }
     if (kind == Kind.MAP) {
       json.addProperty("ch", x);
+    }
+    if (kind == Kind.ROOM_INVITE) {
+      json.addProperty("rm", parcel);
+      json.addProperty("rk", key);
+      json.addProperty("sc", place);
+      json.addProperty("ep", x);
+      json.addProperty("ch", y);
+      if (!hash.isEmpty()) {
+        json.addProperty("bf", true);
+      }
     }
     if (kind == Kind.WAYPOINT) {
       json.addProperty("x", x);
@@ -289,6 +345,7 @@ public record Note(
                           (int) Math.min(1000L, SocialProtocol.number(json, "cl", 0L)),
                           (int) Math.min(1L << 20, SocialProtocol.number(json, "kb", 0L)));
         }
+        case ROOM_INVITE -> decodeRoom(json, text);
         case WAYPOINT -> {
           long x = SocialProtocol.number(json, "x", Long.MAX_VALUE);
           long y = SocialProtocol.number(json, "y", Long.MAX_VALUE);
@@ -309,6 +366,39 @@ public record Note(
       };
     } catch (RuntimeException e) {
       return null;
+    }
+  }
+
+  private static Note decodeRoom(JsonObject json, String name) {
+    String room = SocialProtocol.lower(SocialProtocol.text(json, "rm", ""));
+    String key = SocialProtocol.text(json, "rk", "");
+    String scope = SocialProtocol.text(json, "sc", "");
+    long epoch = SocialProtocol.number(json, "ep", -1L);
+    long chunks = SocialProtocol.number(json, "ch", 0L);
+    boolean valid =
+        room.matches("[0-9a-f]{32}")
+            && keyBytes(key) == Sealer.KEY_BYTES
+            && scope.startsWith("server:")
+            && scope.length() <= SCOPE_LIMIT
+            && epoch >= 0L
+            && epoch <= ROOM_EPOCH_LIMIT;
+    return !valid
+        ? null
+        : room(
+            name,
+            room,
+            key,
+            scope,
+            (int) epoch,
+            SocialProtocol.flag(json, "bf", false),
+            (int) Math.max(0L, Math.min(ROOM_CHUNK_LIMIT, chunks)));
+  }
+
+  private static int keyBytes(String key) {
+    try {
+      return Base64.getDecoder().decode(key).length;
+    } catch (IllegalArgumentException e) {
+      return -1;
     }
   }
 

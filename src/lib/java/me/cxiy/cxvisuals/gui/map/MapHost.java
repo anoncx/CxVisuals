@@ -31,4 +31,8 @@ public interface MapHost {
   MapPlayer player(int entityId);
 
   String notice();
+
+  default ShareHost share() {
+    return ShareHost.NONE;
+  }
 }

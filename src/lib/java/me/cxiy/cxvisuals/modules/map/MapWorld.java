@@ -5,6 +5,7 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -62,10 +63,13 @@ public final class MapWorld implements TileBaker.Source {
           });
   private final Map<Long, Integer> thumbRevisions = new ConcurrentHashMap<>();
   private final ConcurrentLinkedQueue<Runnable> later = new ConcurrentLinkedQueue<>();
+  private final MergeBuffer merges = new MergeBuffer();
+  private final ArrayDeque<Region> saving = new ArrayDeque<>();
   private volatile Terrain terrain = Terrain.RELIEF;
   private volatile Path folder;
-  private String scope = "";
-  private String dimension = "";
+  private volatile String scope = "";
+  private volatile String dimension = "";
+  private volatile Path root;
   private long lastSave = System.nanoTime();
   private int place;
   private boolean indexed;
@@ -151,6 +155,7 @@ public final class MapWorld implements TileBaker.Source {
     leave();
     scope = s;
     dimension = d;
+    this.root = root;
     if (s.isEmpty() || d.isEmpty() || root == null) {
       return;
     }
@@ -188,7 +193,15 @@ public final class MapWorld implements TileBaker.Source {
     }
     if (nanos - lastSave > SAVE_NANOS) {
       lastSave = nanos;
-      saveAll();
+      for (Region region : surface.values()) {
+        if (region.dirty() && !region.empty() && !saving.contains(region)) {
+          saving.add(region);
+        }
+      }
+    }
+    Region next = saving.poll();
+    if (next != null) {
+      save(next);
     }
     if (surface.size() > KEEP_REGIONS) {
       List<Long> order = new ArrayList<>(touched.keySet());
@@ -301,23 +314,30 @@ public final class MapWorld implements TileBaker.Source {
     if (files.isEmpty()) {
       return;
     }
-    int ticket = place;
-    worker.execute(
-        () -> {
-          mergeInto(dir, files, palette, warn);
-          later.add(
-              () -> {
-                if (ticket != place || !here) {
-                  return;
-                }
-                for (MapShare.Chunk chunk : files) {
-                  long key = Region.key(chunk.x() >> 5, chunk.z() >> 5);
-                  known.add(key);
-                  thumbs.remove(key);
-                }
-                atlas.clear();
-              });
-        });
+    if (merges.add(dir, files)) {
+      worker.execute(this::flushMerges);
+    }
+  }
+
+  private void flushMerges() {
+    Map<Path, List<MapShare.Chunk>> batch = merges.take();
+    for (Map.Entry<Path, List<MapShare.Chunk>> entry : batch.entrySet()) {
+      mergeInto(entry.getKey(), entry.getValue(), palette, warn);
+    }
+    later.add(() -> applyMerged(batch));
+  }
+
+  private void applyMerged(Map<Path, List<MapShare.Chunk>> batch) {
+    List<MapShare.Chunk> mine = batch.get(folder);
+    if (mine == null) {
+      return;
+    }
+    for (MapShare.Chunk chunk : mine) {
+      long key = Region.key(chunk.x() >> 5, chunk.z() >> 5);
+      known.add(key);
+      thumbs.remove(key);
+      written(TileKey.SURFACE, chunk.x(), chunk.z());
+    }
   }
 
   public void collect(
@@ -372,6 +392,62 @@ public final class MapWorld implements TileBaker.Source {
           }
           later.add(() -> result.accept(out));
         });
+  }
+
+  public Set<Long> knownRegions() {
+    return Set.copyOf(known);
+  }
+
+  public List<MapShare.Chunk> readChunks(
+      String chunkDimension, int regionX, int regionZ, List<long[]> coords) {
+    Region region = regionFor(chunkDimension, regionX, regionZ);
+    if (region == null) {
+      return List.of();
+    }
+    List<MapShare.Chunk> out = new ArrayList<>(coords.size());
+    for (long[] coord : coords) {
+      MapShare.Chunk chunk = readChunk(region, (int) coord[0], (int) coord[1]);
+      if (chunk != null) {
+        out.add(chunk);
+      }
+    }
+    return out;
+  }
+
+  public List<MapShare.Chunk> readRegion(String chunkDimension, int regionX, int regionZ) {
+    Region region = regionFor(chunkDimension, regionX, regionZ);
+    if (region == null) {
+      return List.of();
+    }
+    List<MapShare.Chunk> out = new ArrayList<>();
+    for (int slot = 0; slot < Region.CHUNKS * Region.CHUNKS; slot++) {
+      MapShare.Chunk chunk =
+          readChunk(region, (regionX << 5) + (slot & 31), (regionZ << 5) + (slot >> 5));
+      if (chunk != null) {
+        out.add(chunk);
+      }
+    }
+    return out;
+  }
+
+  private Region regionFor(String chunkDimension, int regionX, int regionZ) {
+    Region live =
+        chunkDimension.equals(dimension) ? surface.get(Region.key(regionX, regionZ)) : null;
+    Path base = root;
+    if (live != null || base == null || scope.isEmpty()) {
+      return live;
+    }
+    return read(folder(base, scope, chunkDimension), regionX, regionZ, palette);
+  }
+
+  private static MapShare.Chunk readChunk(Region region, int chunkX, int chunkZ) {
+    long stamp = region.stamp(chunkX & 31, chunkZ & 31);
+    if (stamp == 0L) {
+      return null;
+    }
+    Region.Column column = new Region.Column();
+    region.read(chunkX & 31, chunkZ & 31, column);
+    return new MapShare.Chunk(chunkX, chunkZ, stamp, column);
   }
 
   public static void mergeInto(
@@ -521,32 +597,33 @@ public final class MapWorld implements TileBaker.Source {
   }
 
   public void saveAll() {
+    saving.clear();
+    for (Region region : surface.values()) {
+      save(region);
+    }
+  }
+
+  private void save(Region region) {
     Path to = folder;
-    if (to == null) {
+    if (to == null || !region.dirty() || region.empty()) {
       return;
     }
+    int revision = region.revision();
+    Region copy = region.copy();
+    region.saved(revision);
     Terrain style = terrain;
-    for (Region region : surface.values()) {
-      if (!region.dirty() || region.empty()) {
-        continue;
-      }
-      int revision = region.revision();
-      Region copy = region.copy();
-      Region source = region;
-      region.saved(revision);
-      worker.execute(
-          () -> {
-            Map<Long, Region> own = new LinkedHashMap<>();
-            own.put(copy.key(), copy);
-            int[] thumb = write(to, copy, new TileBaker(new Isolated(own)), style, palette, warn);
-            if (thumb != null) {
-              source.flushed(revision);
-              if (to.equals(folder)) {
-                thumbs.put(copy.key(), thumb);
-              }
+    worker.execute(
+        () -> {
+          Map<Long, Region> own = new LinkedHashMap<>();
+          own.put(copy.key(), copy);
+          int[] thumb = write(to, copy, new TileBaker(new Isolated(own)), style, palette, warn);
+          if (thumb != null) {
+            region.flushed(revision);
+            if (to.equals(folder)) {
+              thumbs.put(copy.key(), thumb);
             }
-          });
-    }
+          }
+        });
   }
 
   public void shutdown() {

@@ -2,8 +2,10 @@ package me.cxiy.cxvisuals.gui;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import me.cxiy.cxvisuals.core.i18n.Lang;
 import me.cxiy.cxvisuals.core.math.Easing;
 import me.cxiy.cxvisuals.modules.friends.Friends;
@@ -31,6 +33,8 @@ public final class ChatPanel extends Widget {
   public static final int POINT = 18;
   public static final int DROP = 19;
   public static final int CHART = 20;
+  public static final int ROOM = 21;
+  public static final int ROOM_SWITCH = 22;
 
   public static final float HEIGHT = 268.0F;
   private static final int CLOSED = 0;
@@ -69,6 +73,11 @@ public final class ChatPanel extends Widget {
   private static final float CARD = 46.0F;
   private static final float CARD_ACTIONS = 78.0F;
   private static final float CARD_WIDTH = 200.0F;
+  private static final float ROOM_HEAD = 44.0F;
+  private static final float ROOM_FOOT = 30.0F;
+  private static final float ROOM_ACTION = 50.0F;
+  private static final float ROOM_SWITCH_WIDTH = 28.0F;
+  private static final float ROOM_SWITCH_HEIGHT = 16.0F;
   private static final float PLACE_WIDTH = 244.0F;
   private static final float PLACE_MINE = 98.0F;
   private static final float PLACE_THEIRS = 110.0F;
@@ -98,6 +107,8 @@ public final class ChatPanel extends Widget {
   private final Friends friends;
   private final PanelHost host;
   private final Hits hits = new Hits(160);
+  private final Set<Long> sharing = new HashSet<>();
+  private final Map<Long, List<String>> roomWraps = new HashMap<>();
   private final Field field = new Field(Lang.key("Message"), Note.TEXT_LIMIT);
   private final Map<Long, String[]> wraps = new HashMap<>();
   private final List<String> scratch = new ArrayList<>(8);
@@ -529,6 +540,7 @@ public final class ChatPanel extends Widget {
       case WAYPOINT -> mine ? PLACE_MINE : PLACE_THEIRS;
       case MODEL -> MODEL_HEIGHT;
       case INVITE, CONFIG, MAP -> mine ? CARD : CARD_ACTIONS;
+      case ROOM_INVITE -> mine ? CARD : roomHeight(c, key, note);
     };
   }
 
@@ -757,6 +769,9 @@ public final class ChatPanel extends Widget {
       return place(
           c, t, key, note, mine, line, mine ? right - PLACE_WIDTH : left, top, tall, mx, my);
     }
+    if (note.kind() == Note.Kind.ROOM_INVITE && !mine && line != null) {
+      return roomCard(c, t, key, note, line, left, top, tall, mx, my);
+    }
     float cardX = mine ? right - CARD_WIDTH : left;
     Depth.raised(c, t, cardX, top, CARD_WIDTH, tall, BUBBLE_RADIUS, t.surface2());
     float textX = cardX + BUBBLE_PAD_X;
@@ -767,6 +782,7 @@ public final class ChatPanel extends Widget {
           case CONFIG -> Lang.tr("CONFIG");
           case MAP -> Lang.tr("MAP") + " · " + Lang.format("{0} chunks", note.chunks());
           case WAYPOINT -> Lang.tr("WAYPOINT") + " · " + note.coordinates();
+          case ROOM_INVITE -> Lang.tr("SHARED MAP");
           default -> Lang.tr("INVITE");
         };
     c.text(FontStyle.MONO, caption, textX, captionTop, t.grey());
@@ -860,6 +876,113 @@ public final class ChatPanel extends Widget {
         my,
         t.ink(),
         false);
+    return cardX;
+  }
+
+  private List<String> roomLines(Canvas c, long key, Note note) {
+    return roomWraps.computeIfAbsent(
+        key,
+        ignored -> {
+          String server = note.roomScope().replaceFirst("^server:", "");
+          String body =
+              Lang.format(
+                  "Everyone in this map sees what you explore on {0}. Your location stays private.",
+                  server);
+          if (note.backfill()) {
+            body += " " + Lang.tr("Includes the areas they explored.");
+          }
+          return TextWrap.lines(
+              s -> c.textWidth(FontStyle.SMALL, s), body, CARD_WIDTH - BUBBLE_PAD_X * 2.0F);
+        });
+  }
+
+  private float roomHeight(Canvas c, long key, Note note) {
+    return ROOM_HEAD + roomLines(c, key, note).size() * c.lineHeight(FontStyle.SMALL) + ROOM_FOOT;
+  }
+
+  private float roomCard(
+      Canvas c,
+      Theme t,
+      long key,
+      Note note,
+      Friends.Line line,
+      float cardX,
+      float top,
+      float tall,
+      float mx,
+      float my) {
+    Depth.raised(c, t, cardX, top, CARD_WIDTH, tall, BUBBLE_RADIUS, t.surface2());
+    float textX = cardX + BUBBLE_PAD_X;
+    float edge = cardX + CARD_WIDTH - 6.0F;
+    Friends.Parcel state = friends.parcel(line);
+    float cursor = top + 8.0F;
+    c.text(FontStyle.MONO, Lang.tr("SHARED MAP"), textX, cursor, t.grey());
+    cursor += c.lineHeight(FontStyle.MONO) + 2.0F;
+    float nameLine = c.lineHeight(FontStyle.ROW);
+    float middle = cursor + nameLine * 0.5F;
+    float action = ROOM_ACTION;
+    if (state == Friends.Parcel.KEPT || state == Friends.Parcel.WORKING) {
+      String status = state == Friends.Parcel.KEPT ? Lang.tr("Joined") : Lang.tr("Joining");
+      action = c.textWidth(FontStyle.MONO, status) + 12.0F;
+      c.text(
+          FontStyle.MONO,
+          status,
+          edge - action + 6.0F,
+          middle - c.lineHeight(FontStyle.MONO) * 0.5F,
+          t.grey());
+    } else if (state == Friends.Parcel.FAILED) {
+      String status = Lang.tr("Unavailable");
+      action = c.textWidth(FontStyle.MONO, status) + 12.0F;
+      c.text(
+          FontStyle.MONO,
+          status,
+          edge - action + 6.0F,
+          middle - c.lineHeight(FontStyle.MONO) * 0.5F,
+          t.alert());
+    } else {
+      hits.pill(c, t, ROOM, line, Lang.tr("Join"), edge, middle, mx, my, t.ink(), true);
+    }
+    c.text(
+        FontStyle.ROW,
+        c.fit(FontStyle.ROW, note.text(), CARD_WIDTH - BUBBLE_PAD_X - action - 10.0F),
+        textX,
+        cursor,
+        t.ink());
+    cursor += nameLine + 6.0F;
+    float small = c.lineHeight(FontStyle.SMALL);
+    for (String row : roomLines(c, key, note)) {
+      c.text(FontStyle.SMALL, row, textX, cursor, t.ink2());
+      cursor += small;
+    }
+    if (state != Friends.Parcel.IDLE) {
+      return cardX;
+    }
+    boolean on = sharing.contains(line.id());
+    float rowY = cursor + 4.0F;
+    float label = CARD_WIDTH - BUBBLE_PAD_X * 2.0F - ROOM_SWITCH_WIDTH - 6.0F;
+    c.text(
+        FontStyle.SMALL,
+        c.fit(FontStyle.SMALL, Lang.tr("Share my explored areas"), label),
+        textX,
+        rowY + (ROOM_SWITCH_HEIGHT - small) * 0.5F,
+        t.ink());
+    float switchX = cardX + CARD_WIDTH - BUBBLE_PAD_X - ROOM_SWITCH_WIDTH;
+    float knob = ROOM_SWITCH_HEIGHT - 4.0F;
+    c.roundRect(
+        switchX,
+        rowY,
+        ROOM_SWITCH_WIDTH,
+        ROOM_SWITCH_HEIGHT,
+        ROOM_SWITCH_HEIGHT * 0.5F,
+        on ? t.ink() : t.surface());
+    c.roundRect(
+        switchX + 2.0F + (on ? ROOM_SWITCH_WIDTH - knob - 4.0F : 0.0F),
+        rowY + 2.0F,
+        knob,
+        knob,
+        knob * 0.5F,
+        on ? t.paper() | 0xFF000000 : t.ink2());
+    hits.add(ROOM_SWITCH, line, cardX, rowY - 4.0F, CARD_WIDTH, ROOM_SWITCH_HEIGHT + 8.0F);
     return cardX;
   }
 
@@ -1165,6 +1288,16 @@ public final class ChatPanel extends Widget {
       case SAVE -> friends.actions().config((Friends.Line) target, false);
       case ADD -> friends.actions().waypoint((Friends.Line) target);
       case CHART -> friends.actions().map((Friends.Line) target);
+      case ROOM -> {
+        Friends.Line invite = (Friends.Line) target;
+        friends.actions().room(friend.uuid, invite, sharing.contains(invite.id()));
+      }
+      case ROOM_SWITCH -> {
+        long id = ((Friends.Line) target).id();
+        if (!sharing.remove(id)) {
+          sharing.add(id);
+        }
+      }
       case TRY -> friends.actions().tryOn((Friends.Line) target);
       case KEEP -> friends.actions().keep((Friends.Line) target);
       case REMOVE -> {

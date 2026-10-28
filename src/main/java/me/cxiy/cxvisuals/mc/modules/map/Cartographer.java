@@ -3,6 +3,7 @@ package me.cxiy.cxvisuals.mc.modules.map;
 import it.unimi.dsi.fastutil.longs.LongIterator;
 import it.unimi.dsi.fastutil.longs.LongLinkedOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import me.cxiy.cxvisuals.mc.modules.social.RoomLink;
 import me.cxiy.cxvisuals.modules.map.BlockPalette;
 import me.cxiy.cxvisuals.modules.map.MapWorld;
 import me.cxiy.cxvisuals.modules.map.Region;
@@ -274,8 +275,14 @@ final class Cartographer {
         }
       }
     }
+    if (region.matches(chunkX & 31, chunkZ & 31, column)) {
+      return;
+    }
     region.write(chunkX & 31, chunkZ & 31, column, now);
     world.written(layer, chunkX, chunkZ);
+    if (layer == TileKey.SURFACE) {
+      RoomLink.changed(world.dimension(), chunkX, chunkZ, now);
+    }
   }
 
   private void column(

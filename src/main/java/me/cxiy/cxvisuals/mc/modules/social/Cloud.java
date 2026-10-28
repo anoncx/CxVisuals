@@ -122,7 +122,13 @@ final class Cloud {
     send(request(url, token, TIMEOUT).DELETE().build());
   }
 
+  record Bytes(byte[] body, boolean more) {}
+
   byte[] download(String url, String token, int limit) throws IOException {
+    return fetch(url, token, limit).body();
+  }
+
+  Bytes fetch(String url, String token, int limit) throws IOException {
     HttpRequest request = request(url, token, TRANSFER).GET().build();
     try {
       HttpResponse<byte[]> response = http.send(request, HttpResponse.BodyHandlers.ofByteArray());
@@ -132,7 +138,7 @@ final class Cloud {
       if (response.body().length > limit) {
         throw new IOException("reply too large");
       }
-      return response.body();
+      return new Bytes(response.body(), response.headers().firstValue("X-More").isPresent());
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new IOException("interrupted");

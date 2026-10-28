@@ -9,12 +9,14 @@ import me.cxiy.cxvisuals.gui.Theme;
 import me.cxiy.cxvisuals.gui.map.MapHost;
 import me.cxiy.cxvisuals.gui.map.MapPlayer;
 import me.cxiy.cxvisuals.gui.map.MapScreenView;
+import me.cxiy.cxvisuals.gui.map.ShareHost;
 import me.cxiy.cxvisuals.mc.gui.GlassPipeline;
 import me.cxiy.cxvisuals.mc.gui.McCanvas;
 import me.cxiy.cxvisuals.mc.gui.ShapePipeline;
 import me.cxiy.cxvisuals.mc.modules.download.Downloads;
 import me.cxiy.cxvisuals.mc.modules.hud.Hud;
 import me.cxiy.cxvisuals.mc.modules.social.FriendsLink;
+import me.cxiy.cxvisuals.mc.modules.social.RoomShare;
 import me.cxiy.cxvisuals.mc.modules.waypoints.Markers;
 import me.cxiy.cxvisuals.modules.hud.HudData;
 import me.cxiy.cxvisuals.modules.map.BlockSearch;
@@ -101,6 +103,11 @@ public final class MapScreen extends Screen {
         @Override
         public String notice() {
           return Maps.notice();
+        }
+
+        @Override
+        public ShareHost share() {
+          return RoomShare.INSTANCE;
         }
       };
   private static MapScreenView view;

@@ -1,5 +1,7 @@
 package me.cxiy.cxvisuals.modules.map;
 
+import java.util.Arrays;
+
 public final class Region {
   public static final int SHIFT = 9;
   public static final int SIZE = 1 << SHIFT;
@@ -157,6 +159,28 @@ public final class Region {
     }
     stamps[slot] = Math.max(1L, stamp);
     revision++;
+  }
+
+  public boolean matches(int chunkX, int chunkZ, Column column) {
+    if (stamps[(chunkZ << 5) | chunkX] == 0L) {
+      return false;
+    }
+    int baseX = chunkX << 4;
+    int baseZ = chunkZ << 4;
+    for (int row = 0; row < 16; row++) {
+      int from = index(baseX, baseZ + row);
+      int to = row << 4;
+      if (!Arrays.equals(color, from, from + 16, column.color, to, to + 16)
+          || !Arrays.equals(height, from, from + 16, column.height, to, to + 16)
+          || !Arrays.equals(water, from, from + 16, column.water, to, to + 16)
+          || !Arrays.equals(block, from, from + 16, column.block, to, to + 16)
+          || !Arrays.equals(depth, from, from + 16, column.depth, to, to + 16)
+          || !Arrays.equals(floor, from, from + 16, column.floor, to, to + 16)
+          || !Arrays.equals(ground, from, from + 16, column.ground, to, to + 16)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   public void read(int chunkX, int chunkZ, Column out) {

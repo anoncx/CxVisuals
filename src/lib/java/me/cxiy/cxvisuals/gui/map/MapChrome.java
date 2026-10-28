@@ -17,7 +17,8 @@ public final class MapChrome {
     PIN,
     DOWNLOAD,
     CUBE,
-    FIND
+    FIND,
+    GROUP
   }
 
   public static final float BUTTON = 34.0F;
@@ -191,6 +192,12 @@ public final class MapChrome {
         line(c, ink, cx - w, cy - q, cx, cy, cx + w, cy - q);
         line(c, ink, cx, cy, cx, cy + r);
         line(c, ink, cx - w, cy - q, cx, cy - r);
+      }
+      case GROUP -> {
+        c.roundRectBorder(cx - r * 0.95F, cy - r * 0.85F, r * 0.9F, r * 0.9F, r * 0.45F, s, ink);
+        c.roundRectBorder(cx + r * 0.05F, cy - r * 0.85F, r * 0.9F, r * 0.9F, r * 0.45F, s, ink);
+        line(c, ink, cx - r, cy + r, cx - r * 0.85F, cy + r * 0.25F, cx - r * 0.1F, cy + r * 0.25F);
+        line(c, ink, cx + r, cy + r, cx + r * 0.85F, cy + r * 0.25F, cx + r * 0.1F, cy + r * 0.25F);
       }
       case PIN -> {
         c.roundRectBorder(cx - r * 0.6F, cy - r, r * 1.2F, r * 1.2F, r * 0.6F, s, ink);

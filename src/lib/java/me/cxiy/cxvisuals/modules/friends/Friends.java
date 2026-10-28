@@ -124,6 +124,8 @@ public final class Friends {
 
     default void map(Line line) {}
 
+    default void room(String from, Line line, boolean shareMine) {}
+
     int preview(Line line);
 
     void tryOn(Line line);
@@ -573,6 +575,7 @@ public final class Friends {
           case CONFIG -> Lang.tr("CONFIG");
           case WAYPOINT -> Lang.tr(note.live() ? "LOCATION" : "WAYPOINT");
           case MAP -> Lang.tr("MAP");
+          case ROOM_INVITE -> Lang.tr("SHARED MAP");
         };
     String text =
         switch (note.kind()) {
@@ -581,6 +584,7 @@ public final class Friends {
           case MODEL -> Lang.tr("Sent you an avatar") + " · " + note.text();
           case CONFIG -> Lang.tr("Sent you a config") + " · " + note.text();
           case MAP -> Lang.tr("Sent you a map") + " · " + note.text();
+          case ROOM_INVITE -> Lang.format("Invited you to share a map · {0}", note.text());
           case WAYPOINT ->
               note.live()
                   ? Lang.tr("Shared their location")

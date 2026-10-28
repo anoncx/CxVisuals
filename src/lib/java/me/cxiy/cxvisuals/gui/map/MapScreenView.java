@@ -41,7 +41,8 @@ public final class MapScreenView {
     NAME,
     PICK,
     MARK,
-    PLAYER
+    PLAYER,
+    SHARE
   }
 
   private enum Row {
@@ -63,6 +64,7 @@ public final class MapScreenView {
       boolean located) {}
 
   private static final float MARGIN = 16.0F;
+  private static final int SHARING = 0xFF30D158;
   private static final float PANEL = 300.0F;
   private static final float RADIUS = 20.0F;
   private static final float ROW = 46.0F;
@@ -210,6 +212,7 @@ public final class MapScreenView {
   private double popWX;
   private double popWZ;
   private boolean pickArea;
+  private ShareWindow share;
   private Waypoints.Waypoint focused;
   private List<Waypoints.Target> picks = List.of();
   private String notice = "";
@@ -845,6 +848,24 @@ public final class MapScreenView {
     hovers[4].set(over ? 1.0F : 0.0F);
     hovers[4].update(dt);
     MapChrome.button(c, t, Glyph.SIDEBAR, sx + 3.0F, sy + 3.0F, size, hovers[4].get(), false);
+    float gy = shareY() - (1.0F - shown) * 12.0F;
+    MapChrome.panel(c, t, frost, sx, gy, size + 6.0F, size + 6.0F, (size + 6.0F) * 0.5F);
+    boolean shareOver = MapChrome.hit(mouseX, mouseY, sx + 3.0F, gy + 3.0F, size, size);
+    hovers[5].set(shareOver || pop == Pop.SHARE ? 1.0F : 0.0F);
+    hovers[5].update(dt);
+    MapChrome.button(c, t, Glyph.GROUP, sx + 3.0F, gy + 3.0F, size, hovers[5].get(), false);
+    if (host.share().live()) {
+      c.roundRect(sx + 3.0F + size * 0.5F - 2.0F, gy + size - 4.0F, 4.0F, 4.0F, 2.0F, SHARING);
+    }
+  }
+
+  private float shareY() {
+    return MARGIN + MapChrome.BUTTON + 6.0F + 8.0F;
+  }
+
+  private void openShare() {
+    share = new ShareWindow(host.share(), frost, this::dismiss);
+    show(Pop.SHARE, controlsX() - ShareWindow.WIDTH - 10.0F, shareY());
   }
 
   private void compass(Canvas c, Theme t, float cx, float cy, float r) {
@@ -889,6 +910,11 @@ public final class MapScreenView {
     if (MapChrome.hit(mx, my, x, MARGIN, size + 6.0F, size + 6.0F)) {
       panel.set(panel.target() > 0.5F ? 0.0F : 1.0F);
       Sound.play(Sound.Cue.TAB);
+      return true;
+    }
+    if (MapChrome.hit(mx, my, x, shareY(), size + 6.0F, size + 6.0F)) {
+      openShare();
+      Sound.play(Sound.Cue.STEP);
       return true;
     }
     return MapChrome.hit(mx, my, x, y, size + 6.0F, h);
@@ -1238,10 +1264,20 @@ public final class MapScreenView {
       case PICK -> pick(c, t);
       case MARK -> mark(c, t);
       case PLAYER -> playerCard(c, t);
+      case SHARE -> sharePanel(c, t, dt);
       default -> {}
     }
     c.popTransform();
     c.popAlpha();
+  }
+
+  private void sharePanel(Canvas c, Theme t, float dt) {
+    if (share == null) {
+      dismiss();
+      return;
+    }
+    float[] at = popBox(ShareWindow.WIDTH, share.height(c));
+    share.draw(c, t, at[0], at[1], mouseX, mouseY, dt);
   }
 
   private String[] menuItems() {
@@ -1583,6 +1619,7 @@ public final class MapScreenView {
 
   private void dismiss() {
     pop = Pop.NONE;
+    share = null;
     naming.focus(false);
     focused = null;
   }
@@ -1727,6 +1764,11 @@ public final class MapScreenView {
 
   private void popDown(float mx, float my) {
     switch (pop) {
+      case SHARE -> {
+        if (share == null || !share.mouseDown(mx, my)) {
+          dismiss();
+        }
+      }
       case MENU -> {
         String[] items = menuItems();
         float h = items.length * MENU_ROW + 12.0F + MENU_HEAD;
@@ -1978,6 +2020,10 @@ public final class MapScreenView {
   }
 
   public void scroll(float mx, float my, float amount) {
+    if (pop == Pop.SHARE && share != null) {
+      share.scroll(amount);
+      return;
+    }
     if (pop != Pop.NONE) {
       return;
     }
@@ -2033,6 +2079,9 @@ public final class MapScreenView {
       return search.key(key, control, shift);
     }
     if (key == KEY_ESCAPE) {
+      if (pop == Pop.SHARE && share != null && share.back()) {
+        return true;
+      }
       if (pop != Pop.NONE) {
         dismiss();
       } else if (selecting || hasSelection || selectArmed) {

@@ -13,6 +13,7 @@ import me.cxiy.cxvisuals.mc.McKeyBinder;
 import me.cxiy.cxvisuals.mc.modules.hud.Hud;
 import me.cxiy.cxvisuals.mc.modules.inventory.Stacks;
 import me.cxiy.cxvisuals.mc.modules.social.FriendsLink;
+import me.cxiy.cxvisuals.mc.modules.social.RoomLink;
 import me.cxiy.cxvisuals.mc.modules.waypoints.Markers;
 import me.cxiy.cxvisuals.modules.map.BlockPalette;
 import me.cxiy.cxvisuals.modules.map.MapAtlas;
@@ -231,6 +232,7 @@ public final class Maps {
         cartographer.reset();
       }
       placed = "";
+      RoomLink.leaveWorld();
       world.tick(System.nanoTime(), Long.MIN_VALUE);
       return;
     }
@@ -255,6 +257,7 @@ public final class Maps {
     world.tick(
         System.nanoTime(),
         Region.key(mc.player.getBlockX() >> Region.SHIFT, mc.player.getBlockZ() >> Region.SHIFT));
+    RoomLink.tick(mc);
   }
 
   public static String notice() {
@@ -326,6 +329,26 @@ public final class Maps {
         who.getY(),
         who.getZ(),
         states);
+  }
+
+  public static void say(String text) {
+    notice = text;
+  }
+
+  public static List<MapShare.Chunk> readChunks(
+      String dimension, int regionX, int regionZ, List<long[]> coords) {
+    return world == null ? List.of() : world.readChunks(dimension, regionX, regionZ, coords);
+  }
+
+  public static List<MapShare.Chunk> readRegion(String dimension, int regionX, int regionZ) {
+    return world == null ? List.of() : world.readRegion(dimension, regionX, regionZ);
+  }
+
+  public static void importRemote(String dimension, List<MapShare.Chunk> chunks) {
+    String scope = Markers.scope(Minecraft.getInstance());
+    if (world != null && !scope.isEmpty()) {
+      world.importChunks(root, scope, dimension, chunks);
+    }
   }
 
   public static BlockPalette palette() {
@@ -409,6 +432,7 @@ public final class Maps {
   }
 
   public static void shutdown() {
+    RoomLink.shutdown();
     if (world != null) {
       world.shutdown();
     }

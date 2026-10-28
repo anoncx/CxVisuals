@@ -210,6 +210,23 @@ public final class FriendsLink {
           }
 
           @Override
+          public void room(String from, Friends.Line line, boolean shareMine) {
+            friends.parcel(line, Friends.Parcel.WORKING);
+            RoomLink.accept(
+                from,
+                line.note(),
+                shareMine,
+                result ->
+                    friends.parcel(
+                        line,
+                        switch (result) {
+                          case WORKING -> Friends.Parcel.WORKING;
+                          case DONE -> Friends.Parcel.KEPT;
+                          case FAILED -> Friends.Parcel.FAILED;
+                        }));
+          }
+
+          @Override
           public int preview(Friends.Line line) {
             return FriendsLink.preview(line);
           }
@@ -342,6 +359,36 @@ public final class FriendsLink {
             address(Minecraft.getInstance()),
             false));
     return true;
+  }
+
+  static String home() {
+    return home;
+  }
+
+  static void notice(String text) {
+    friends.notice(text);
+  }
+
+  static Friends.Friend friend(String uuid) {
+    return friends.friend(uuid);
+  }
+
+  static byte[] sealTo(String uuid, byte[] plain) {
+    Friends.Friend friend = friends.friend(uuid);
+    return friend == null || friend.key.isEmpty() || sealer == null || home.isEmpty()
+        ? null
+        : sealer.seal(friend.key, home, uuid, plain);
+  }
+
+  static byte[] openFrom(String uuid, byte[] sealed) {
+    Friends.Friend friend = friends.friend(uuid);
+    return friend == null || friend.key.isEmpty() || sealer == null || home.isEmpty()
+        ? null
+        : sealer.open(friend.key, home, uuid, uuid, sealed);
+  }
+
+  static List<Friends.Friend> friendList() {
+    return friends.friends();
   }
 
   public static boolean shareMap(String uuid, String name, byte[] blob, int chunks) {
@@ -1095,6 +1142,8 @@ public final class FriendsLink {
                           } else if ("friends".equals(event) || "ready".equals(event)) {
                             circleDue = true;
                             mailDue = true;
+                          } else {
+                            RoomLink.onEvent(event);
                           }
                         });
               } catch (IOException | RuntimeException e) {
@@ -1321,7 +1370,12 @@ public final class FriendsLink {
     long at = SocialProtocol.number(json, "at", 0L);
     Friends.Line line = new Friends.Line(id, mine, note, at);
     boolean fresh = System.currentTimeMillis() - at < FRESH_MILLIS;
-    if (friends.receive(other, line) && announce && fresh) {
+    boolean added = friends.receive(other, line);
+    if (added && !mine && note.kind() == Note.Kind.ROOM_INVITE && RoomLink.rekey(other, note)) {
+      friends.parcel(line, Friends.Parcel.KEPT);
+      return;
+    }
+    if (added && announce && fresh) {
       friends.announce(other, line);
     }
   }
@@ -1377,7 +1431,7 @@ public final class FriendsLink {
         });
   }
 
-  private static void send(String uuid, Note note) {
+  static void send(String uuid, Note note) {
     if (friends.friend(uuid) != null) {
       post(uuid, note, friends.pend(uuid, note));
     }
