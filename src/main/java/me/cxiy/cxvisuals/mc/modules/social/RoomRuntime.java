@@ -20,11 +20,14 @@ import me.cxiy.cxvisuals.modules.map.share.RoomSync;
 import me.cxiy.cxvisuals.modules.map.share.TokenBucket;
 
 final class RoomRuntime {
-  private static final long FLUSH_MILLIS = 2_000L;
-  private static final int BATCH_CHUNKS = 256;
-  private static final long UPLOAD_BYTES_PER_SECOND = 250_000L;
-  private static final long UPLOAD_BURST = 1L << 20;
+  private static final long FLUSH_MILLIS = 300L;
+  private static final int BATCH_CHUNKS = 512;
+  private static final long UPLOAD_BYTES_PER_SECOND = 600_000L;
+  private static final long UPLOAD_BURST = 2L << 20;
+  private static final long BLOCKED_MILLIS = 120L;
   private static final long IDLE_MILLIS = 2_000L;
+  private static final long SAFETY_PULL_MILLIS = 10_000L;
+  private static final long MIN_PAUSE_MILLIS = 25L;
   private static final long BACKFILL_MILLIS = 250L;
   private static final long MIN_BACKOFF_MILLIS = 2_000L;
   private static final long MAX_BACKOFF_MILLIS = 60_000L;
@@ -45,6 +48,8 @@ final class RoomRuntime {
   private volatile boolean stopped;
   private volatile boolean stale;
   private volatile boolean rescan;
+  private volatile boolean pullDue = true;
+  private long pulledAt;
   private volatile int nearX;
   private volatile int nearZ;
   private volatile String dimension = "";
@@ -92,17 +97,26 @@ final class RoomRuntime {
   }
 
   void mark(String chunkDimension, int chunkX, int chunkZ, long stamp) {
+    boolean first = batcher.pending() == 0;
     batcher.mark(chunkDimension, chunkX, chunkZ, stamp);
+    if (first) {
+      wake();
+    }
   }
 
   void wake() {
     wake.release();
   }
 
+  void pullNow() {
+    pullDue = true;
+    wake();
+  }
+
   void fresh() {
     stale = false;
     rescan = true;
-    wake();
+    pullNow();
   }
 
   void start() {
@@ -121,10 +135,15 @@ final class RoomRuntime {
     long backoff = 0L;
     while (!stopped) {
       try {
-        boolean more;
-        do {
-          more = sync.pull();
-        } while (more && !stopped);
+        if (pullDue || System.currentTimeMillis() - pulledAt > SAFETY_PULL_MILLIS) {
+          pullDue = false;
+          pulledAt = System.currentTimeMillis();
+          boolean more;
+          do {
+            more = sync.pull();
+          } while (more && !stopped);
+          pullDue = queue.size() >= RoomSync.PULL_LIMIT;
+        }
         if (!stale) {
           sync.push(nearX, nearZ);
           if (batcher.pending() == 0) {
@@ -135,8 +154,10 @@ final class RoomRuntime {
         backoff = 0L;
       } catch (RoomSync.StaleEpoch e) {
         stale = true;
+        pullDue = true;
         backoff = STALE_BACKOFF_MILLIS;
       } catch (Cloud.Refused e) {
+        pullDue = true;
         if (e.status == 403 || e.status == 404) {
           stopped = true;
           gone.accept(id);
@@ -144,11 +165,20 @@ final class RoomRuntime {
         }
         backoff = next(backoff);
       } catch (IOException | RuntimeException e) {
+        pullDue = true;
         CxVisualsClient.LOG.debug("Shared map sync failed: {}", e.getMessage());
         backoff = next(backoff);
       }
       flush.run();
-      long pause = backoff > 0L ? backoff : todo.isEmpty() ? IDLE_MILLIS : BACKFILL_MILLIS;
+      long dirty = batcher.waitMillis();
+      long pause =
+          pullDue && backoff == 0L
+              ? BLOCKED_MILLIS
+              : backoff > 0L
+                  ? backoff
+                  : dirty >= 0L
+                      ? Math.max(dirty, MIN_PAUSE_MILLIS)
+                      : todo.isEmpty() ? IDLE_MILLIS : BACKFILL_MILLIS;
       try {
         wake.tryAcquire(pause, TimeUnit.MILLISECONDS);
       } catch (InterruptedException e) {

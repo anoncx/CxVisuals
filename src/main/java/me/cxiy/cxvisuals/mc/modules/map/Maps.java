@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 import me.cxiy.cxvisuals.core.i18n.Lang;
 import me.cxiy.cxvisuals.core.module.ClientSettings;
 import me.cxiy.cxvisuals.gui.Themes;
@@ -15,6 +16,7 @@ import me.cxiy.cxvisuals.mc.modules.inventory.Stacks;
 import me.cxiy.cxvisuals.mc.modules.social.FriendsLink;
 import me.cxiy.cxvisuals.mc.modules.social.RoomLink;
 import me.cxiy.cxvisuals.mc.modules.waypoints.Markers;
+import me.cxiy.cxvisuals.modules.map.AreaPreview;
 import me.cxiy.cxvisuals.modules.map.BlockPalette;
 import me.cxiy.cxvisuals.modules.map.MapAtlas;
 import me.cxiy.cxvisuals.modules.map.MapModule;
@@ -331,6 +333,33 @@ public final class Maps {
         states);
   }
 
+  public static final int PUBLISH_RADIUS = 63;
+
+  public static void collectForPublish(
+      boolean whole, int[] selection, Consumer<List<MapShare.Chunk>> done) {
+    Minecraft mc = Minecraft.getInstance();
+    int[] box = whole || selection == null ? null : selection;
+    if (box == null && world != null && mc.player != null) {
+      int[] bounds = world.exploredBounds();
+      int centreX = mc.player.getBlockX() >> 4;
+      int centreZ = mc.player.getBlockZ() >> 4;
+      if (bounds != null) {
+        box =
+            new int[] {
+              Math.max(bounds[0], centreX - PUBLISH_RADIUS),
+              Math.max(bounds[1], centreZ - PUBLISH_RADIUS),
+              Math.min(bounds[2], centreX + PUBLISH_RADIUS),
+              Math.min(bounds[3], centreZ + PUBLISH_RADIUS)
+            };
+      }
+    }
+    if (box == null || world == null) {
+      done.accept(List.of());
+      return;
+    }
+    world.collect(box[0], box[1], box[2], box[3], MapShare.MAX_CHUNKS, done);
+  }
+
   public static void say(String text) {
     notice = text;
   }
@@ -401,10 +430,11 @@ public final class Maps {
                   blob = new byte[0];
                 }
                 byte[] packed = blob;
+                byte[] preview = AreaPreview.render(chunks, world.terrain());
                 world.later(
                     () ->
                         notice =
-                            FriendsLink.shareMap(to.uuid(), name, packed, chunks.size())
+                            FriendsLink.shareMap(to.uuid(), name, packed, chunks.size(), preview)
                                 ? Lang.format("Map sent to {0}", to.name())
                                 : Lang.tr("Couldn't share the map."));
               });

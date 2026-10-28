@@ -2,14 +2,20 @@ package me.cxiy.cxvisuals.mc.modules.social;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
+import me.cxiy.cxvisuals.modules.friends.Friends;
 import me.cxiy.cxvisuals.modules.map.share.RoomBook;
 import me.cxiy.cxvisuals.modules.map.share.SharedRoom;
+import me.cxiy.cxvisuals.modules.map.share.Smoother;
 import me.cxiy.cxvisuals.modules.map.share.SpotCodec;
 import me.cxiy.cxvisuals.modules.map.share.SpotPolicy;
 import net.minecraft.client.Minecraft;
@@ -17,11 +23,22 @@ import net.minecraft.client.Minecraft;
 final class RoomSpots {
   record Seen(String uuid, String name, SpotCodec.Spot spot, long receivedAt) {}
 
-  private static final long FETCH_GAP_NANOS = 200_000_000L;
+  private static final long POLL_MILLIS = 3_000L;
   private static final int CHECK_TICKS = 5;
+  private static final double MAX_STEP_SECONDS = 0.25;
+  private static final ExecutorService IO =
+      Executors.newFixedThreadPool(
+          2,
+          task -> {
+            Thread thread = new Thread(task, "CxVisuals Shared Map IO");
+            thread.setDaemon(true);
+            thread.setPriority(Thread.NORM_PRIORITY - 2);
+            return thread;
+          });
 
   private final SpotPolicy policy = new SpotPolicy();
   private final Map<String, Seen> seen = new ConcurrentHashMap<>();
+  private final Map<String, Smoother> smoothers = new HashMap<>();
   private final AtomicReference<SpotCodec.Spot> outgoing = new AtomicReference<>();
   private final AtomicBoolean sending = new AtomicBoolean();
   private final AtomicBoolean fetching = new AtomicBoolean();
@@ -29,7 +46,8 @@ final class RoomSpots {
   private final String roomId;
   private SpotCodec.Spot last;
   private long sentAt;
-  private long fetchedAt;
+  private long polledAt;
+  private long shownAt;
   private boolean wasSharing;
   private int ticks;
 
@@ -43,13 +61,14 @@ final class RoomSpots {
       return;
     }
     long now = System.currentTimeMillis();
+    poll(now);
     List<String> to = book.locationRecipients(roomId, now);
     to.retainAll(room.members());
     if (to.isEmpty()) {
       if (wasSharing) {
         wasSharing = false;
         last = null;
-        Social.work(this::clear);
+        IO.execute(this::clear);
       }
       return;
     }
@@ -72,32 +91,73 @@ final class RoomSpots {
     sentAt = now;
     outgoing.set(here);
     if (sending.compareAndSet(false, true)) {
-      Social.work(() -> send(List.copyOf(to)));
+      IO.execute(() -> send(List.copyOf(to)));
     }
   }
 
-  void onEvent() {
-    long now = System.nanoTime();
-    if (now - fetchedAt < FETCH_GAP_NANOS || !fetching.compareAndSet(false, true)) {
+  void receive(String payload) {
+    int split = payload.indexOf(' ');
+    if (split <= 0) {
       return;
     }
-    fetchedAt = now;
-    Social.work(this::fetch);
+    try {
+      accept(
+          payload.substring(0, split).toLowerCase(),
+          Base64.getDecoder().decode(payload.substring(split + 1)));
+    } catch (IllegalArgumentException e) {
+      CxVisualsClient.LOG.debug("Ignored a malformed location: {}", e.getMessage());
+    }
   }
 
   List<Seen> visible(String dimension, long nowMillis) {
-    List<Seen> out = new ArrayList<>();
+    double seconds =
+        shownAt == 0L ? 0.0 : Math.min(MAX_STEP_SECONDS, (nowMillis - shownAt) / 1000.0);
+    shownAt = nowMillis;
     seen.values().removeIf(row -> SpotPolicy.visibility(row.receivedAt(), nowMillis) <= 0.0F);
+    smoothers.keySet().retainAll(seen.keySet());
+    List<Seen> out = new ArrayList<>();
     for (Seen row : seen.values()) {
-      if (row.spot().dimension().equals(dimension)) {
-        out.add(row);
+      SpotCodec.Spot spot = row.spot();
+      if (!spot.dimension().equals(dimension)) {
+        smoothers.remove(row.uuid());
+        continue;
       }
+      double[] at =
+          smoothers
+              .computeIfAbsent(row.uuid(), id -> new Smoother())
+              .step(new double[] {spot.x(), spot.y(), spot.z()}, seconds);
+      SpotCodec.Spot shown =
+          new SpotCodec.Spot(spot.dimension(), at[0], at[1], at[2], spot.yaw(), spot.at());
+      out.add(new Seen(row.uuid(), row.name(), shown, row.receivedAt()));
     }
     return out;
   }
 
   void forget() {
     seen.clear();
+    smoothers.clear();
+  }
+
+  private void poll(long now) {
+    if (now - polledAt < POLL_MILLIS || !fetching.compareAndSet(false, true)) {
+      return;
+    }
+    polledAt = now;
+    IO.execute(this::fetch);
+  }
+
+  private void accept(String from, byte[] sealed) {
+    SharedRoom room = RoomLink.roomById(roomId);
+    if (room == null || !room.members().contains(from)) {
+      return;
+    }
+    SpotCodec.Spot spot = SpotCodec.decode(FriendsLink.openFrom(from, sealed));
+    if (spot == null) {
+      return;
+    }
+    Friends.Friend friend = FriendsLink.friend(from);
+    seen.put(
+        from, new Seen(from, friend == null ? "" : friend.name, spot, System.currentTimeMillis()));
   }
 
   private void send(List<String> to) {
@@ -105,11 +165,15 @@ final class RoomSpots {
       SpotCodec.Spot spot;
       while ((spot = outgoing.getAndSet(null)) != null) {
         byte[] plain = SpotCodec.encode(spot);
+        Map<String, byte[]> sealed = new HashMap<>();
         for (String uuid : to) {
-          byte[] sealed = FriendsLink.sealTo(uuid, plain);
-          if (sealed != null) {
-            api.sendSpot(uuid, sealed);
+          byte[] blob = FriendsLink.sealTo(uuid, plain);
+          if (blob != null) {
+            sealed.put(uuid, blob);
           }
+        }
+        if (!sealed.isEmpty()) {
+          api.sendSpots(sealed);
         }
       }
     } catch (IOException | RuntimeException e) {
@@ -121,20 +185,8 @@ final class RoomSpots {
 
   private void fetch() {
     try {
-      SharedRoom room = RoomLink.roomById(roomId);
       for (RoomApi.Spot row : api.spots()) {
-        byte[] plain =
-            room != null && room.members().contains(row.from())
-                ? FriendsLink.openFrom(row.from(), row.body())
-                : null;
-        SpotCodec.Spot spot = SpotCodec.decode(plain);
-        if (spot != null) {
-          var friend = FriendsLink.friend(row.from());
-          seen.put(
-              row.from(),
-              new Seen(
-                  row.from(), friend == null ? "" : friend.name, spot, System.currentTimeMillis()));
-        }
+        accept(row.from(), row.body());
       }
     } catch (IOException | RuntimeException e) {
       CxVisualsClient.LOG.debug("Location fetch failed: {}", e.getMessage());

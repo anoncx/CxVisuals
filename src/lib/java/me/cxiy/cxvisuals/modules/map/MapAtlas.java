@@ -24,7 +24,7 @@ public final class MapAtlas {
   public static final int SIDES = SLOTS - 2;
   public static final int OVERLAYS = SLOTS - 6;
 
-  private static final int IN_FLIGHT = 16;
+  private static final int IN_FLIGHT = 48;
   private static final long REBAKE_NANOS = 180_000_000L;
   private static final long SLOW_FACTOR = 6L;
   private static final int POOL = 36;

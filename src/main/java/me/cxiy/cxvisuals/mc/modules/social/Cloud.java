@@ -11,6 +11,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Iterator;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 import me.cxiy.cxvisuals.modules.social.SocialProtocol;
@@ -60,7 +61,8 @@ final class Cloud {
                 .build()));
   }
 
-  void listen(String url, String token, Consumer<String> events) throws IOException {
+  void listen(String url, String token, Consumer<String> events, BiConsumer<String, String> data)
+      throws IOException {
     HttpRequest request =
         HttpRequest.newBuilder(URI.create(url))
             .header("User-Agent", AGENT)
@@ -76,10 +78,14 @@ final class Cloud {
           throw new Refused(response.statusCode(), "");
         }
         Iterator<String> each = lines.iterator();
+        String event = "";
         while (each.hasNext()) {
           String line = each.next();
           if (line.startsWith("event: ")) {
-            events.accept(line.substring(7).strip());
+            event = line.substring(7).strip();
+            events.accept(event);
+          } else if (line.startsWith("data: ") && !event.isEmpty()) {
+            data.accept(event, line.substring(6));
           }
         }
       }

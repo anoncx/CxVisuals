@@ -132,6 +132,35 @@ public record Note(
         Kind.MAP, clean(name, NAME_LIMIT), parcel, key, hash, Math.max(0, chunks), 0, 0, "");
   }
 
+  public static Note map(
+      String name,
+      String parcel,
+      String key,
+      String hash,
+      int chunks,
+      String preview,
+      String previewHash) {
+    boolean previewed = preview.matches("[0-9a-f]{32}") && previewHash.matches("[0-9a-f]{64}");
+    return new Note(
+        Kind.MAP,
+        clean(name, NAME_LIMIT),
+        parcel,
+        key,
+        hash,
+        Math.max(0, chunks),
+        0,
+        0,
+        previewed ? preview + ":" + previewHash : "");
+  }
+
+  public String mapPreview() {
+    return kind == Kind.MAP && place.length() == 97 ? place.substring(0, 32) : "";
+  }
+
+  public String mapPreviewHash() {
+    return kind == Kind.MAP && place.length() == 97 ? place.substring(33) : "";
+  }
+
   public static Note room(
       String name,
       String roomId,
@@ -271,6 +300,10 @@ public record Note(
     }
     if (kind == Kind.MAP) {
       json.addProperty("ch", x);
+      if (!place.isEmpty()) {
+        json.addProperty("mp", mapPreview());
+        json.addProperty("mh", mapPreviewHash());
+      }
     }
     if (kind == Kind.ROOM_INVITE) {
       json.addProperty("rm", parcel);
@@ -333,7 +366,9 @@ public record Note(
                           parcel,
                           key,
                           hash,
-                          (int) Math.min(1L << 20, SocialProtocol.number(json, "ch", 0L)))
+                          (int) Math.min(1L << 20, SocialProtocol.number(json, "ch", 0L)),
+                          SocialProtocol.text(json, "mp", ""),
+                          SocialProtocol.lower(SocialProtocol.text(json, "mh", "")))
                       : model(
                           text,
                           parcel,

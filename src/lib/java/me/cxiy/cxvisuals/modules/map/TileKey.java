@@ -3,7 +3,7 @@ package me.cxiy.cxvisuals.modules.map;
 public final class TileKey {
   public static final int EDGE = 128;
   public static final int EDGE_SHIFT = 7;
-  public static final int MAX_LEVEL = 6;
+  public static final int MAX_LEVEL = 9;
   public static final int REGION_LEVEL = Region.SHIFT - EDGE_SHIFT;
   public static final int SURFACE = 0;
   public static final int CAVE = 1;

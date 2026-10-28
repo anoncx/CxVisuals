@@ -6,6 +6,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import me.cxiy.cxvisuals.core.i18n.Lang;
 import me.cxiy.cxvisuals.gui.Theme;
+import me.cxiy.cxvisuals.gui.map.ExploreHost;
 import me.cxiy.cxvisuals.gui.map.MapHost;
 import me.cxiy.cxvisuals.gui.map.MapPlayer;
 import me.cxiy.cxvisuals.gui.map.MapScreenView;
@@ -15,12 +16,14 @@ import me.cxiy.cxvisuals.mc.gui.McCanvas;
 import me.cxiy.cxvisuals.mc.gui.ShapePipeline;
 import me.cxiy.cxvisuals.mc.modules.download.Downloads;
 import me.cxiy.cxvisuals.mc.modules.hud.Hud;
+import me.cxiy.cxvisuals.mc.modules.social.ExploreLink;
 import me.cxiy.cxvisuals.mc.modules.social.FriendsLink;
 import me.cxiy.cxvisuals.mc.modules.social.RoomShare;
 import me.cxiy.cxvisuals.mc.modules.waypoints.Markers;
 import me.cxiy.cxvisuals.modules.hud.HudData;
 import me.cxiy.cxvisuals.modules.map.BlockSearch;
 import me.cxiy.cxvisuals.modules.map.MapSource;
+import me.cxiy.cxvisuals.modules.map.regions.DonutRegions;
 import me.cxiy.cxvisuals.modules.waypoints.Waypoints;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -106,10 +109,38 @@ public final class MapScreen extends Screen {
         }
 
         @Override
+        public boolean regionsAvailable() {
+          Minecraft mc = Minecraft.getInstance();
+          return (FORCE_REGIONS || DonutRegions.matches(Markers.scope(mc)))
+              && "minecraft:overworld".equals(Markers.dimension(mc));
+        }
+
+        @Override
+        public boolean regionsOn() {
+          return Maps.module().regions.get();
+        }
+
+        @Override
+        public void regionsOn(boolean on) {
+          Maps.module().regions.set(on);
+        }
+
+        @Override
+        public int regionAt(double x, double z) {
+          return DonutRegions.cellAt(x, z);
+        }
+
+        @Override
         public ShareHost share() {
           return RoomShare.INSTANCE;
         }
+
+        @Override
+        public ExploreHost explore(Supplier<int[]> selection) {
+          return new ExploreLink(selection);
+        }
       };
+  private static final boolean FORCE_REGIONS = Boolean.getBoolean("cxvisuals.regions");
   private static MapScreenView view;
 
   private final Screen parent;

@@ -7,7 +7,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -53,15 +52,7 @@ public final class MapWorld implements TileBaker.Source {
   private final Set<Long> known = ConcurrentHashMap.newKeySet();
   private final Set<Long> loading = new HashSet<>();
   private final Map<Long, Long> touched = new LinkedHashMap<>(64, 0.75F, true);
-  private final Map<Long, int[]> thumbs =
-      Collections.synchronizedMap(
-          new LinkedHashMap<>(256, 0.75F, true) {
-            @Override
-            protected boolean removeEldestEntry(Map.Entry<Long, int[]> eldest) {
-              return size() > KEEP_THUMBS;
-            }
-          });
-  private final Map<Long, Integer> thumbRevisions = new ConcurrentHashMap<>();
+  private final ThumbCache thumbs = new ThumbCache(KEEP_THUMBS);
   private final ConcurrentLinkedQueue<Runnable> later = new ConcurrentLinkedQueue<>();
   private final MergeBuffer merges = new MergeBuffer();
   private final ArrayDeque<Region> saving = new ArrayDeque<>();
@@ -141,7 +132,6 @@ public final class MapWorld implements TileBaker.Source {
     if (next != terrain) {
       terrain = next;
       thumbs.clear();
-      thumbRevisions.clear();
       atlas.clear();
     }
   }
@@ -176,7 +166,6 @@ public final class MapWorld implements TileBaker.Source {
     loading.clear();
     touched.clear();
     thumbs.clear();
-    thumbRevisions.clear();
     bytes = 0L;
     scope = "";
     dimension = "";
@@ -321,21 +310,28 @@ public final class MapWorld implements TileBaker.Source {
 
   private void flushMerges() {
     Map<Path, List<MapShare.Chunk>> batch = merges.take();
+    Map<Path, Map<Long, int[]>> made = new HashMap<>();
     for (Map.Entry<Path, List<MapShare.Chunk>> entry : batch.entrySet()) {
-      mergeInto(entry.getKey(), entry.getValue(), palette, warn);
+      made.put(entry.getKey(), mergeInto(entry.getKey(), entry.getValue(), palette, warn));
     }
-    later.add(() -> applyMerged(batch));
+    later.add(() -> applyMerged(batch, made));
   }
 
-  private void applyMerged(Map<Path, List<MapShare.Chunk>> batch) {
+  private void applyMerged(
+      Map<Path, List<MapShare.Chunk>> batch, Map<Path, Map<Long, int[]>> made) {
     List<MapShare.Chunk> mine = batch.get(folder);
     if (mine == null) {
       return;
     }
+    Map<Long, int[]> fresh = made.getOrDefault(folder, Map.of());
     for (MapShare.Chunk chunk : mine) {
       long key = Region.key(chunk.x() >> 5, chunk.z() >> 5);
       known.add(key);
       thumbs.remove(key);
+      int[] thumb = fresh.get(key);
+      if (thumb != null) {
+        thumbs.put(key, ThumbCache.DISK, thumb);
+      }
       written(TileKey.SURFACE, chunk.x(), chunk.z());
     }
   }
@@ -394,6 +390,22 @@ public final class MapWorld implements TileBaker.Source {
         });
   }
 
+  public int[] exploredBounds() {
+    int minX = Integer.MAX_VALUE;
+    int minZ = Integer.MAX_VALUE;
+    int maxX = Integer.MIN_VALUE;
+    int maxZ = Integer.MIN_VALUE;
+    for (long key : known) {
+      minX = Math.min(minX, Region.keyX(key));
+      minZ = Math.min(minZ, Region.keyZ(key));
+      maxX = Math.max(maxX, Region.keyX(key));
+      maxZ = Math.max(maxZ, Region.keyZ(key));
+    }
+    return minX == Integer.MAX_VALUE
+        ? null
+        : new int[] {minX << 5, minZ << 5, (maxX << 5) + 31, (maxZ << 5) + 31};
+  }
+
   public Set<Long> knownRegions() {
     return Set.copyOf(known);
   }
@@ -450,7 +462,7 @@ public final class MapWorld implements TileBaker.Source {
     return new MapShare.Chunk(chunkX, chunkZ, stamp, column);
   }
 
-  public static void mergeInto(
+  public static Map<Long, int[]> mergeInto(
       Path dir, List<MapShare.Chunk> chunks, BlockPalette palette, Consumer<String> warn) {
     Map<Long, Region> touched = new LinkedHashMap<>();
     for (MapShare.Chunk chunk : chunks) {
@@ -469,9 +481,14 @@ public final class MapWorld implements TileBaker.Source {
       }
     }
     TileBaker baker = new TileBaker(new Isolated(touched));
+    Map<Long, int[]> made = new HashMap<>();
     for (Region region : touched.values()) {
-      write(dir, region, baker, Terrain.RELIEF, palette, warn);
+      int[] thumb = write(dir, region, baker, Terrain.RELIEF, palette, warn);
+      if (thumb != null) {
+        made.put(region.key(), thumb);
+      }
     }
+    return made;
   }
 
   private record Index(long size, long stamp, List<String> keys) {}
@@ -620,7 +637,7 @@ public final class MapWorld implements TileBaker.Source {
           if (thumb != null) {
             region.flushed(revision);
             if (to.equals(folder)) {
-              thumbs.put(copy.key(), thumb);
+              thumbs.put(copy.key(), revision, thumb);
             }
           }
         });
@@ -654,17 +671,16 @@ public final class MapWorld implements TileBaker.Source {
     }
     Region region = surface.get(key);
     if (region != null && !region.empty()) {
-      Integer at = thumbRevisions.get(key);
+      int revision = region.revision();
       int[] cached = thumbs.get(key);
-      if (cached != null && at != null && at == region.revision()) {
+      if (cached != null && thumbs.revision(key) == revision) {
         return cached;
       }
       int[] made = new int[TileBaker.PIXELS];
       if (thumbnails.thumbnail(region, terrain, made)) {
         TileBaker.bleed(made);
       }
-      thumbs.put(key, made);
-      thumbRevisions.put(key, region.revision());
+      thumbs.put(key, revision, made);
       return made;
     }
     int[] cached = thumbs.get(key);
@@ -676,8 +692,8 @@ public final class MapWorld implements TileBaker.Source {
       return null;
     }
     try {
-      int[] read = RegionCodec.thumbnail(Files.readAllBytes(file(from, regionX, regionZ)));
-      thumbs.put(key, read);
+      int[] read = RegionCodec.thumbnail(file(from, regionX, regionZ));
+      thumbs.put(key, ThumbCache.DISK, read);
       return read;
     } catch (IOException | RuntimeException e) {
       return null;

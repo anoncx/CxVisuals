@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import me.cxiy.cxvisuals.modules.map.share.RoomFrames;
 import me.cxiy.cxvisuals.modules.map.share.RoomSync;
 import me.cxiy.cxvisuals.modules.social.SocialProtocol;
@@ -119,10 +120,16 @@ final class RoomApi implements RoomSync.Wire {
     return new RoomSync.Page(frames, reply.more());
   }
 
-  void sendSpot(String to, byte[] sealed) throws IOException {
+  void sendSpots(Map<String, byte[]> sealed) throws IOException {
+    JsonArray list = new JsonArray();
+    for (Map.Entry<String, byte[]> entry : sealed.entrySet()) {
+      JsonObject spot = new JsonObject();
+      spot.addProperty("to", entry.getKey());
+      spot.addProperty("body", Base64.getEncoder().encodeToString(entry.getValue()));
+      list.add(spot);
+    }
     JsonObject body = new JsonObject();
-    body.addProperty("to", to);
-    body.addProperty("body", Base64.getEncoder().encodeToString(sealed));
+    body.add("spots", list);
     Social.cloud().post(url("/" + room + "/spots"), Social.token(), body.toString());
   }
 

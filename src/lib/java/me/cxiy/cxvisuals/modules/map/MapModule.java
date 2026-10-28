@@ -33,6 +33,7 @@ public final class MapModule extends Module {
   public final BoolSetting solid;
   public final EnumSetting<Caves> caves;
   public final BoolSetting waypoints;
+  public final BoolSetting regions;
   public final BoolSetting friends;
   public final BoolSetting players;
   public final BoolSetting mobs;
@@ -60,6 +61,10 @@ public final class MapModule extends Module {
             .describe("Underground, the minimap shows the cave around you instead of the surface.");
     Group marks = page.group("On the map");
     waypoints = marks.bool("waypoints", "Waypoints", true);
+    regions =
+        marks
+            .bool("regions", "Region overlay", false)
+            .describe("DonutSMP only. Shows the six regions and their numbered cells on the map.");
     friends =
         marks
             .bool("friends", "Friends", true)

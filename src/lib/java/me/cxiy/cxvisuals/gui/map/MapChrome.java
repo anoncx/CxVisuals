@@ -18,7 +18,9 @@ public final class MapChrome {
     DOWNLOAD,
     CUBE,
     FIND,
-    GROUP
+    GROUP,
+    EXPLORE,
+    REGIONS
   }
 
   public static final float BUTTON = 34.0F;
@@ -198,6 +200,29 @@ public final class MapChrome {
         c.roundRectBorder(cx + r * 0.05F, cy - r * 0.85F, r * 0.9F, r * 0.9F, r * 0.45F, s, ink);
         line(c, ink, cx - r, cy + r, cx - r * 0.85F, cy + r * 0.25F, cx - r * 0.1F, cy + r * 0.25F);
         line(c, ink, cx + r, cy + r, cx + r * 0.85F, cy + r * 0.25F, cx + r * 0.1F, cy + r * 0.25F);
+      }
+      case EXPLORE -> {
+        c.roundRectBorder(cx - r, cy - r, r * 2.0F, r * 2.0F, r, s, ink);
+        line(
+            c,
+            ink,
+            cx - r * 0.35F,
+            cy + r * 0.35F,
+            cx + r * 0.55F,
+            cy - r * 0.55F,
+            cx + r * 0.1F,
+            cy + r * 0.1F,
+            cx - r * 0.35F,
+            cy + r * 0.35F);
+        c.roundRect(cx - r * 0.12F, cy - r * 0.12F, r * 0.24F, r * 0.24F, r * 0.12F, ink);
+      }
+      case REGIONS -> {
+        float q = r * 0.34F;
+        c.roundRectBorder(cx - r, cy - r, r * 2.0F, r * 2.0F, r * 0.28F, s, ink);
+        c.roundRect(cx - r * 0.12F, cy - r, r * 0.24F, r * 2.0F, 0.0F, ink);
+        c.roundRect(cx - r, cy - r * 0.12F, r * 2.0F, r * 0.24F, 0.0F, ink);
+        c.roundRect(cx - r * 0.78F, cy - r * 0.78F, q, q, q * 0.3F, ink);
+        c.roundRect(cx + r * 0.44F, cy + r * 0.44F, q, q, q * 0.3F, ink);
       }
       case PIN -> {
         c.roundRectBorder(cx - r * 0.6F, cy - r, r * 1.2F, r * 1.2F, r * 0.6F, s, ink);

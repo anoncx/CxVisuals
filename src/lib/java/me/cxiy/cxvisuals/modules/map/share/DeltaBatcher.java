@@ -39,6 +39,13 @@ public final class DeltaBatcher {
     }
   }
 
+  public synchronized long waitMillis() {
+    if (pending == 0) {
+      return -1L;
+    }
+    return Math.max(0L, minGapMillis - (clock.getAsLong() - lastTake));
+  }
+
   public synchronized int pending() {
     return pending;
   }

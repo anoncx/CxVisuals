@@ -126,6 +126,10 @@ public final class Friends {
 
     default void room(String from, Line line, boolean shareMine) {}
 
+    default byte[] mapPreview(Line line) {
+      return NO_IMAGE;
+    }
+
     int preview(Line line);
 
     void tryOn(Line line);
@@ -136,6 +140,7 @@ public final class Friends {
   }
 
   public static final int NO_ENTITY = -1;
+  public static final byte[] NO_IMAGE = new byte[0];
   public static final int PREVIEW_NONE = -1;
   public static final int PREVIEW_LOADING = -2;
   public static final int MAX_LINES = 300;

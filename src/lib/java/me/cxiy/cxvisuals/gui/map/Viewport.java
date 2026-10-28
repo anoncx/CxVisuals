@@ -3,7 +3,7 @@ package me.cxiy.cxvisuals.gui.map;
 import me.cxiy.cxvisuals.modules.map.TileKey;
 
 public final class Viewport {
-  public static final float MIN_SCALE = 1.0F / 48.0F;
+  public static final float MIN_SCALE = 1.0F / 4096.0F;
   public static final float MAX_SCALE = 40.0F;
   private static final float LEVEL_BIAS = 0.3F;
 

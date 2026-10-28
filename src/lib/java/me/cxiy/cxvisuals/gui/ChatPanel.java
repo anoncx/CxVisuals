@@ -73,6 +73,7 @@ public final class ChatPanel extends Widget {
   private static final float CARD = 46.0F;
   private static final float CARD_ACTIONS = 78.0F;
   private static final float CARD_WIDTH = 200.0F;
+  private static final float MAP_PREVIEW = 112.0F;
   private static final float ROOM_HEAD = 44.0F;
   private static final float ROOM_FOOT = 30.0F;
   private static final float ROOM_ACTION = 50.0F;
@@ -539,7 +540,9 @@ public final class ChatPanel extends Widget {
       case WAVE -> NOTE;
       case WAYPOINT -> mine ? PLACE_MINE : PLACE_THEIRS;
       case MODEL -> MODEL_HEIGHT;
-      case INVITE, CONFIG, MAP -> mine ? CARD : CARD_ACTIONS;
+      case INVITE, CONFIG -> mine ? CARD : CARD_ACTIONS;
+      case MAP ->
+          note.mapPreviewHash().isEmpty() ? (mine ? CARD : CARD_ACTIONS) : mapHeight(c, mine);
       case ROOM_INVITE -> mine ? CARD : roomHeight(c, key, note);
     };
   }
@@ -794,6 +797,11 @@ public final class ChatPanel extends Widget {
         captionTop + c.lineHeight(FontStyle.MONO) + 2.0F,
         t.ink());
     c.popClip();
+    if (note.kind() == Note.Kind.MAP && !note.mapPreviewHash().isEmpty()) {
+      float previewTop =
+          captionTop + c.lineHeight(FontStyle.MONO) + c.lineHeight(FontStyle.ROW) + 8.0F;
+      mapPreview(c, t, line, cardX, previewTop);
+    }
     if (mine || line == null) {
       return cardX;
     }
@@ -877,6 +885,44 @@ public final class ChatPanel extends Widget {
         t.ink(),
         false);
     return cardX;
+  }
+
+  private float mapHeight(Canvas c, boolean mine) {
+    return 8.0F
+        + c.lineHeight(FontStyle.MONO)
+        + c.lineHeight(FontStyle.ROW)
+        + 8.0F
+        + MAP_PREVIEW
+        + (mine ? 12.0F : Hits.PILL + 18.0F);
+  }
+
+  private void mapPreview(Canvas c, Theme t, Friends.Line line, float cardX, float top) {
+    float x = cardX + (CARD_WIDTH - MAP_PREVIEW) * 0.5F;
+    Depth.inset(c, t, x, top, MAP_PREVIEW, MAP_PREVIEW, 10.0F, t.well());
+    byte[] png = line == null ? null : friends.actions().mapPreview(line);
+    if (png != null && png.length > 0 && c.icon(png, x, top, MAP_PREVIEW, 10.0F)) {
+      return;
+    }
+    if (png == null) {
+      for (int bead = 0; bead < 3; bead++) {
+        float glow = pulse((phase - bead / 4.0F + 1.0F) % 1.0F);
+        c.roundRect(
+            x + MAP_PREVIEW * 0.5F - 10.0F + bead * (BEAD + 4.0F),
+            top + (MAP_PREVIEW - BEAD) * 0.5F,
+            BEAD,
+            BEAD,
+            BEAD * 0.5F,
+            Theme.withAlpha(t.ink(), 0.15F + 0.35F * glow));
+      }
+      return;
+    }
+    String none = Lang.tr("No preview");
+    c.text(
+        FontStyle.CAPTION,
+        none,
+        x + (MAP_PREVIEW - c.textWidth(FontStyle.CAPTION, none)) * 0.5F,
+        top + (MAP_PREVIEW - c.lineHeight(FontStyle.CAPTION)) * 0.5F,
+        t.grey());
   }
 
   private List<String> roomLines(Canvas c, long key, Note note) {

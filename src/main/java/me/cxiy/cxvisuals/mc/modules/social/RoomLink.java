@@ -15,6 +15,7 @@ import me.cxiy.cxvisuals.mc.modules.waypoints.Markers;
 import me.cxiy.cxvisuals.modules.friends.Note;
 import me.cxiy.cxvisuals.modules.friends.Sealer;
 import me.cxiy.cxvisuals.modules.map.share.LocationMode;
+import me.cxiy.cxvisuals.modules.map.share.RemoteQueue;
 import me.cxiy.cxvisuals.modules.map.share.RoomBook;
 import me.cxiy.cxvisuals.modules.map.share.SharedRoom;
 import me.cxiy.cxvisuals.modules.map.share.SpotPolicy;
@@ -28,6 +29,8 @@ public final class RoomLink {
   }
 
   private static final long APPLY_BUDGET_NANOS = 400_000L;
+  private static final long CATCH_UP_BUDGET_NANOS = 1_200_000L;
+  private static final int BACKLOG = 512;
   private static final long SAVE_NANOS = 10_000_000_000L;
   private static final String SERVER_SCOPE = "server:";
   private static final SecureRandom RANDOM = new SecureRandom();
@@ -80,7 +83,11 @@ public final class RoomLink {
     if (mc.player != null) {
       active.near(Markers.dimension(mc), mc.player.getBlockX() >> 4, mc.player.getBlockZ() >> 4);
     }
-    active.queue().drain(APPLY_BUDGET_NANOS, System::nanoTime, Maps::importRemote);
+    RemoteQueue queue = active.queue();
+    queue.drain(
+        queue.size() > BACKLOG ? CATCH_UP_BUDGET_NANOS : APPLY_BUDGET_NANOS,
+        System::nanoTime,
+        Maps::importRemote);
     spots.tick(mc, book(), room);
     long now = System.nanoTime();
     if (dirty && now - savedAt > SAVE_NANOS) {
@@ -91,11 +98,16 @@ public final class RoomLink {
   static void onEvent(String event) {
     RoomRuntime now = active;
     if ("map".equals(event) && now != null) {
-      now.wake();
-    } else if ("spot".equals(event) && spots != null) {
-      spots.onEvent();
+      now.pullNow();
     } else if ("rooms".equals(event)) {
       Social.work(RoomLink::refresh);
+    }
+  }
+
+  static void onPayload(String event, String data) {
+    RoomSpots now = spots;
+    if ("spot".equals(event) && now != null) {
+      now.receive(data);
     }
   }
 

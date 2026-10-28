@@ -2,6 +2,7 @@ package me.cxiy.cxvisuals.gui.map;
 
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import me.cxiy.cxvisuals.modules.hud.HudData;
 import me.cxiy.cxvisuals.modules.map.BlockSearch;
 import me.cxiy.cxvisuals.modules.map.MapSource;
@@ -32,7 +33,25 @@ public interface MapHost {
 
   String notice();
 
+  default boolean regionsAvailable() {
+    return false;
+  }
+
+  default boolean regionsOn() {
+    return false;
+  }
+
+  default void regionsOn(boolean on) {}
+
+  default int regionAt(double x, double z) {
+    return 0;
+  }
+
   default ShareHost share() {
     return ShareHost.NONE;
+  }
+
+  default ExploreHost explore(Supplier<int[]> selection) {
+    return ExploreHost.NONE;
   }
 }

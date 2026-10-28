@@ -8,7 +8,8 @@ public final class ChartBatch {
   public static final float CLOUD_CELLS = 2.0F;
   public static final int CLOUD_PERIOD = 256;
 
-  private static final int PARENTS = 3;
+  private static final int ORDER_BITS = 20;
+  private static final long ORDER_MASK = (1L << ORDER_BITS) - 1L;
   private static final float CLIP_PAD = 2.0F;
 
   public final float[] px = new float[MAX_QUADS * 4];
@@ -21,6 +22,10 @@ public final class ChartBatch {
   public final float[] v0 = new float[MAX_QUADS];
   public final float[] u1 = new float[MAX_QUADS];
   public final float[] v1 = new float[MAX_QUADS];
+
+  private final int[] gatherX = new int[MAX_QUADS];
+  private final int[] gatherZ = new int[MAX_QUADS];
+  private final long[] order = new long[MAX_QUADS];
 
   public MapAtlas atlas;
   public int count;
@@ -75,73 +80,101 @@ public final class ChartBatch {
     int toX = (int) Math.floor(maxX / span);
     int fromZ = (int) Math.floor(minZ / span);
     int toZ = (int) Math.floor(maxZ / span);
-    for (int tz = fromZ; tz <= toZ; tz++) {
-      for (int tx = fromX; tx <= toX && count < MAX_QUADS; tx++) {
-        long key = TileKey.of(layer, level, tx, tz);
-        int slot = source.slot(key);
-        float cloudX = Math.floorMod(tx * (int) CLOUD_CELLS, CLOUD_PERIOD);
-        float cloudY = Math.floorMod(tz * (int) CLOUD_CELLS, CLOUD_PERIOD);
-        double wx0 = (double) tx * span;
-        double wz0 = (double) tz * span;
-        if (slot == MapAtlas.MISSING && level > 0 && children(source, layer, level, tx, tz)) {
-          double half = span * 0.5;
-          for (int c = 0; c < 4 && count < MAX_QUADS; c++) {
-            int ox = c & 1;
-            int oz = c >> 1;
-            int child = source.slot(TileKey.of(layer, level - 1, tx * 2 + ox, tz * 2 + oz));
-            quad(
-                view,
-                wx0 + ox * half,
-                wz0 + oz * half,
-                half,
-                child,
-                0.0F,
-                0.0F,
-                1.0F,
-                cloudX + ox * CLOUD_CELLS * 0.5F,
-                cloudY + oz * CLOUD_CELLS * 0.5F,
-                CLOUD_CELLS * 0.5F);
+    int tiles = gather(view, level, span, x + w * 0.5F, y + h * 0.5F, fromX, toX, fromZ, toZ);
+    for (int n = 0; n < tiles && count < MAX_QUADS; n++) {
+      int tx = gatherX[(int) (order[n] & ORDER_MASK)];
+      int tz = gatherZ[(int) (order[n] & ORDER_MASK)];
+      long key = TileKey.of(layer, level, tx, tz);
+      int slot = source.slot(key);
+      float cloudX = Math.floorMod(tx * (int) CLOUD_CELLS, CLOUD_PERIOD);
+      float cloudY = Math.floorMod(tz * (int) CLOUD_CELLS, CLOUD_PERIOD);
+      double wx0 = (double) tx * span;
+      double wz0 = (double) tz * span;
+      if (slot == MapAtlas.MISSING && level > 0 && anyChild(source, layer, level, tx, tz)) {
+        double half = span * 0.5;
+        for (int c = 0; c < 4 && count < MAX_QUADS; c++) {
+          int ox = c & 1;
+          int oz = c >> 1;
+          int child = source.peek(TileKey.of(layer, level - 1, tx * 2 + ox, tz * 2 + oz));
+          if (child == MapAtlas.MISSING) {
+            child = MapAtlas.EMPTY;
           }
-          continue;
+          quad(
+              view,
+              wx0 + ox * half,
+              wz0 + oz * half,
+              half,
+              child,
+              0.0F,
+              0.0F,
+              1.0F,
+              cloudX + ox * CLOUD_CELLS * 0.5F,
+              cloudY + oz * CLOUD_CELLS * 0.5F,
+              CLOUD_CELLS * 0.5F);
         }
-        float su = 0.0F;
-        float sv = 0.0F;
-        float size = 1.0F;
-        if (slot == MapAtlas.MISSING) {
-          long parent = key;
-          for (int up = 1; up <= PARENTS && level + up <= TileKey.MAX_LEVEL; up++) {
-            parent = TileKey.parent(parent);
-            int found = source.slot(parent);
-            if (found > MapAtlas.EMPTY) {
-              int mask = (1 << up) - 1;
-              size = 1.0F / (1 << up);
-              su = (tx & mask) * size;
-              sv = (tz & mask) * size;
-              slot = found;
-              break;
-            }
-            if (found == MapAtlas.EMPTY) {
-              slot = MapAtlas.EMPTY;
-              break;
-            }
-          }
-          if (slot == MapAtlas.MISSING) {
-            slot = MapAtlas.EMPTY;
-          }
-        }
-        quad(view, wx0, wz0, span, slot, su, sv, size, cloudX, cloudY, CLOUD_CELLS);
+        continue;
       }
+      float su = 0.0F;
+      float sv = 0.0F;
+      float size = 1.0F;
+      if (slot == MapAtlas.MISSING) {
+        long parent = key;
+        for (int up = 1; level + up <= TileKey.MAX_LEVEL; up++) {
+          parent = TileKey.parent(parent);
+          int found = up == 1 ? source.slot(parent) : source.peek(parent);
+          if (found > MapAtlas.EMPTY) {
+            int mask = (1 << up) - 1;
+            size = 1.0F / (1 << up);
+            su = (tx & mask) * size;
+            sv = (tz & mask) * size;
+            slot = found;
+            break;
+          }
+        }
+        if (slot == MapAtlas.MISSING) {
+          slot = MapAtlas.EMPTY;
+        }
+      }
+      quad(view, wx0, wz0, span, slot, su, sv, size, cloudX, cloudY, CLOUD_CELLS);
     }
   }
 
-  private static boolean children(MapAtlas source, int layer, int level, int tx, int tz) {
-    for (int c = 0; c < 4; c++) {
-      long key = TileKey.of(layer, level - 1, tx * 2 + (c & 1), tz * 2 + (c >> 1));
-      if (source.peek(key) == MapAtlas.MISSING) {
-        return false;
+  private int gather(
+      Viewport view,
+      int level,
+      int span,
+      float centreX,
+      float centreY,
+      int fromX,
+      int toX,
+      int fromZ,
+      int toZ) {
+    double mx = view.worldX(centreX, centreY) / span - 0.5;
+    double mz = view.worldZ(centreX, centreY) / span - 0.5;
+    int tiles = 0;
+    for (int tz = fromZ; tz <= toZ; tz++) {
+      for (int tx = fromX; tx <= toX && tiles < MAX_QUADS; tx++) {
+        double dx = tx - mx;
+        double dz = tz - mz;
+        gatherX[tiles] = tx;
+        gatherZ[tiles] = tz;
+        long distance = (long) ((dx * dx + dz * dz) * 1024.0);
+        order[tiles] = (distance << ORDER_BITS) | tiles;
+        tiles++;
       }
     }
-    return true;
+    java.util.Arrays.sort(order, 0, tiles);
+    return tiles;
+  }
+
+  private static boolean anyChild(MapAtlas source, int layer, int level, int tx, int tz) {
+    for (int c = 0; c < 4; c++) {
+      long key = TileKey.of(layer, level - 1, tx * 2 + (c & 1), tz * 2 + (c >> 1));
+      if (source.peek(key) > MapAtlas.EMPTY) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private void quad(

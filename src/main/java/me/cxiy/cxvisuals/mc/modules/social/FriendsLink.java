@@ -67,6 +67,10 @@ public final class FriendsLink {
   private static final float FALLBACK_TOP = 10.0F;
   private static final float CHIME_PITCH = 1.35F;
   private static final int MAX_PREVIEWS = 256;
+  private static final int PREVIEW_LIMIT = 256 << 10;
+  private static final byte[] LOADING = new byte[0];
+  private static final java.util.concurrent.ConcurrentHashMap<String, byte[]> MAP_PREVIEWS =
+      new java.util.concurrent.ConcurrentHashMap<>();
   private static final java.util.Map<String, Integer> PREVIEWS = new java.util.HashMap<>();
   private static final float CHIME_VOLUME = 0.7F;
   private static final int MAX_CONFIG = 1 << 20;
@@ -207,6 +211,11 @@ public final class FriendsLink {
           @Override
           public void map(Friends.Line line) {
             FriendsLink.receiveMap(line);
+          }
+
+          @Override
+          public byte[] mapPreview(Friends.Line line) {
+            return FriendsLink.mapPreview(line);
           }
 
           @Override
@@ -391,7 +400,8 @@ public final class FriendsLink {
     return friends.friends();
   }
 
-  public static boolean shareMap(String uuid, String name, byte[] blob, int chunks) {
+  public static boolean shareMap(
+      String uuid, String name, byte[] blob, int chunks, byte[] preview) {
     Friends.Friend friend = module != null && module.active() ? friends.friend(uuid) : null;
     if (friend == null || friend.key.isEmpty()) {
       return false;
@@ -405,8 +415,12 @@ public final class FriendsLink {
         uuid,
         token,
         blob,
+        preview,
         Lang.key("Couldn't share the map."),
-        parts -> Note.map(name, parts[0], parts[1], parts[2], chunks));
+        parts ->
+            parts.length > 4
+                ? Note.map(name, parts[0], parts[1], parts[2], chunks, parts[3], parts[4])
+                : Note.map(name, parts[0], parts[1], parts[2], chunks));
     return true;
   }
 
@@ -468,6 +482,7 @@ public final class FriendsLink {
       String uuid,
       long token,
       byte[] blob,
+      byte[] extra,
       String what,
       java.util.function.Function<String[], Note> note) {
     String base = social.baseUrl();
@@ -477,9 +492,13 @@ public final class FriendsLink {
           try {
             byte[] key = Sealer.newKey();
             String[] stored = upload(base, session, uuid, key, SharedAvatar.pack(blob));
+            String[] shown = attach(base, session, uuid, key, extra);
+            String encoded = Base64.getEncoder().encodeToString(key);
             Note made =
                 note.apply(
-                    new String[] {stored[0], Base64.getEncoder().encodeToString(key), stored[1]});
+                    shown == null
+                        ? new String[] {stored[0], encoded, stored[1]}
+                        : new String[] {stored[0], encoded, stored[1], shown[0], shown[1]});
             Social.later(() -> post(uuid, made, token));
           } catch (Cloud.Refused refused) {
             String notice =
@@ -515,6 +534,44 @@ public final class FriendsLink {
       CxVisualsClient.LOG.warn("Couldn't fetch a shared item: {}", e.getMessage());
       return null;
     }
+  }
+
+  private static String[] attach(
+      String base, String session, String uuid, byte[] key, byte[] extra) {
+    if (extra == null) {
+      return null;
+    }
+    try {
+      return upload(base, session, uuid, key, SharedAvatar.pack(extra));
+    } catch (IOException | RuntimeException e) {
+      CxVisualsClient.LOG.debug("Couldn't attach a preview: {}", e.getMessage());
+      return null;
+    }
+  }
+
+  public static void seedMapPreview(String hash, byte[] png) {
+    MAP_PREVIEWS.put(hash, png);
+  }
+
+  static byte[] mapPreview(Friends.Line line) {
+    Note note = line.note();
+    String hash = note.mapPreviewHash();
+    if (hash.isEmpty()) {
+      return Friends.NO_IMAGE;
+    }
+    byte[] have = MAP_PREVIEWS.get(hash);
+    if (have != null) {
+      return have == LOADING ? null : have;
+    }
+    if (Social.held() || MAP_PREVIEWS.putIfAbsent(hash, LOADING) != null) {
+      return null;
+    }
+    Social.work(
+        () -> {
+          byte[] png = open(note.mapPreview(), note.key(), hash, PREVIEW_LIMIT);
+          MAP_PREVIEWS.put(hash, png == null ? Friends.NO_IMAGE : png);
+        });
+    return null;
   }
 
   private static byte[] fetch(Note note, int limit) {
@@ -592,6 +649,7 @@ public final class FriendsLink {
         uuid,
         token,
         blob,
+        null,
         Lang.key("Couldn't share the config."),
         parts -> Note.config(name, parts[0], parts[1], parts[2]));
   }
@@ -1145,7 +1203,8 @@ public final class FriendsLink {
                           } else {
                             RoomLink.onEvent(event);
                           }
-                        });
+                        },
+                        RoomLink::onPayload);
               } catch (IOException | RuntimeException e) {
                 CxVisualsClient.LOG.debug("Friends stream closed: {}", e.getMessage());
               } finally {

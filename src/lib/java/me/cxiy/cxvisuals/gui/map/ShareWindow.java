@@ -7,7 +7,6 @@ import me.cxiy.cxvisuals.gui.Anim;
 import me.cxiy.cxvisuals.gui.Canvas;
 import me.cxiy.cxvisuals.gui.Depth;
 import me.cxiy.cxvisuals.gui.FontStyle;
-import me.cxiy.cxvisuals.gui.TextWrap;
 import me.cxiy.cxvisuals.gui.Theme;
 import me.cxiy.cxvisuals.modules.map.share.LocationMode;
 
@@ -18,24 +17,22 @@ public final class ShareWindow {
     LOCATION
   }
 
-  private record Zone(float x, float y, float w, float h, Runnable action) {}
-
   public static final float WIDTH = 304.0F;
   private static final float PAD = 16.0F;
   private static final float ROW = 42.0F;
-  private static final float BUTTON = 34.0F;
+  private static final float BUTTON = SheetDraw.BUTTON;
   private static final float HEADER = 80.0F;
   private static final float RADIUS = 16.0F;
   private static final float CHECK = 18.0F;
   private static final float CHIP = 26.0F;
   private static final int MAX_ROWS = 6;
-  private static final int OPAQUE = 0xFF000000;
+  private static final int OPAQUE = SheetDraw.OPAQUE;
   private static final int ONLINE = 0xFF30D158;
 
   private final ShareHost host;
   private final MapChrome.Frost frost;
   private final Runnable close;
-  private final List<Zone> zones = new ArrayList<>();
+  private final Zones zones = new Zones();
   private final Anim thumb = Anim.pop(0.0F);
   private ShareModel model;
   private LocationModel location;
@@ -130,13 +127,7 @@ public final class ShareWindow {
     if (!ShareWindowMath.inside(mx, my, left, top, WIDTH, height)) {
       return false;
     }
-    for (int i = zones.size() - 1; i >= 0; i--) {
-      Zone zone = zones.get(i);
-      if (ShareWindowMath.inside(mx, my, zone.x(), zone.y(), zone.w(), zone.h())) {
-        zone.action().run();
-        return true;
-      }
-    }
+    zones.press(mx, my);
     return true;
   }
 
@@ -190,17 +181,16 @@ public final class ShareWindow {
           rail + (30.0F - c.lineHeight(FontStyle.CAPTION)) * 0.5F,
           tab == target ? t.ink() : t.grey());
       zones.add(
-          new Zone(
-              x + PAD + i * segment,
-              rail,
-              segment,
-              30.0F,
-              () -> {
-                tab = target;
-                leaveArmed = false;
-                removing = "";
-                rebuild();
-              }));
+          x + PAD + i * segment,
+          rail,
+          segment,
+          30.0F,
+          () -> {
+            tab = target;
+            leaveArmed = false;
+            removing = "";
+            rebuild();
+          });
     }
   }
 
@@ -320,7 +310,7 @@ public final class ShareWindow {
         3.0F,
         friend.online() ? ONLINE : t.dotOff());
     check(c, t, boxX, y + (ROW - CHECK) * 0.5F, model.isSelected(friend.uuid()));
-    zones.add(new Zone(x + 6.0F, y, WIDTH - 12.0F, ROW, () -> model.toggle(friend.uuid())));
+    zones.add(x + 6.0F, y, WIDTH - 12.0F, ROW, () -> model.toggle(friend.uuid()));
   }
 
   private void check(Canvas c, Theme t, float x, float y, boolean on) {
@@ -358,7 +348,7 @@ public final class ShareWindow {
         knob,
         knob * 0.5F,
         on ? t.paper() | OPAQUE : t.ink2());
-    zones.add(new Zone(x + 6.0F, y, WIDTH - 12.0F, 40.0F, () -> model.backfill(!model.backfill())));
+    zones.add(x + 6.0F, y, WIDTH - 12.0F, 40.0F, () -> model.backfill(!model.backfill()));
   }
 
   private void confirmSend() {
@@ -463,19 +453,18 @@ public final class ShareWindow {
         chipY + (CHIP - c.lineHeight(FontStyle.CAPTION)) * 0.5F,
         armed ? OPAQUE | 0xFFFFFF : t.ink2());
     zones.add(
-        new Zone(
-            chipX,
-            chipY,
-            chipW,
-            CHIP,
-            () -> {
-              if (armed) {
-                host.remove(friend.uuid());
-                removing = "";
-              } else {
-                removing = friend.uuid();
-              }
-            }));
+        chipX,
+        chipY,
+        chipW,
+        CHIP,
+        () -> {
+          if (armed) {
+            host.remove(friend.uuid());
+            removing = "";
+          } else {
+            removing = friend.uuid();
+          }
+        });
   }
 
   private void locationRow(
@@ -507,7 +496,7 @@ public final class ShareWindow {
         chipY + (CHIP - c.lineHeight(FontStyle.CAPTION)) * 0.5F,
         on ? t.paper() | OPAQUE : t.ink2());
     LocationMode next = LocationModel.next(row.mode());
-    zones.add(new Zone(chipX, chipY, chipW, CHIP, () -> location.choose(row.uuid(), next)));
+    zones.add(chipX, chipY, chipW, CHIP, () -> location.choose(row.uuid(), next));
   }
 
   private void leaveRow(Canvas c, Theme t, float x, float y) {
@@ -520,19 +509,18 @@ public final class ShareWindow {
         y + (28.0F - c.lineHeight(FontStyle.LABEL)) * 0.5F,
         leaveArmed ? t.red() : t.ink2());
     zones.add(
-        new Zone(
-            x + PAD,
-            y,
-            Math.max(c.textWidth(FontStyle.LABEL, label), 120.0F),
-            28.0F,
-            () -> {
-              if (leaveArmed) {
-                host.leave();
-                close.run();
-              } else {
-                leaveArmed = true;
-              }
-            }));
+        x + PAD,
+        y,
+        Math.max(c.textWidth(FontStyle.LABEL, label), 120.0F),
+        28.0F,
+        () -> {
+          if (leaveArmed) {
+            host.leave();
+            close.run();
+          } else {
+            leaveArmed = true;
+          }
+        });
   }
 
   private float pill(
@@ -546,36 +534,15 @@ public final class ShareWindow {
       float mx,
       float my,
       Runnable action) {
-    float w = c.textWidth(FontStyle.LABEL, label) + 30.0F;
-    float x = right - w;
-    boolean over = !disabled && ShareWindowMath.inside(mx, my, x, y, w, BUTTON);
-    int fill =
-        primary
-            ? Theme.withAlpha(t.ink(), disabled ? 0.25F : over ? 0.88F : 1.0F)
-            : Theme.withAlpha(t.ink(), over ? 0.14F : 0.07F);
-    c.roundRect(x, y, w, BUTTON, BUTTON * 0.5F, fill);
-    c.text(
-        FontStyle.LABEL,
-        label,
-        x + 15.0F,
-        y + (BUTTON - c.lineHeight(FontStyle.LABEL)) * 0.5F,
-        primary ? t.paper() | OPAQUE : t.ink());
-    if (!disabled) {
-      zones.add(new Zone(x, y, w, BUTTON, action));
-    }
-    return w;
+    return SheetDraw.pill(c, t, zones, label, right, y, primary, disabled, mx, my, action);
   }
 
   private static void paragraph(
       Canvas c, FontStyle font, String text, float x, float y, float max, int color) {
-    float line = c.lineHeight(font);
-    List<String> rows = TextWrap.lines(s -> c.textWidth(font, s), text, max);
-    for (int i = 0; i < rows.size(); i++) {
-      c.text(font, rows.get(i), x, y + i * line, color);
-    }
+    SheetDraw.paragraph(c, font, text, x, y, max, color);
   }
 
   private static float paragraphHeight(Canvas c, FontStyle font, String text, float max) {
-    return TextWrap.lines(s -> c.textWidth(font, s), text, max).size() * c.lineHeight(font);
+    return SheetDraw.paragraphHeight(c, font, text, max);
   }
 }

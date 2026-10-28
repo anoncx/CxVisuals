@@ -5,6 +5,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.SeekableByteChannel;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.Deflater;
@@ -62,6 +66,32 @@ public final class RegionCodec {
     out.write(packed);
     out.flush();
     return bytes.toByteArray();
+  }
+
+  private static final int HEAD_BYTES = 18;
+  private static final int MAX_THUMBNAIL_BYTES = 1 << 20;
+
+  public static int[] thumbnail(Path file) throws IOException {
+    try (SeekableByteChannel channel = Files.newByteChannel(file)) {
+      ByteBuffer head = ByteBuffer.allocate(HEAD_BYTES);
+      readFully(channel, head);
+      int length = head.getInt(HEAD_BYTES - Integer.BYTES);
+      if (length < 0 || length > MAX_THUMBNAIL_BYTES) {
+        throw new IOException("bad thumbnail");
+      }
+      ByteBuffer packed = ByteBuffer.allocate(HEAD_BYTES + length);
+      packed.put(head.array());
+      readFully(channel, packed);
+      return thumbnail(packed.array());
+    }
+  }
+
+  private static void readFully(SeekableByteChannel channel, ByteBuffer into) throws IOException {
+    while (into.hasRemaining()) {
+      if (channel.read(into) < 0) {
+        throw new IOException("short file");
+      }
+    }
   }
 
   public static int[] thumbnail(byte[] file) throws IOException {

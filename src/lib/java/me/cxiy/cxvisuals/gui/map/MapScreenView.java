@@ -42,7 +42,8 @@ public final class MapScreenView {
     PICK,
     MARK,
     PLAYER,
-    SHARE
+    SHARE,
+    EXPLORE
   }
 
   private enum Row {
@@ -118,6 +119,7 @@ public final class MapScreenView {
   private final double[] ground = new double[2];
   private float yawGoal;
   private float pitchGoal = DEFAULT_PITCH;
+  private final GroundAnchor anchor3d = new GroundAnchor();
   private double groundY = Double.NaN;
   private boolean orbiting;
   private boolean orbitDrag;
@@ -132,7 +134,7 @@ public final class MapScreenView {
   private final Anim open = Anim.reveal(0.0F);
   private final Anim panel = Anim.move(1.0F);
   private final Anim popAnim = Anim.pop(0.0F);
-  private final Anim[] hovers = new Anim[8];
+  private final Anim[] hovers = new Anim[9];
   private final Spring zoom = Spring.critical(240.0F);
   private final Spring glideX = Spring.critical(140.0F);
   private final Field search = new Field(Lang.key("Search places, blocks, friends or x z"), 48);
@@ -213,6 +215,8 @@ public final class MapScreenView {
   private double popWZ;
   private boolean pickArea;
   private ShareWindow share;
+  private ExplorePage explore;
+  private final RegionLayer regions = new RegionLayer();
   private Waypoints.Waypoint focused;
   private List<Waypoints.Target> picks = List.of();
   private String notice = "";
@@ -350,6 +354,14 @@ public final class MapScreenView {
       grid(c, t, scale);
       selection(c, t);
     }
+    regions.set(host.regionsAvailable() && host.regionsOn(), dt);
+    if (regions.active()) {
+      if (solid > 0.0F && solidDrawn) {
+        regions.solid(c, t, terrain.camera, groundY, screenW, screenH);
+      } else {
+        regions.flat(c, t, view, 0.0F, 0.0F, screenW, screenH, mouseX, mouseY);
+      }
+    }
     marks(c, t, data, source);
     c.popClip();
     c.popTransform();
@@ -401,6 +413,7 @@ public final class MapScreenView {
     }
     tilt.set(on ? 1.0F : 0.0F);
     if (on) {
+      anchor3d.reset();
       pitchGoal = DEFAULT_PITCH;
       pitchGlide.snap(DEFAULT_PITCH);
       anchored = false;
@@ -415,7 +428,7 @@ public final class MapScreenView {
     int z = (int) Math.floor(camZ);
     int height = host.height(x, z);
     double want = height == Integer.MIN_VALUE ? data.y : height + 1.0;
-    groundY = Double.isNaN(groundY) ? want : groundY + (want - groundY) * Math.min(1.0F, dt * 5.0F);
+    groundY = anchor3d.hold(want);
     Camera3D camera = terrain.camera;
     camera.targetX = camX;
     camera.targetY = groundY;
@@ -854,6 +867,24 @@ public final class MapScreenView {
     hovers[5].set(shareOver || pop == Pop.SHARE ? 1.0F : 0.0F);
     hovers[5].update(dt);
     MapChrome.button(c, t, Glyph.GROUP, sx + 3.0F, gy + 3.0F, size, hovers[5].get(), false);
+    float ey = exploreY() - (1.0F - shown) * 12.0F;
+    MapChrome.panel(c, t, frost, sx, ey, size + 6.0F, size + 6.0F, (size + 6.0F) * 0.5F);
+    boolean exploreOver = MapChrome.hit(mouseX, mouseY, sx + 3.0F, ey + 3.0F, size, size);
+    hovers[6].set(exploreOver || pop == Pop.EXPLORE ? 1.0F : 0.0F);
+    hovers[6].update(dt);
+    MapChrome.button(c, t, Glyph.EXPLORE, sx + 3.0F, ey + 3.0F, size, hovers[6].get(), false);
+    if (host.regionsAvailable()) {
+      float ry = regionsY() - (1.0F - shown) * 12.0F;
+      MapChrome.panel(c, t, frost, sx, ry, size + 6.0F, size + 6.0F, (size + 6.0F) * 0.5F);
+      boolean regionsOver = MapChrome.hit(mouseX, mouseY, sx + 3.0F, ry + 3.0F, size, size);
+      hovers[8].set(regionsOver || host.regionsOn() ? 1.0F : 0.0F);
+      hovers[8].update(dt);
+      MapChrome.button(c, t, Glyph.REGIONS, sx + 3.0F, ry + 3.0F, size, hovers[8].get(), false);
+      if (host.regionsOn()) {
+        c.roundRect(sx + 3.0F + size * 0.5F - 2.0F, ry + size - 4.0F, 4.0F, 4.0F, 2.0F, t.red());
+      }
+      regions.legend(c, t, frost, MARGIN, legendY(), host.regionAt(lastPlayerX, lastPlayerZ));
+    }
     if (host.share().live()) {
       c.roundRect(sx + 3.0F + size * 0.5F - 2.0F, gy + size - 4.0F, 4.0F, 4.0F, 2.0F, SHARING);
     }
@@ -861,6 +892,24 @@ public final class MapScreenView {
 
   private float shareY() {
     return MARGIN + MapChrome.BUTTON + 6.0F + 8.0F;
+  }
+
+  private float exploreY() {
+    return shareY() + MapChrome.BUTTON + 6.0F + 8.0F;
+  }
+
+  private float regionsY() {
+    return exploreY() + MapChrome.BUTTON + 6.0F + 8.0F;
+  }
+
+  private float legendY() {
+    return MARGIN + 74.0F;
+  }
+
+  private void openExplore() {
+    explore =
+        new ExplorePage(host.explore(() -> hasSelection ? chunks() : null), frost, this::dismiss);
+    show(Pop.EXPLORE, screenW * 0.5F, screenH * 0.5F);
   }
 
   private void openShare() {
@@ -915,6 +964,16 @@ public final class MapScreenView {
     if (MapChrome.hit(mx, my, x, shareY(), size + 6.0F, size + 6.0F)) {
       openShare();
       Sound.play(Sound.Cue.STEP);
+      return true;
+    }
+    if (MapChrome.hit(mx, my, x, exploreY(), size + 6.0F, size + 6.0F)) {
+      openExplore();
+      Sound.play(Sound.Cue.STEP);
+      return true;
+    }
+    if (host.regionsAvailable() && MapChrome.hit(mx, my, x, regionsY(), size + 6.0F, size + 6.0F)) {
+      host.regionsOn(!host.regionsOn());
+      Sound.play(Sound.Cue.TAB);
       return true;
     }
     return MapChrome.hit(mx, my, x, y, size + 6.0F, h);
@@ -1265,10 +1324,19 @@ public final class MapScreenView {
       case MARK -> mark(c, t);
       case PLAYER -> playerCard(c, t);
       case SHARE -> sharePanel(c, t, dt);
+      case EXPLORE -> explorePanel(c, t, dt);
       default -> {}
     }
     c.popTransform();
     c.popAlpha();
+  }
+
+  private void explorePanel(Canvas c, Theme t, float dt) {
+    if (explore == null) {
+      dismiss();
+      return;
+    }
+    explore.draw(c, t, screenW, screenH, mouseX, mouseY, dt);
   }
 
   private void sharePanel(Canvas c, Theme t, float dt) {
@@ -1620,6 +1688,7 @@ public final class MapScreenView {
   private void dismiss() {
     pop = Pop.NONE;
     share = null;
+    explore = null;
     naming.focus(false);
     focused = null;
   }
@@ -1769,6 +1838,11 @@ public final class MapScreenView {
           dismiss();
         }
       }
+      case EXPLORE -> {
+        if (explore == null || !explore.mouseDown(mx, my)) {
+          dismiss();
+        }
+      }
       case MENU -> {
         String[] items = menuItems();
         float h = items.length * MENU_ROW + 12.0F + MENU_HEAD;
@@ -1893,6 +1967,9 @@ public final class MapScreenView {
     orbitDrag = false;
     search.release();
     naming.release();
+    if (explore != null) {
+      explore.release();
+    }
     if (!dragging) {
       return;
     }
@@ -1919,6 +1996,9 @@ public final class MapScreenView {
     mouseY = my;
     if (search.focused()) {
       search.drag(mx);
+    }
+    if (explore != null) {
+      explore.drag(mx);
     }
     if (!dragging) {
       return;
@@ -2024,6 +2104,10 @@ public final class MapScreenView {
       share.scroll(amount);
       return;
     }
+    if (pop == Pop.EXPLORE && explore != null) {
+      explore.scroll(amount);
+      return;
+    }
     if (pop != Pop.NONE) {
       return;
     }
@@ -2078,6 +2162,15 @@ public final class MapScreenView {
       }
       return search.key(key, control, shift);
     }
+    if (pop == Pop.EXPLORE && explore != null) {
+      if (key == KEY_ESCAPE) {
+        if (!explore.back()) {
+          dismiss();
+        }
+        return true;
+      }
+      return explore.key(key, control, shift);
+    }
     if (key == KEY_ESCAPE) {
       if (pop == Pop.SHARE && share != null && share.back()) {
         return true;
@@ -2112,6 +2205,9 @@ public final class MapScreenView {
     if (pop == Pop.NAME) {
       return naming.type(codepoint);
     }
+    if (pop == Pop.EXPLORE && explore != null) {
+      return explore.type(codepoint);
+    }
     if (search.focused()) {
       return search.type(codepoint);
     }
@@ -2124,6 +2220,6 @@ public final class MapScreenView {
   }
 
   public boolean typing() {
-    return search.focused() || pop == Pop.NAME;
+    return search.focused() || pop == Pop.NAME || (explore != null && explore.typing());
   }
 }
