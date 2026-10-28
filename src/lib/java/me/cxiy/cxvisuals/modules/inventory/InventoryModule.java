@@ -197,4 +197,9 @@ public final class InventoryModule extends Module {
     Repo mode = skyblock.get();
     return mode == Repo.ALWAYS || (mode == Repo.AUTO && onHypixel);
   }
+
+  @Override
+  public String group() {
+    return "Inventory";
+  }
 }

@@ -43,19 +43,19 @@ public final class FullbrightModule extends Module {
                 "Luminance sets a minimum light level, Gamma pushes the game's brightness curve, Night Vision lights everything like the potion.");
 
     level =
-        page.group("Luminance")
+        page.group("Strength")
             .showWhen(() -> mode.get() == Mode.LUMINANCE)
             .number("level", "Light level", LEVELS, 0.0, LEVELS, 1.0, "")
             .describe("The darkest any spot can be. 15 is full daylight everywhere.");
 
     gamma =
-        page.group("Gamma")
+        page.group("Strength")
             .showWhen(() -> mode.get() == Mode.GAMMA)
             .number("gamma", "Gamma", 8.0, 1.0, 16.0, 0.5, "×")
             .describe("How hard the brightness curve is pushed. Higher lifts the darkest spots.");
 
     intensity =
-        page.group("Night Vision")
+        page.group("Strength")
             .showWhen(() -> mode.get() == Mode.NIGHT_VISION)
             .number("intensity", "Intensity", 100.0, 10.0, 100.0, 5.0, "%")
             .describe("How strong the night vision glow is.");

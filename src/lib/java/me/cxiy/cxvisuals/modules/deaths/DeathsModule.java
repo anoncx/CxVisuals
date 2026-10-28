@@ -26,7 +26,8 @@ public final class DeathsModule extends Module {
 
   public DeathsModule(KeyBinder keys) {
     super(ID, "Death Effects", false, keys);
-    Page page = section("effects", "Effects");
+    hostedBy("shaders", 0);
+    Page page = section("effects", "Death");
 
     Group look = page.group("Look");
     fate =

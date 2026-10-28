@@ -2,11 +2,13 @@ package me.cxiy.cxvisuals.core.module;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Supplier;
 import me.cxiy.cxvisuals.core.i18n.Lang;
 import me.cxiy.cxvisuals.core.settings.ActionSetting;
 import me.cxiy.cxvisuals.core.settings.BoolSetting;
+import me.cxiy.cxvisuals.core.settings.Group;
 import me.cxiy.cxvisuals.core.settings.KeyHandle;
 import me.cxiy.cxvisuals.core.settings.Page;
 import me.cxiy.cxvisuals.core.settings.Settings;
@@ -18,6 +20,11 @@ public abstract class Module {
   private final KeyHandle toggleKey;
   private final List<ActionSetting> actions = new ArrayList<>(2);
   private final List<ActionSetting> actionsView = Collections.unmodifiableList(actions);
+  private final List<Module> folded = new ArrayList<>(2);
+  private List<Page> merged;
+  private Module host;
+  private String hostId;
+  private int slot;
   private Supplier<Boolean> listing = () -> true;
   private boolean sealed;
 
@@ -47,7 +54,34 @@ public abstract class Module {
   }
 
   public final boolean listed() {
-    return listing.get();
+    return host == null && listing.get();
+  }
+
+  protected final void hostedBy(String id, int position) {
+    hostId = id;
+    slot = position;
+  }
+
+  public final String hostId() {
+    return hostId;
+  }
+
+  public final Module host() {
+    return host;
+  }
+
+  public final List<Module> folded() {
+    return Collections.unmodifiableList(folded);
+  }
+
+  final void fold(Module child) {
+    if (child.host != null || child == this) {
+      throw new IllegalStateException("cannot fold " + child.id);
+    }
+    child.host = this;
+    folded.add(child);
+    folded.sort(Comparator.comparingInt(other -> other.slot));
+    merged = null;
   }
 
   protected final void listedWhen(Supplier<Boolean> shown) {
@@ -84,14 +118,35 @@ public abstract class Module {
             settings.pages().isEmpty()
                 ? settings.page("general", "General")
                 : settings.pages().get(0);
-        first.group("Module").key("toggle_key", "Toggle key", toggleKey);
+        Group module = hostId == null ? first.group("Module") : first.leading(name);
+        if (hostId != null) {
+          module.unsaved().add(enabled);
+        }
+        module.key("toggle_key", "Toggle key", toggleKey);
       }
     }
-    return settings.pages();
+    if (folded.isEmpty()) {
+      return settings.pages();
+    }
+    if (merged == null) {
+      List<Page> all = new ArrayList<>(settings.pages());
+      for (Module child : folded) {
+        all.addAll(child.sections());
+      }
+      merged = Collections.unmodifiableList(all);
+    }
+    return merged;
   }
 
   public final List<ActionSetting> actions() {
-    return actionsView;
+    if (folded.isEmpty()) {
+      return actionsView;
+    }
+    List<ActionSetting> all = new ArrayList<>(actions);
+    for (Module child : folded) {
+      all.addAll(child.actions());
+    }
+    return all;
   }
 
   protected final Page section(String sectionId, String title) {

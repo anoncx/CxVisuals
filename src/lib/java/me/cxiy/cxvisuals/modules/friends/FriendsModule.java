@@ -45,6 +45,7 @@ public final class FriendsModule extends Module {
 
   public FriendsModule(KeyBinder keys, Account account) {
     super(ID, "Friends", true, keys);
+    hostedBy("social", 0);
     this.account = account;
     favorites = settings.text("favorites", "");
     read = settings.text("read", "");

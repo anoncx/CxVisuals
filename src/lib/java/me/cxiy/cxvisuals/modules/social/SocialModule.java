@@ -28,7 +28,7 @@ public final class SocialModule extends Module {
     super(ID, "Account", true, keys);
     server = settings.text("server", DEFAULT_SERVER);
     connected = settings.toggle("connected", "Connected", false);
-    Page page = section("account", "Account");
+    Page page = section("account", "Profile");
     profile = page.group("Profile").panel("profile");
     Group share = page.group("Share").showWhen(account::signedIn);
     shareAvatar =
@@ -64,5 +64,10 @@ public final class SocialModule extends Module {
 
   public String baseUrl() {
     return SocialProtocol.normalizeBase(server.get());
+  }
+
+  @Override
+  public String group() {
+    return "Player";
   }
 }

@@ -30,7 +30,8 @@ public final class SwingsModule extends Module {
 
   public SwingsModule(KeyBinder keys) {
     super(ID, "Swing Trails", false, keys);
-    Page page = section("trails", "Trails");
+    hostedBy("shaders", 1);
+    Page page = section("trails", "Weapons");
 
     Group style = page.group("Look");
     look = style.enumOf("look", "Style", Look.GLOW, Look.LABELS);

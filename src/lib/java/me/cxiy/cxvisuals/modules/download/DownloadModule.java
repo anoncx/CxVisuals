@@ -31,6 +31,7 @@ public final class DownloadModule extends Module {
 
   public DownloadModule(KeyBinder keys) {
     super(ID, "World Download", true, keys);
+    hostedBy("map", 1);
     Page page = section("download", "World Download");
     panel = page.group("Download").panel("controls");
     Group keep = page.group("What to keep");

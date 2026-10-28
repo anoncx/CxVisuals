@@ -15,6 +15,7 @@ public final class NametagsModule extends Module {
 
   public NametagsModule(KeyBinder keys) {
     super(ID, "Nametags", true, keys);
+    hostedBy("hud", 0);
     Group look = section("nametags", "Nametags").group("Look");
     background =
         look.bool("background", "Background", true).describe("A rounded plate behind each name.");

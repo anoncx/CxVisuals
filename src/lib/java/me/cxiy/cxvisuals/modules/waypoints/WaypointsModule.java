@@ -19,6 +19,7 @@ public final class WaypointsModule extends Module {
 
   public WaypointsModule(KeyBinder keys) {
     super(ID, "Waypoints", true, keys);
+    hostedBy("map", 0);
     Page page = section("waypoints", "Waypoints");
     list = page.group("This world").panel("list");
     deaths =

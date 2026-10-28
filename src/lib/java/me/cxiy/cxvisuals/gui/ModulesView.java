@@ -126,8 +126,9 @@ public final class ModulesView {
 
   private static Module moduleById(ModuleRegistry registry, String id) {
     for (Module module : registry.entries()) {
-      if (module.id().equals(id) && module.listed()) {
-        return module;
+      if (module.id().equals(id)) {
+        Module shown = module.host() == null ? module : module.host();
+        return shown.listed() ? shown : null;
       }
     }
     return null;
@@ -297,12 +298,22 @@ public final class ModulesView {
 
   public void showModule(String moduleId) {
     for (int i = 0; i < entries.size(); i++) {
-      if (entries.get(i).module.id().equals(moduleId)) {
+      Module module = entries.get(i).module;
+      if (module.id().equals(moduleId) || hosts(module, moduleId)) {
         selectEntry(i);
         entries.get(i).changeTab(0);
         return;
       }
     }
+  }
+
+  private static boolean hosts(Module host, String moduleId) {
+    for (Module child : host.folded()) {
+      if (child.id().equals(moduleId)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   public int tabCount() {

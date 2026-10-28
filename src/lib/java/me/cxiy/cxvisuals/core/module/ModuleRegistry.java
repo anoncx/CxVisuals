@@ -28,6 +28,7 @@ public final class ModuleRegistry {
       throw new IllegalStateException("duplicate module " + module.id());
     }
     modules.add(module);
+    link(module);
     module.settings.onAnyChange(this::changed);
     rebuild();
     return module;
@@ -65,6 +66,16 @@ public final class ModuleRegistry {
   public void resetAll() {
     for (int i = 0; i < entries.size(); i++) {
       entries.get(i).settings.resetAll();
+    }
+  }
+
+  private void link(Module added) {
+    for (Module other : modules) {
+      if (other.host() == null && added.id().equals(other.hostId())) {
+        added.fold(other);
+      } else if (added.host() == null && other.id().equals(added.hostId())) {
+        other.fold(added);
+      }
     }
   }
 

@@ -30,6 +30,12 @@ public final class Page {
     return view;
   }
 
+  public Group leading(String groupTitle) {
+    Group group = new Group(owner, id, groupTitle);
+    groups.add(0, group);
+    return group;
+  }
+
   public Group group(String groupTitle) {
     Group group = new Group(owner, id, groupTitle);
     groups.add(group);

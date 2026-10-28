@@ -32,7 +32,8 @@ public final class AccountsModule extends Module {
 
   public AccountsModule(KeyBinder keys, Runnable open, Runnable lock) {
     super(ID, "Accounts", true, keys);
-    Page page = section("manager", "Manager");
+    hostedBy("social", 1);
+    Page page = section("manager", "Accounts");
 
     Group window = page.group("Window");
     window

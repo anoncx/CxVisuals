@@ -169,7 +169,7 @@ public final class ShadersModule extends Module {
     Group skyVisibility = above.group("Visibility");
     skyHours = skyVisibility.enumOf("hours", "Show", Sky.Hours.ALWAYS, "Always", "At night");
 
-    Page target = section("outline", "Block outline");
+    Page target = section("outline", "Outline");
 
     Group outlines = target.group("Outline shaders");
     outline =
@@ -188,7 +188,7 @@ public final class ShadersModule extends Module {
             .describe("How strongly the faces of the block are tinted.");
     outlineSpeed = outlineLook.number("speed", "Speed", 100.0, 0.0, 300.0, 10.0, "%");
 
-    Page jumps = section("circles", "Jump circles");
+    Page jumps = section("circles", "Circles");
 
     Group rings = jumps.group("Jump circles");
     circles =
@@ -253,7 +253,7 @@ public final class ShadersModule extends Module {
             .describe(
                 "Draws circles through blocks. Many servers treat seeing players through walls as cheating.");
 
-    Page wakes = section("trails", "Entity trails");
+    Page wakes = section("trails", "Trails");
 
     Group wake = wakes.group("Entity trails");
     trails =
