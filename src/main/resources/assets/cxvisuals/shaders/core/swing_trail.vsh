@@ -1,4 +1,5 @@
 #version 330
+#extension GL_ARB_separate_shader_objects : require
 
 layout(std140) uniform Swing {
     mat4 ViewProj;
@@ -7,18 +8,18 @@ layout(std140) uniform Swing {
     vec4 Look;
 };
 
-in vec3 Position;
-in vec4 Color;
-in vec2 UV0;
-in ivec2 UV2;
+layout(location = 0) in vec3 Position;
+layout(location = 1) in vec4 Color;
+layout(location = 2) in vec2 UV0;
+layout(location = 3) in ivec2 UV2;
 
-out float across;
-out float arc;
-out float along;
-out float alpha;
-out float ends;
-out float tipEnds;
-flat out float seed;
+layout(location = 0) out float across;
+layout(location = 1) out float arc;
+layout(location = 2) out float along;
+layout(location = 3) out float alpha;
+layout(location = 4) out float ends;
+layout(location = 5) out float tipEnds;
+layout(location = 6) flat out float seed;
 
 void main() {
     gl_Position = ViewProj * vec4(Position, 1.0);

@@ -8,6 +8,11 @@ import java.util.Locale;
 public record Release(String sha1, String version, String note) {
   public static final Release NONE = new Release("", "", "");
 
+  public static Release parse(JsonObject manifest, String minecraft) {
+    String target = text(manifest, "minecraft");
+    return target.isEmpty() || target.equals(minecraft) ? parse(manifest) : NONE;
+  }
+
   public static Release parse(JsonObject manifest) {
     String sha = text(manifest, "sha1").toLowerCase(Locale.ROOT);
     if (sha.length() != 40) {

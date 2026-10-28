@@ -25,17 +25,17 @@ public final class Hands {
 
     @Override
     public void rotateX(float degrees) {
-      stack.mulPose(turn.rotationX(degrees * RADIANS));
+      stack.rotate(turn.rotationX(degrees * RADIANS));
     }
 
     @Override
     public void rotateY(float degrees) {
-      stack.mulPose(turn.rotationY(degrees * RADIANS));
+      stack.rotate(turn.rotationY(degrees * RADIANS));
     }
 
     @Override
     public void rotateZ(float degrees) {
-      stack.mulPose(turn.rotationZ(degrees * RADIANS));
+      stack.rotate(turn.rotationZ(degrees * RADIANS));
     }
 
     @Override

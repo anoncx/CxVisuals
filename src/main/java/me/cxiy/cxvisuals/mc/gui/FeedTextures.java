@@ -2,7 +2,7 @@ package me.cxiy.cxvisuals.mc.gui;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.FilterMode;
+import com.mojang.renderpearl.api.textures.FilterMode;
 import java.nio.ByteBuffer;
 import java.util.IdentityHashMap;
 import java.util.Map;

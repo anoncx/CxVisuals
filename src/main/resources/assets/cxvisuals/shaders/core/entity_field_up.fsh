@@ -1,11 +1,12 @@
 #version 330
+#extension GL_ARB_separate_shader_objects : require
 
-#moj_import <cxvisuals:entity_block.glsl>
+#include <cxvisuals:entity_block.glsl>
 
 uniform sampler2D FieldSampler;
 uniform sampler2D LevelSampler;
 
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
 
 const float FIELD_MIX = 0.5;
 const float BAND_LEVEL = 8.0;

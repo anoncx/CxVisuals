@@ -1,19 +1,20 @@
 package me.cxiy.cxvisuals.mc.gui;
 
-import com.mojang.blaze3d.PrimitiveTopology;
-import com.mojang.blaze3d.pipeline.BlendFunction;
-import com.mojang.blaze3d.pipeline.ColorTargetState;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
-import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.renderpearl.api.pipeline.BlendFunction;
+import com.mojang.renderpearl.api.pipeline.ColorTargetState;
+import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
+import me.cxiy.cxvisuals.mc.compat.Gpu;
 import net.minecraft.client.renderer.BindGroupLayouts;
 import net.minecraft.resources.Identifier;
 
 public final class MapPipeline {
   public static final RenderPipeline MAP =
       RenderPipeline.builder()
-          .withBindGroupLayout(BindGroupLayouts.MATRICES_PROJECTION)
+          .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
+          .withBindGroupLayout(BindGroupLayouts.PROJECTION)
           .withBindGroupLayout(BindGroupLayouts.GLOBALS)
           .withBindGroupLayout(BindGroupLayouts.SAMPLER0_SAMPLER1_SAMPLER2)
           .withLocation(Identifier.fromNamespaceAndPath(CxVisualsClient.MOD_ID, "pipeline/map"))
@@ -30,10 +31,10 @@ public final class MapPipeline {
   private MapPipeline() {}
 
   public static boolean usable() {
-    if (!checked) {
+    if (!checked && Gpu.ready()) {
       checked = true;
       try {
-        usable = RenderSystem.getDevice().precompilePipeline(MAP).isValid();
+        usable = Gpu.usable(MAP);
       } catch (RuntimeException e) {
         usable = false;
         CxVisualsClient.LOG.error("Map shader failed to compile", e);

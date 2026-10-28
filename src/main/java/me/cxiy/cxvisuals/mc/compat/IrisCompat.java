@@ -1,6 +1,6 @@
 package me.cxiy.cxvisuals.mc.compat;
 
-import com.mojang.blaze3d.pipeline.RenderPipeline;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
@@ -47,7 +47,8 @@ public final class IrisCompat {
         inUse = null;
         inShadow = null;
         CxVisualsClient.LOG.warn(
-            "Iris is present but its API could not be reached, the hand may blur under shader packs",
+            "Iris is present but its API could not be reached, the hand may blur under shader"
+                + " packs",
             e);
       }
       if (inShadow == null) {

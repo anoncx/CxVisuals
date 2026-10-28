@@ -1,4 +1,5 @@
 #version 330
+#extension GL_ARB_separate_shader_objects : require
 
 layout(std140) uniform Circle {
     mat4 ViewProj;
@@ -9,15 +10,15 @@ layout(std140) uniform Circle {
     vec4 Cut;
 };
 
-in vec3 offset;
-in vec2 local;
-in float progress;
-in float alpha;
-flat in int kind;
-flat in float seed;
-flat in float radius;
+layout(location = 0) in vec3 offset;
+layout(location = 1) in vec2 local;
+layout(location = 2) in float progress;
+layout(location = 3) in float alpha;
+layout(location = 4) flat in int kind;
+layout(location = 5) flat in float seed;
+layout(location = 6) flat in float radius;
 
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
 
 const int FLOOR = 0;
 const int WALL = 1;

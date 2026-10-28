@@ -1,16 +1,17 @@
 package me.cxiy.cxvisuals.mc.modules.environment;
 
-import com.mojang.blaze3d.PrimitiveTopology;
-import com.mojang.blaze3d.pipeline.BlendFunction;
-import com.mojang.blaze3d.pipeline.ColorTargetState;
-import com.mojang.blaze3d.pipeline.DepthStencilState;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
-import com.mojang.blaze3d.platform.CompareOp;
-import com.mojang.blaze3d.systems.GpuDevice;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.renderpearl.api.device.GpuDevice;
+import com.mojang.renderpearl.api.pipeline.BlendFunction;
+import com.mojang.renderpearl.api.pipeline.ColorTargetState;
+import com.mojang.renderpearl.api.pipeline.CompareOp;
+import com.mojang.renderpearl.api.pipeline.DepthStencilState;
+import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 import java.util.Optional;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
+import me.cxiy.cxvisuals.mc.compat.Gpu;
 import net.minecraft.client.renderer.BindGroupLayouts;
 import net.minecraft.resources.Identifier;
 
@@ -25,7 +26,8 @@ public final class WorldTextPipeline {
 
   private static RenderPipeline build(String location, Optional<DepthStencilState> depth) {
     return RenderPipeline.builder()
-        .withBindGroupLayout(BindGroupLayouts.MATRICES_PROJECTION)
+        .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
+        .withBindGroupLayout(BindGroupLayouts.PROJECTION)
         .withBindGroupLayout(BindGroupLayouts.SAMPLER0)
         .withLocation(Identifier.fromNamespaceAndPath(CxVisualsClient.MOD_ID, location))
         .withVertexShader(
@@ -41,7 +43,7 @@ public final class WorldTextPipeline {
   }
 
   public static boolean usable() {
-    if (!checked) {
+    if (!checked && Gpu.ready()) {
       checked = true;
       try {
         GpuDevice device = RenderSystem.getDevice();
@@ -50,8 +52,7 @@ public final class WorldTextPipeline {
                 "pipeline/world_text",
                 Optional.of(new DepthStencilState(CompareOp.GREATER_THAN_OR_EQUAL, false)));
         flat = build("pipeline/world_text_flat", Optional.empty());
-        usable =
-            device.precompilePipeline(depth).isValid() && device.precompilePipeline(flat).isValid();
+        usable = Gpu.usable(depth) && Gpu.usable(flat);
       } catch (RuntimeException e) {
         usable = false;
         CxVisualsClient.LOG.error("World text shader failed to compile", e);

@@ -1,14 +1,14 @@
 package me.cxiy.cxvisuals.mc.modules.environment;
 
-import com.mojang.blaze3d.buffers.GpuBuffer;
-import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.mojang.blaze3d.systems.CommandEncoder;
-import com.mojang.blaze3d.systems.GpuDevice;
-import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.FilterMode;
-import com.mojang.blaze3d.textures.GpuTextureView;
+import com.mojang.renderpearl.api.buffers.GpuBuffer;
+import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
+import com.mojang.renderpearl.api.commands.CommandEncoder;
+import com.mojang.renderpearl.api.commands.RenderPass;
+import com.mojang.renderpearl.api.device.GpuDevice;
+import com.mojang.renderpearl.api.textures.FilterMode;
+import com.mojang.renderpearl.api.textures.GpuTextureView;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Optional;
@@ -17,6 +17,7 @@ import me.cxiy.cxvisuals.gui.FontStyle;
 import me.cxiy.cxvisuals.gui.text.FontFace;
 import me.cxiy.cxvisuals.gui.text.GlyphAtlas;
 import me.cxiy.cxvisuals.gui.text.TextRun;
+import me.cxiy.cxvisuals.mc.compat.Gpu;
 import me.cxiy.cxvisuals.mc.gui.McCanvas;
 import me.cxiy.cxvisuals.modules.environment.EnvironmentModule;
 import me.cxiy.cxvisuals.modules.environment.lyrics.Effects;
@@ -137,13 +138,14 @@ final class WorldTextRenderer {
                 Optional.empty(),
                 depth,
                 OptionalDouble.empty())) {
-      pass.setPipeline(depth == null ? WorldTextPipeline.flat : WorldTextPipeline.depth);
+      Gpu.use(pass, depth == null ? WorldTextPipeline.flat : WorldTextPipeline.depth);
       RenderSystem.bindDefaultUniforms(pass);
       pass.setUniform("DynamicTransforms", transforms);
       pass.setVertexBuffer(0, vertices.slice());
       for (int page = 0; page < pages; page++) {
         if (COUNT[page] > 0) {
-          pass.bindTexture(
+          Gpu.bind(
+              pass,
               "Sampler0",
               McCanvas.fontView(page),
               RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR));

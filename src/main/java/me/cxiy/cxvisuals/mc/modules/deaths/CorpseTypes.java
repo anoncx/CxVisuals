@@ -1,14 +1,16 @@
 package me.cxiy.cxvisuals.mc.modules.deaths;
 
-import com.mojang.blaze3d.PrimitiveTopology;
-import com.mojang.blaze3d.pipeline.DepthStencilState;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
-import com.mojang.blaze3d.systems.GpuDevice;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.renderpearl.api.device.GpuDevice;
+import com.mojang.renderpearl.api.pipeline.ColorTargetState;
+import com.mojang.renderpearl.api.pipeline.DepthStencilState;
+import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
+import me.cxiy.cxvisuals.mc.compat.Gpu;
 import me.cxiy.cxvisuals.mc.modules.shaders.MaskTypes;
 import net.minecraft.client.renderer.BindGroupLayouts;
 import net.minecraft.client.renderer.rendertype.RenderSetup;
@@ -45,7 +47,7 @@ final class CorpseTypes {
 
   static boolean compiles(GpuDevice device) {
     for (RenderPipeline pipeline : PIPELINES) {
-      if (!device.precompilePipeline(pipeline).isValid()) {
+      if (!Gpu.usable(pipeline)) {
         return false;
       }
     }
@@ -95,7 +97,8 @@ final class CorpseTypes {
     Identifier shader = Identifier.fromNamespaceAndPath(CxVisualsClient.MOD_ID, "core/corpse");
     return RenderPipeline.builder()
         .withBindGroupLayout(BindGroupLayouts.GLOBALS)
-        .withBindGroupLayout(BindGroupLayouts.MATRICES_PROJECTION)
+        .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
+        .withBindGroupLayout(BindGroupLayouts.PROJECTION)
         .withBindGroupLayout(BindGroupLayouts.FOG)
         .withBindGroupLayout(BindGroupLayouts.LIGHTING)
         .withBindGroupLayout(BindGroupLayouts.SAMPLER0_SAMPLER2)
@@ -109,6 +112,7 @@ final class CorpseTypes {
         .withPrimitiveTopology(topology)
         .withDepthStencilState(DepthStencilState.DEFAULT)
         .withCull(cull)
+        .withColorTargetState(ColorTargetState.DEFAULT)
         .build();
   }
 }

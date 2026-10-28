@@ -1,6 +1,7 @@
 #version 330
+#extension GL_ARB_separate_shader_objects : require
 
-#moj_import <cxvisuals:sky.glsl>
+#include <cxvisuals:sky.glsl>
 
 const vec3 POLE = vec3(0.7505, 0.3502, 0.5604);
 const vec3 HEART = vec3(-0.2802, 0.9367, -0.2092);

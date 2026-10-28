@@ -1,4 +1,5 @@
 #version 330
+#extension GL_ARB_separate_shader_objects : require
 
 layout(std140) uniform MapTerrain {
     mat4 ViewProj;
@@ -15,19 +16,19 @@ layout(std140) uniform MapTerrain {
 uniform sampler2D Sampler1;
 uniform sampler2D Sampler2;
 
-in vec2 local;
-in float fogDistance;
-flat in vec3 raw;
-flat in int block;
-flat in int topBlock;
-flat in int face;
-flat in int side;
-flat in int layer;
-flat in float sideHeight;
-flat in int water;
-flat in int groundWet;
+layout(location = 0) in vec2 local;
+layout(location = 1) in float fogDistance;
+layout(location = 2) flat in vec3 raw;
+layout(location = 3) flat in int block;
+layout(location = 4) flat in int topBlock;
+layout(location = 5) flat in int face;
+layout(location = 6) flat in int side;
+layout(location = 7) flat in int layer;
+layout(location = 8) flat in float sideHeight;
+layout(location = 9) flat in int water;
+layout(location = 10) flat in int groundWet;
 
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
 
 const int EDGE = 128;
 const ivec2 TOPS = ivec2(1920, 1920);

@@ -1,23 +1,24 @@
 package me.cxiy.cxvisuals.mc.modules.shaders;
 
-import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.Std140Builder;
 import com.mojang.blaze3d.buffers.Std140SizeCalculator;
-import com.mojang.blaze3d.pipeline.BindGroupLayout;
-import com.mojang.blaze3d.pipeline.BlendFunction;
-import com.mojang.blaze3d.pipeline.ColorTargetState;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.mojang.blaze3d.shaders.UniformType;
-import com.mojang.blaze3d.systems.CommandEncoder;
-import com.mojang.blaze3d.systems.GpuDevice;
-import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.FilterMode;
+import com.mojang.renderpearl.api.buffers.GpuBuffer;
+import com.mojang.renderpearl.api.commands.CommandEncoder;
+import com.mojang.renderpearl.api.commands.RenderPass;
+import com.mojang.renderpearl.api.device.GpuDevice;
+import com.mojang.renderpearl.api.pipeline.BindGroupLayout;
+import com.mojang.renderpearl.api.pipeline.BlendFunction;
+import com.mojang.renderpearl.api.pipeline.ColorTargetState;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
+import com.mojang.renderpearl.api.pipeline.UniformType;
+import com.mojang.renderpearl.api.textures.FilterMode;
 import java.nio.ByteBuffer;
 import java.util.Optional;
 import me.cxiy.cxvisuals.core.settings.Palette;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
+import me.cxiy.cxvisuals.mc.compat.Gpu;
 import me.cxiy.cxvisuals.mc.modules.animations.BlockPopEffects;
 import me.cxiy.cxvisuals.modules.shaders.ShadersModule;
 import net.minecraft.client.Minecraft;
@@ -57,7 +58,7 @@ public final class OutlineShaders {
           "block_outline",
           new ColorTargetState(BlendFunction.TRANSLUCENT_PREMULTIPLIED_ALPHA),
           BindGroupLayout.builder()
-              .withSampler(DEPTH)
+              .withUniform(DEPTH, UniformType.COMBINED_IMAGE_SAMPLER)
               .withUniform(BLOCK, UniformType.UNIFORM_BUFFER)
               .build());
   private static final Matrix4f LENS = new Matrix4f();
@@ -193,9 +194,9 @@ public final class OutlineShaders {
       return;
     }
     GpuDevice device = RenderSystem.getDevice();
-    if (!compiled) {
+    if (!compiled && Gpu.ready()) {
       compiled = true;
-      if (!device.precompilePipeline(PIPELINE).isValid()) {
+      if (!Gpu.usable(PIPELINE)) {
         broken = true;
         CxVisualsClient.LOG.warn("Outline shader failed to compile, the vanilla outline stays");
         return;
@@ -262,10 +263,11 @@ public final class OutlineShaders {
     try (RenderPass pass =
         encoder.createRenderPass(
             () -> "CxVisuals block outline", main.getColorTextureView(), Optional.empty())) {
-      pass.setPipeline(PIPELINE);
+      Gpu.use(pass, PIPELINE);
       pass.enableScissor(left, bottom, right - left, top - bottom);
       pass.setUniform(BLOCK, uniforms);
-      pass.bindTexture(
+      Gpu.bind(
+          pass,
           DEPTH,
           main.getDepthTextureView(),
           RenderSystem.getSamplerCache().getClampToEdge(FilterMode.NEAREST));

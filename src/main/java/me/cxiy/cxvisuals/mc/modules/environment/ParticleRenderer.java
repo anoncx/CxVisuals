@@ -1,17 +1,18 @@
 package me.cxiy.cxvisuals.mc.modules.environment;
 
-import com.mojang.blaze3d.buffers.GpuBuffer;
-import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.mojang.blaze3d.systems.CommandEncoder;
-import com.mojang.blaze3d.systems.GpuDevice;
-import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.GpuTextureView;
+import com.mojang.renderpearl.api.buffers.GpuBuffer;
+import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
+import com.mojang.renderpearl.api.commands.CommandEncoder;
+import com.mojang.renderpearl.api.commands.RenderPass;
+import com.mojang.renderpearl.api.device.GpuDevice;
+import com.mojang.renderpearl.api.textures.GpuTextureView;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Optional;
 import java.util.OptionalDouble;
+import me.cxiy.cxvisuals.mc.compat.Gpu;
 import me.cxiy.cxvisuals.modules.environment.View;
 import me.cxiy.cxvisuals.modules.environment.particles.Atmosphere;
 import me.cxiy.cxvisuals.modules.environment.particles.Climate;
@@ -88,7 +89,7 @@ final class ParticleRenderer implements Sink {
             Optional.empty(),
             depth,
             OptionalDouble.empty())) {
-      pass.setPipeline(ParticlePipeline.pipeline);
+      Gpu.use(pass, ParticlePipeline.pipeline);
       RenderSystem.bindDefaultUniforms(pass);
       pass.setUniform("DynamicTransforms", transforms);
       pass.setVertexBuffer(0, vertices.slice());

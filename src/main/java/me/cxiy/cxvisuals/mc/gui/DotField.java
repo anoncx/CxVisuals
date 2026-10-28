@@ -1,24 +1,26 @@
 package me.cxiy.cxvisuals.mc.gui;
 
-import com.mojang.blaze3d.PrimitiveTopology;
-import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.Std140Builder;
 import com.mojang.blaze3d.buffers.Std140SizeCalculator;
-import com.mojang.blaze3d.pipeline.BindGroupLayout;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.mojang.blaze3d.shaders.UniformType;
-import com.mojang.blaze3d.systems.CommandEncoder;
-import com.mojang.blaze3d.systems.GpuDevice;
-import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.GpuTextureView;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.renderpearl.api.buffers.GpuBuffer;
+import com.mojang.renderpearl.api.commands.CommandEncoder;
+import com.mojang.renderpearl.api.commands.RenderPass;
+import com.mojang.renderpearl.api.device.GpuDevice;
+import com.mojang.renderpearl.api.pipeline.BindGroupLayout;
+import com.mojang.renderpearl.api.pipeline.ColorTargetState;
+import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
+import com.mojang.renderpearl.api.pipeline.UniformType;
+import com.mojang.renderpearl.api.textures.GpuTextureView;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Optional;
 import me.cxiy.cxvisuals.gui.Theme;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
+import me.cxiy.cxvisuals.mc.compat.Gpu;
 import net.minecraft.resources.Identifier;
 import org.lwjgl.system.MemoryStack;
 
@@ -37,6 +39,7 @@ public final class DotField {
           .withVertexBinding(0, DefaultVertexFormat.POSITION)
           .withPrimitiveTopology(PrimitiveTopology.TRIANGLES)
           .withCull(false)
+          .withColorTargetState(ColorTargetState.DEFAULT)
           .build();
   private static final int UNIFORM_SIZE =
       new Std140SizeCalculator().putVec4().putVec4().putVec4().putVec4().putVec4().get();
@@ -54,10 +57,10 @@ public final class DotField {
   private DotField() {}
 
   public static boolean usable() {
-    if (!checked) {
+    if (!checked && Gpu.ready()) {
       checked = true;
       try {
-        usable = RenderSystem.getDevice().precompilePipeline(PIPELINE).isValid();
+        usable = Gpu.usable(PIPELINE);
       } catch (RuntimeException e) {
         usable = false;
         CxVisualsClient.LOG.error("Menu backdrop shader failed to compile", e);
@@ -126,7 +129,7 @@ public final class DotField {
       }
       try (RenderPass pass =
           encoder.createRenderPass(() -> "CxVisuals menu dots", color, Optional.empty())) {
-        pass.setPipeline(PIPELINE);
+        Gpu.use(pass, PIPELINE);
         pass.setUniform(UNIFORMS, uniforms);
         pass.setVertexBuffer(0, triangle.slice());
         pass.draw(3, 1, 0, 0);

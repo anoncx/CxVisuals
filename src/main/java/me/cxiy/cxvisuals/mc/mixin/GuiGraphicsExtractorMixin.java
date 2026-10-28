@@ -65,10 +65,11 @@ public abstract class GuiGraphicsExtractorMixin {
       int y,
       ClientTooltipPositioner positioner,
       Identifier style,
+      boolean extraSpaceAfterFirstLine,
       Operation<Void> original) {
     float scale = Animations.tooltipScale();
     if (scale == 1.0F) {
-      original.call(font, lines, x, y, positioner, style);
+      original.call(font, lines, x, y, positioner, style, extraSpaceAfterFirstLine);
       return;
     }
     Matrix3x2fStack pose = pose();
@@ -76,7 +77,7 @@ public abstract class GuiGraphicsExtractorMixin {
     pose.translate(x, y);
     pose.scale(scale, scale);
     pose.translate(-x, -y);
-    original.call(font, lines, x, y, positioner, style);
+    original.call(font, lines, x, y, positioner, style, extraSpaceAfterFirstLine);
     pose.popMatrix();
   }
 

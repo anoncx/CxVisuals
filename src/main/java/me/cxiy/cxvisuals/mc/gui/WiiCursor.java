@@ -13,9 +13,8 @@ import java.awt.image.BufferedImage;
 import java.nio.ByteBuffer;
 import me.cxiy.cxvisuals.mc.CxVisuals;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
+import me.cxiy.cxvisuals.mc.compat.Cursors;
 import net.minecraft.client.Minecraft;
-import org.lwjgl.glfw.GLFW;
-import org.lwjgl.glfw.GLFWImage;
 import org.lwjgl.system.MemoryUtil;
 
 public final class WiiCursor {
@@ -64,7 +63,7 @@ public final class WiiCursor {
     }
     try {
       long cursor = wanted == DEFAULT ? 0L : cursor(wanted, tilt);
-      GLFW.glfwSetCursor(mc.getWindow().handle(), cursor);
+      Cursors.select(cursor);
       current = wanted;
       currentTilt = tilt;
     } catch (RuntimeException | LinkageError e) {
@@ -156,13 +155,7 @@ public final class WiiCursor {
         }
       }
       pixels.flip();
-      GLFWImage glfw = GLFWImage.malloc();
-      try {
-        glfw.set(SIZE, SIZE, pixels);
-        return GLFW.glfwCreateCursor(glfw, hotX, hotY);
-      } finally {
-        glfw.free();
-      }
+      return Cursors.create(pixels, SIZE, hotX, hotY);
     } finally {
       MemoryUtil.memFree(pixels);
     }

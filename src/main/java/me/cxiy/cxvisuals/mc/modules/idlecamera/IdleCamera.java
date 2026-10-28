@@ -2,6 +2,7 @@ package me.cxiy.cxvisuals.mc.modules.idlecamera;
 
 import java.util.Random;
 import me.cxiy.cxvisuals.mc.McKeyBinder;
+import me.cxiy.cxvisuals.mc.compat.Cursors;
 import me.cxiy.cxvisuals.modules.idlecamera.IdleCameraModule;
 import me.cxiy.cxvisuals.modules.idlecamera.camera.Director;
 import me.cxiy.cxvisuals.modules.idlecamera.idle.CinematicController;
@@ -10,7 +11,6 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.player.LocalPlayer;
-import org.lwjgl.glfw.GLFW;
 
 public final class IdleCamera {
   public static final IdleTracker IDLE = new IdleTracker();
@@ -53,10 +53,7 @@ public final class IdleCamera {
     if (hide != cursorHidden) {
       cursorHidden = hide;
       if (hide || mc.gui.screen() != null) {
-        GLFW.glfwSetInputMode(
-            mc.getWindow().handle(),
-            GLFW.GLFW_CURSOR,
-            hide ? GLFW.GLFW_CURSOR_HIDDEN : GLFW.GLFW_CURSOR_NORMAL);
+        Cursors.hidden(hide);
       }
     }
     LocalPlayer player = mc.player;

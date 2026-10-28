@@ -1,6 +1,7 @@
 #version 330
+#extension GL_ARB_separate_shader_objects : require
 
-#moj_import <cxvisuals:sky.glsl>
+#include <cxvisuals:sky.glsl>
 
 const vec3 SUN = vec3(0.0, 0.0995, -0.995);
 const vec3 WARM = vec3(1.0, 0.78, 0.5);

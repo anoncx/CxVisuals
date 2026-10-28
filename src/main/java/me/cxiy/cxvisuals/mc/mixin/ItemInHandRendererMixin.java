@@ -6,10 +6,10 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import me.cxiy.cxvisuals.mc.modules.hands.Hands;
 import me.cxiy.cxvisuals.mc.modules.shaders.EntityShaders;
 import me.cxiy.cxvisuals.mc.modules.swings.Swings;
-import net.minecraft.client.player.AbstractClientPlayer;
-import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.client.renderer.ItemInHandRenderer;
+import net.minecraft.client.renderer.FirstPersonHandsAndItemsRenderer;
 import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.state.level.FirstPersonHandsAndItemsRenderState;
+import net.minecraft.client.renderer.state.level.PlayerRenderState;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.item.ItemStack;
@@ -19,17 +19,17 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-@Mixin(ItemInHandRenderer.class)
+@Mixin(FirstPersonHandsAndItemsRenderer.class)
 public abstract class ItemInHandRendererMixin {
-  private static HumanoidArm cxvisuals$arm(AbstractClientPlayer player, InteractionHand hand) {
-    return hand == InteractionHand.MAIN_HAND
-        ? player.getMainArm()
-        : player.getMainArm().getOpposite();
+  private static HumanoidArm cxvisuals$arm(PlayerRenderState player, InteractionHand hand) {
+    HumanoidArm main = player.avatarRenderState.mainArm;
+    return hand == InteractionHand.MAIN_HAND ? main : main.getOpposite();
   }
 
   @WrapMethod(method = "submitArmWithItem")
   private void cxvisuals$handMask(
-      AbstractClientPlayer player,
+      PlayerRenderState player,
+      FirstPersonHandsAndItemsRenderState state,
       float frameInterp,
       float xRot,
       InteractionHand hand,
@@ -42,6 +42,7 @@ public abstract class ItemInHandRendererMixin {
       Operation<Void> original) {
     original.call(
         player,
+        state,
         frameInterp,
         xRot,
         hand,
@@ -67,7 +68,8 @@ public abstract class ItemInHandRendererMixin {
               shift = At.Shift.AFTER,
               ordinal = 0))
   private void cxvisuals$handPosition(
-      AbstractClientPlayer player,
+      PlayerRenderState player,
+      FirstPersonHandsAndItemsRenderState state,
       float frameInterp,
       float xRot,
       InteractionHand hand,
@@ -87,9 +89,10 @@ public abstract class ItemInHandRendererMixin {
           @At(
               value = "INVOKE",
               target =
-                  "Lnet/minecraft/client/renderer/ItemInHandRenderer;renderItem(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/item/ItemDisplayContext;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;I)V"))
+                  "Lnet/minecraft/client/renderer/item/ItemStackRenderState;submit(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;III)V"))
   private void cxvisuals$heldItem(
-      AbstractClientPlayer player,
+      PlayerRenderState player,
+      FirstPersonHandsAndItemsRenderState state,
       float frameInterp,
       float xRot,
       InteractionHand hand,
@@ -108,8 +111,8 @@ public abstract class ItemInHandRendererMixin {
       float frameInterp,
       PoseStack poseStack,
       SubmitNodeCollector submitNodeCollector,
-      LocalPlayer player,
-      int lightCoords,
+      PlayerRenderState player,
+      FirstPersonHandsAndItemsRenderState state,
       CallbackInfo ci) {
     Swings.beginHand();
   }
@@ -119,8 +122,8 @@ public abstract class ItemInHandRendererMixin {
       float frameInterp,
       PoseStack poseStack,
       SubmitNodeCollector submitNodeCollector,
-      LocalPlayer player,
-      int lightCoords,
+      PlayerRenderState player,
+      FirstPersonHandsAndItemsRenderState state,
       CallbackInfo ci) {
     Swings.endHand();
   }

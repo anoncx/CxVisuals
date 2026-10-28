@@ -1,11 +1,11 @@
 package me.cxiy.cxvisuals.mc.modules.swings;
 
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.mojang.blaze3d.systems.CommandEncoder;
-import com.mojang.blaze3d.systems.GpuDevice;
-import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.GpuTextureView;
+import com.mojang.renderpearl.api.commands.CommandEncoder;
+import com.mojang.renderpearl.api.commands.RenderPass;
+import com.mojang.renderpearl.api.device.GpuDevice;
+import com.mojang.renderpearl.api.textures.GpuTextureView;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalDouble;
@@ -14,6 +14,7 @@ import me.cxiy.cxvisuals.core.settings.Palette;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
 import me.cxiy.cxvisuals.mc.McKeyBinder;
 import me.cxiy.cxvisuals.mc.compat.IrisCompat;
+import me.cxiy.cxvisuals.mc.compat.Swing;
 import me.cxiy.cxvisuals.mc.modules.shaders.EntityShaders;
 import me.cxiy.cxvisuals.modules.swings.Blade;
 import me.cxiy.cxvisuals.modules.swings.Ribbon;
@@ -28,7 +29,6 @@ import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.client.resources.model.geometry.BakedQuad;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.tags.ItemTags;
-import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.ItemOwner;
 import net.minecraft.world.entity.LivingEntity;
@@ -104,8 +104,7 @@ public final class Swings {
   public static void tag(
       ItemStackRenderState state, ItemStack stack, ItemDisplayContext context, ItemOwner owner) {
     if (!(owner instanceof LivingEntity living)
-        || !living.swinging
-        || living.swingingArm != InteractionHand.MAIN_HAND
+        || !Swing.mainHand(living)
         || stack.isEmpty()
         || !live()) {
       return;
@@ -190,8 +189,7 @@ public final class Swings {
     swinger = null;
   }
 
-  public static void layer(
-      Matrix4fc pose, List<BakedQuad> quads, Supplier<Vector3fc[]> extents) {
+  public static void layer(Matrix4fc pose, List<BakedQuad> quads, Supplier<Vector3fc[]> extents) {
     LivingEntity owner = swinger;
     if (owner == null) {
       return;
@@ -218,7 +216,7 @@ public final class Swings {
         TIP.x + cameraX,
         TIP.y + cameraY,
         TIP.z + cameraZ,
-        owner.getAttackAnim(partial),
+        Swing.progress(owner, partial),
         System.nanoTime(),
         spacing);
   }
@@ -326,7 +324,11 @@ public final class Swings {
         widthScale);
     try (RenderPass pass =
         encoder.createRenderPass(
-            () -> "CxVisuals swing trails", color, Optional.empty(), depth, OptionalDouble.empty())) {
+            () -> "CxVisuals swing trails",
+            color,
+            Optional.empty(),
+            depth,
+            OptionalDouble.empty())) {
       batch.draw(pass);
     }
     passes++;

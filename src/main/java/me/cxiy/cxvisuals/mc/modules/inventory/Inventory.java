@@ -13,6 +13,8 @@ import me.cxiy.cxvisuals.gui.Themes;
 import me.cxiy.cxvisuals.gui.spatial.Spring;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
 import me.cxiy.cxvisuals.mc.McKeyBinder;
+import me.cxiy.cxvisuals.mc.compat.Keys;
+import me.cxiy.cxvisuals.mc.compat.Tooltips;
 import me.cxiy.cxvisuals.mc.gui.McCanvas;
 import me.cxiy.cxvisuals.modules.inventory.Catalog;
 import me.cxiy.cxvisuals.modules.inventory.Favorites;
@@ -47,6 +49,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.saveddata.maps.MapId;
+import me.cxiy.cxvisuals.mc.compat.Mouse;
 
 public final class Inventory implements InventoryHost {
   private static final float FROST = 22.0F;
@@ -868,8 +871,7 @@ public final class Inventory implements InventoryHost {
 
   private boolean keyHeld(Minecraft mc) {
     int code = InputConstants.getKey(previewKey.saveString()).getValue();
-    return code != InputConstants.UNKNOWN.getValue()
-        && InputConstants.isKeyDown(mc.getWindow(), code);
+    return code != InputConstants.UNKNOWN.getValue() && Keys.down(code);
   }
 
   public static boolean previewTooltip(
@@ -915,7 +917,8 @@ public final class Inventory implements InventoryHost {
     parts.add(
         new ContainerTooltip(
             previews, card.slots, card.columns, module.tint.get() ? card.tint : 0));
-    graphics.tooltip(
+    Tooltips.show(
+        graphics,
         mc.font,
         parts,
         mouseX,
@@ -950,7 +953,8 @@ public final class Inventory implements InventoryHost {
       parts.add(ClientTooltipComponent.create(line.getVisualOrderText()));
     }
     parts.add(new MapTooltip(maps.state(0)));
-    graphics.tooltip(
+    Tooltips.show(
+        graphics,
         mc.font,
         parts,
         mouseX,
@@ -1067,18 +1071,18 @@ public final class Inventory implements InventoryHost {
     float mx = (float) event.x() * pointer;
     float my = (float) event.y() * pointer;
     if (recipeOpen) {
-      recipes.mouseDown(mx, my, event.button());
+      recipes.mouseDown(mx, my, Mouse.button(event));
       return true;
     }
     int card = overCard(mx, my);
     if (card >= 0 && cardSide[card]) {
-      takeFromPreview(card, event.button(), event.hasShiftDown());
+      takeFromPreview(card, Mouse.button(event), event.hasShiftDown());
       return true;
     }
     if (!placed || !live) {
       return false;
     }
-    return explorer.mouseDown(mx, my, event.button(), event.hasShiftDown(), event.hasControlDown());
+    return explorer.mouseDown(mx, my, Mouse.button(event), event.hasShiftDown(), event.hasControlDown());
   }
 
   private void takeFromPreview(int card, int button, boolean shift) {
@@ -1140,11 +1144,11 @@ public final class Inventory implements InventoryHost {
         }
         return true;
       }
-      recipes.keyDown(event.key());
+      recipes.keyDown(Keys.code(event));
       return true;
     }
     if (placed && explorer.typing()) {
-      return explorer.keyDown(event.key(), event.hasControlDown(), event.hasShiftDown());
+      return explorer.keyDown(Keys.code(event), event.hasControlDown(), event.hasShiftDown());
     }
     if (!module.listing()) {
       return false;

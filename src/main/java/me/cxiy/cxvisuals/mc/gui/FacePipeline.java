@@ -1,12 +1,12 @@
 package me.cxiy.cxvisuals.mc.gui;
 
-import com.mojang.blaze3d.PrimitiveTopology;
-import com.mojang.blaze3d.pipeline.BlendFunction;
-import com.mojang.blaze3d.pipeline.ColorTargetState;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
-import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.renderpearl.api.pipeline.BlendFunction;
+import com.mojang.renderpearl.api.pipeline.ColorTargetState;
+import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
+import me.cxiy.cxvisuals.mc.compat.Gpu;
 import net.minecraft.client.renderer.BindGroupLayouts;
 import net.minecraft.resources.Identifier;
 
@@ -22,7 +22,8 @@ public final class FacePipeline {
 
   private static RenderPipeline pipeline(String name, String vertex, String fragment) {
     return RenderPipeline.builder()
-        .withBindGroupLayout(BindGroupLayouts.MATRICES_PROJECTION)
+        .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
+        .withBindGroupLayout(BindGroupLayouts.PROJECTION)
         .withBindGroupLayout(BindGroupLayouts.SAMPLER0)
         .withLocation(Identifier.fromNamespaceAndPath(CxVisualsClient.MOD_ID, "pipeline/" + name))
         .withVertexShader(Identifier.fromNamespaceAndPath(CxVisualsClient.MOD_ID, "core/" + vertex))
@@ -35,13 +36,10 @@ public final class FacePipeline {
   }
 
   public static boolean usable() {
-    if (!checked) {
+    if (!checked && Gpu.ready()) {
       checked = true;
       try {
-        usable =
-            RenderSystem.getDevice().precompilePipeline(FACE).isValid()
-                && RenderSystem.getDevice().precompilePipeline(ICON).isValid()
-                && RenderSystem.getDevice().precompilePipeline(MOB).isValid();
+        usable = Gpu.usable(FACE) && Gpu.usable(ICON) && Gpu.usable(MOB);
       } catch (RuntimeException e) {
         usable = false;
         CxVisualsClient.LOG.error("Player head shader failed to compile", e);

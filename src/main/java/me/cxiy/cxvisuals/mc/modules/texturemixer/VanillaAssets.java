@@ -7,9 +7,8 @@ import java.util.HashSet;
 import java.util.Set;
 import me.cxiy.cxvisuals.modules.texturemixer.Assets;
 import net.minecraft.resources.Identifier;
-import net.minecraft.server.packs.PackType;
-import net.minecraft.server.packs.VanillaPackResources;
-import net.minecraft.server.packs.resources.IoSupplier;
+import net.minecraft.server.packs.resources.Resource;
+import net.minecraft.server.packs.resources.ResourceManager;
 
 final class VanillaAssets implements Assets {
   private static final String NAMESPACE = "minecraft";
@@ -17,14 +16,16 @@ final class VanillaAssets implements Assets {
     "blockstates", "models/block", "textures/block", "textures/item", "textures/entity"
   };
 
-  private final VanillaPackResources resources;
+  private final ResourceManager resources;
   private final Set<String> paths = new HashSet<>(4096);
 
-  VanillaAssets(VanillaPackResources resources) {
+  VanillaAssets(ResourceManager resources) {
     this.resources = resources;
     for (String root : ROOTS) {
-      resources.listResources(
-          PackType.CLIENT_RESOURCES, NAMESPACE, root, (id, supplier) -> paths.add(id.getPath()));
+      resources
+          .listResources(root, id -> NAMESPACE.equals(id.getNamespace()))
+          .keySet()
+          .forEach(id -> paths.add(id.getPath()));
     }
   }
 
@@ -40,13 +41,11 @@ final class VanillaAssets implements Assets {
 
   @Override
   public byte[] read(String path) throws IOException {
-    IoSupplier<InputStream> supplier =
-        resources.getResource(
-            PackType.CLIENT_RESOURCES, Identifier.fromNamespaceAndPath(NAMESPACE, path));
-    if (supplier == null) {
-      throw new IOException("missing " + path);
-    }
-    try (InputStream in = supplier.get()) {
+    Resource resource =
+        resources
+            .getResource(Identifier.fromNamespaceAndPath(NAMESPACE, path))
+            .orElseThrow(() -> new IOException("missing " + path));
+    try (InputStream in = resource.open()) {
       return in.readAllBytes();
     }
   }

@@ -1,25 +1,26 @@
 package me.cxiy.cxvisuals.mc.modules.shaders;
 
-import com.mojang.blaze3d.PrimitiveTopology;
-import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.Std140Builder;
 import com.mojang.blaze3d.buffers.Std140SizeCalculator;
-import com.mojang.blaze3d.pipeline.BindGroupLayout;
-import com.mojang.blaze3d.pipeline.BlendFunction;
-import com.mojang.blaze3d.pipeline.ColorTargetState;
-import com.mojang.blaze3d.pipeline.DepthStencilState;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
-import com.mojang.blaze3d.platform.CompareOp;
-import com.mojang.blaze3d.shaders.UniformType;
-import com.mojang.blaze3d.systems.CommandEncoder;
-import com.mojang.blaze3d.systems.GpuDevice;
-import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.renderpearl.api.buffers.GpuBuffer;
+import com.mojang.renderpearl.api.commands.CommandEncoder;
+import com.mojang.renderpearl.api.commands.RenderPass;
+import com.mojang.renderpearl.api.device.GpuDevice;
+import com.mojang.renderpearl.api.pipeline.BindGroupLayout;
+import com.mojang.renderpearl.api.pipeline.BlendFunction;
+import com.mojang.renderpearl.api.pipeline.ColorTargetState;
+import com.mojang.renderpearl.api.pipeline.CompareOp;
+import com.mojang.renderpearl.api.pipeline.DepthStencilState;
+import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
+import com.mojang.renderpearl.api.pipeline.UniformType;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import me.cxiy.cxvisuals.core.settings.Palette;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
+import me.cxiy.cxvisuals.mc.compat.Gpu;
 import me.cxiy.cxvisuals.modules.environment.View;
 import me.cxiy.cxvisuals.modules.shaders.ShadersModule;
 import me.cxiy.cxvisuals.modules.shaders.circles.CircleMesh;
@@ -89,8 +90,7 @@ final class CircleBatch implements CircleSink {
   }
 
   static boolean compiles(GpuDevice device) {
-    return device.precompilePipeline(PIPELINE).isValid()
-        && device.precompilePipeline(THROUGH_WALLS).isValid();
+    return Gpu.usable(PIPELINE) && Gpu.usable(THROUGH_WALLS);
   }
 
   int build(Circles circles, View view, ShadersModule module, long nanos) {
@@ -157,7 +157,7 @@ final class CircleBatch implements CircleSink {
   }
 
   void draw(RenderPass pass, boolean throughWalls) {
-    pass.setPipeline(throughWalls ? THROUGH_WALLS : PIPELINE);
+    Gpu.use(pass, throughWalls ? THROUGH_WALLS : PIPELINE);
     pass.setUniform(BLOCK, uniforms);
     pass.setVertexBuffer(0, vertices.slice());
     pass.draw(quads * 6, 1, 0, 0);

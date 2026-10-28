@@ -1,4 +1,5 @@
 #version 330
+#extension GL_ARB_separate_shader_objects : require
 
 layout(std140) uniform AvatarPreview {
     mat4 Mvp;
@@ -10,16 +11,16 @@ layout(std140) uniform AvatarPreview {
     mat4 Palette[128];
 };
 
-in vec3 Position;
-in vec3 Normal;
-in vec2 UV0;
-in vec4 Color;
-in uvec4 Joints;
-in vec4 Weights;
+layout(location = 0) in vec3 Position;
+layout(location = 1) in vec3 Normal;
+layout(location = 2) in vec2 UV0;
+layout(location = 3) in vec4 Color;
+layout(location = 4) in uvec4 Joints;
+layout(location = 5) in vec4 Weights;
 
-out vec3 normal;
-out vec2 uv;
-out vec4 tint;
+layout(location = 0) out vec3 normal;
+layout(location = 1) out vec2 uv;
+layout(location = 2) out vec4 tint;
 
 void main() {
     vec4 position = vec4(Position, 1.0);

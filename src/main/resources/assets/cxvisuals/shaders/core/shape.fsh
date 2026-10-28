@@ -1,21 +1,22 @@
 #version 330
+#extension GL_ARB_separate_shader_objects : require
 
 layout(std140) uniform DynamicTransforms {
     mat4 ModelViewMat;
+    mat4 TextureMat;
     vec4 ColorModulator;
     vec3 ModelOffset;
-    mat4 TextureMat;
 };
 
-in vec4 vertexColor;
-in vec2 local;
-flat in vec2 halfSize;
-flat in float radius;
-flat in float softness;
-flat in float border;
-flat in float fade;
+layout(location = 0) in vec4 vertexColor;
+layout(location = 1) in vec2 local;
+layout(location = 2) flat in vec2 halfSize;
+layout(location = 3) flat in float radius;
+layout(location = 4) flat in float softness;
+layout(location = 5) flat in float border;
+layout(location = 6) flat in float fade;
 
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
 
 float roundBox(vec2 p, vec2 b, float r) {
     vec2 q = abs(p) - b + r;

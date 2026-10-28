@@ -1,4 +1,5 @@
 #version 330
+#extension GL_ARB_separate_shader_objects : require
 
 layout(std140) uniform Death {
     mat4 Unproject;
@@ -15,9 +16,9 @@ uniform sampler2D CorpseSampler;
 uniform sampler2D CorpseDepthSampler;
 uniform sampler2D SceneDepthSampler;
 
-in vec2 texCoord;
+layout(location = 0) in vec2 texCoord;
 
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
 
 const int RITUAL = 0;
 const int DISSOLVE = 1;
@@ -133,8 +134,8 @@ void main() {
     if (fate == GLITCH) {
         float burst = smoothstep(0.0, 0.08, t) * (1.0 - smoothstep(0.38, 0.48, t));
         float band = floor((pixel.y - bottom) / tall * 26.0);
-        float active = step(0.62, hash(vec2(band, floor(time * 11.0))));
-        at.x += sin(band * 1.7 + time * 9.0) * tall * 0.045 * active * burst;
+        float lit = step(0.62, hash(vec2(band, floor(time * 11.0))));
+        at.x += sin(band * 1.7 + time * 9.0) * tall * 0.045 * lit * burst;
         float block = max(1.0, floor(tall / 34.0 * burst + 1.0));
         at = (floor(at / block) + 0.5) * block;
     } else if (fate == VOID) {

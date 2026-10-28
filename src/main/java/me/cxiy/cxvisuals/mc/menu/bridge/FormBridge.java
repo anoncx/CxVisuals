@@ -6,6 +6,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import me.cxiy.cxvisuals.core.i18n.Lang;
+import me.cxiy.cxvisuals.mc.compat.Keys;
 import me.cxiy.cxvisuals.mc.mixin.ConnectScreenAccessor;
 import me.cxiy.cxvisuals.mc.mixin.KeyEntryAccessor;
 import me.cxiy.cxvisuals.mc.mixin.LevelLoadingScreenAccessor;
@@ -45,7 +46,6 @@ import net.minecraft.client.gui.screens.options.OptionsScreen;
 import net.minecraft.client.gui.screens.options.OptionsSubScreen;
 import net.minecraft.client.gui.screens.options.controls.KeyBindsList;
 import net.minecraft.client.gui.screens.worldselection.WorldSelectionList;
-import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
 
 public final class FormBridge implements FormSource {
@@ -226,7 +226,7 @@ public final class FormBridge implements FormSource {
         return false;
       }
     }
-    return screen.keyPressed(new KeyEvent(keyCode, scanCode, modifiers));
+    return screen.keyPressed(Keys.event(keyCode, scanCode, modifiers));
   }
 
   @Override

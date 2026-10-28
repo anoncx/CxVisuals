@@ -1,14 +1,14 @@
 package me.cxiy.cxvisuals.mc.modules.shaders;
 
-import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.Std140Builder;
 import com.mojang.blaze3d.buffers.Std140SizeCalculator;
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.mojang.blaze3d.systems.CommandEncoder;
-import com.mojang.blaze3d.systems.GpuDevice;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.GpuTextureView;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.renderpearl.api.buffers.GpuBuffer;
+import com.mojang.renderpearl.api.commands.CommandEncoder;
+import com.mojang.renderpearl.api.device.GpuDevice;
+import com.mojang.renderpearl.api.textures.GpuTextureView;
 import java.nio.ByteBuffer;
 import java.util.List;
 import me.cxiy.cxvisuals.core.settings.Palette;
@@ -307,7 +307,7 @@ public final class EntityShaders {
     RenderTarget main = renderer.mainRenderTarget();
     GpuDevice device = RenderSystem.getDevice();
     Effect effect = module.effect.get();
-    if (!FieldPasses.prepare(device, main) || !EffectPass.ready(device, effect)) {
+    if (!FieldPasses.prepare(device, main) || !EffectPass.ready(effect)) {
       return;
     }
     if (uniforms == null) {

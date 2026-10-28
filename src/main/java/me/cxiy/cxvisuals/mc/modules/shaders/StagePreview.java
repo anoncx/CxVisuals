@@ -1,25 +1,27 @@
 package me.cxiy.cxvisuals.mc.modules.shaders;
 
-import com.mojang.blaze3d.GpuFormat;
-import com.mojang.blaze3d.PrimitiveTopology;
-import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.Std140Builder;
 import com.mojang.blaze3d.buffers.Std140SizeCalculator;
-import com.mojang.blaze3d.pipeline.BindGroupLayout;
-import com.mojang.blaze3d.pipeline.DepthStencilState;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
-import com.mojang.blaze3d.platform.CompareOp;
-import com.mojang.blaze3d.shaders.UniformType;
-import com.mojang.blaze3d.systems.CommandEncoder;
-import com.mojang.blaze3d.systems.GpuDevice;
-import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.FilterMode;
-import com.mojang.blaze3d.textures.GpuTexture;
-import com.mojang.blaze3d.textures.GpuTextureView;
+import com.mojang.renderpearl.api.GpuFormat;
+import com.mojang.renderpearl.api.buffers.GpuBuffer;
+import com.mojang.renderpearl.api.commands.CommandEncoder;
+import com.mojang.renderpearl.api.commands.RenderPass;
+import com.mojang.renderpearl.api.device.GpuDevice;
+import com.mojang.renderpearl.api.pipeline.BindGroupLayout;
+import com.mojang.renderpearl.api.pipeline.ColorTargetState;
+import com.mojang.renderpearl.api.pipeline.CompareOp;
+import com.mojang.renderpearl.api.pipeline.DepthStencilState;
+import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
+import com.mojang.renderpearl.api.pipeline.UniformType;
+import com.mojang.renderpearl.api.textures.FilterMode;
+import com.mojang.renderpearl.api.textures.GpuTexture;
+import com.mojang.renderpearl.api.textures.GpuTextureView;
 import java.util.Optional;
 import java.util.OptionalDouble;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
+import me.cxiy.cxvisuals.mc.compat.Gpu;
 import me.cxiy.cxvisuals.mc.gui.StagePreviews;
 import me.cxiy.cxvisuals.modules.environment.View;
 import net.minecraft.client.gui.render.TextureSetup;
@@ -43,6 +45,7 @@ abstract class StagePreview implements StagePreviews {
               Identifier.fromNamespaceAndPath(CxVisualsClient.MOD_ID, "core/jump_stage"))
           .withDepthStencilState(new DepthStencilState(CompareOp.ALWAYS_PASS, true))
           .withPrimitiveTopology(PrimitiveTopology.TRIANGLES)
+          .withColorTargetState(ColorTargetState.DEFAULT)
           .build();
   private static final int UNIFORM_SIZE =
       new Std140SizeCalculator()
@@ -233,9 +236,9 @@ abstract class StagePreview implements StagePreviews {
     }
     try {
       GpuDevice device = RenderSystem.getDevice();
-      if (!compiled) {
+      if (!compiled && Gpu.ready()) {
         compiled = true;
-        if (!device.precompilePipeline(STAGE).isValid() || !compiles(device)) {
+        if (!Gpu.usable(STAGE) || !compiles(device)) {
           broken = true;
           CxVisualsClient.LOG.warn("{} preview failed to compile, the studio shows no stage", name);
           return;
@@ -279,7 +282,7 @@ abstract class StagePreview implements StagePreviews {
     try (RenderPass pass =
         encoder.createRenderPass(
             () -> "CxVisuals " + name + " stage", backView, CLEAR, depthView, CLEAR_DEPTH)) {
-      pass.setPipeline(STAGE);
+      Gpu.use(pass, STAGE);
       pass.setUniform(BLOCK, uniforms);
       pass.draw(3, 1, 0, 0);
       if (quads > 0) {

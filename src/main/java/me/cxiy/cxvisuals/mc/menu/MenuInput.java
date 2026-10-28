@@ -1,11 +1,13 @@
 package me.cxiy.cxvisuals.mc.menu;
 
+import me.cxiy.cxvisuals.mc.compat.Keys;
 import me.cxiy.cxvisuals.menu.views.MenuView;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.options.controls.KeyBindsScreen;
 import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
+import me.cxiy.cxvisuals.mc.compat.Mouse;
 
 public final class MenuInput {
   private static final int PRIMARY = 0;
@@ -20,7 +22,7 @@ public final class MenuInput {
   }
 
   public static boolean pressed(MenuView view, MouseButtonEvent event) {
-    if (event.button() == PRIMARY) {
+    if (Mouse.button(event) == PRIMARY) {
       float scale = MenuStage.pointerScale();
       view.mouseDown((float) event.x() * scale, (float) event.y() * scale);
     }
@@ -28,7 +30,7 @@ public final class MenuInput {
   }
 
   public static boolean released(MenuView view, MouseButtonEvent event) {
-    if (event.button() == PRIMARY) {
+    if (Mouse.button(event) == PRIMARY) {
       float scale = MenuStage.pointerScale();
       view.mouseUp((float) event.x() * scale, (float) event.y() * scale);
     }
@@ -36,7 +38,7 @@ public final class MenuInput {
   }
 
   public static boolean dragged(MenuView view, MouseButtonEvent event) {
-    if (event.button() == PRIMARY) {
+    if (Mouse.button(event) == PRIMARY) {
       float scale = MenuStage.pointerScale();
       view.mouseDrag((float) event.x() * scale, (float) event.y() * scale);
     }
@@ -50,7 +52,7 @@ public final class MenuInput {
   }
 
   public static boolean key(MenuView view, KeyEvent event) {
-    view.keyDown(event.key(), event.scancode(), event.modifiers());
+    view.keyDown(Keys.code(event), Keys.scan(event), Keys.mods(event));
     return true;
   }
 
@@ -59,13 +61,13 @@ public final class MenuInput {
   }
 
   public static boolean framePressed(Screen screen, MouseButtonEvent event) {
-    return event.button() == PRIMARY
+    return Mouse.button(event) == PRIMARY
         && Skins.framed(screen)
         && MenuStage.frameDown((float) event.x(), (float) event.y());
   }
 
   public static void frameReleased(Screen screen, MouseButtonEvent event) {
-    if (event.button() == PRIMARY && Skins.framed(screen)) {
+    if (Mouse.button(event) == PRIMARY && Skins.framed(screen)) {
       MenuStage.frameUp((float) event.x(), (float) event.y());
     }
   }

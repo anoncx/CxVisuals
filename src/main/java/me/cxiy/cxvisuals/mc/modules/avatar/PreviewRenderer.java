@@ -1,25 +1,25 @@
 package me.cxiy.cxvisuals.mc.modules.avatar;
 
-import com.mojang.blaze3d.GpuFormat;
-import com.mojang.blaze3d.IndexType;
-import com.mojang.blaze3d.PrimitiveTopology;
-import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.Std140Builder;
 import com.mojang.blaze3d.buffers.Std140SizeCalculator;
-import com.mojang.blaze3d.pipeline.BindGroupLayout;
-import com.mojang.blaze3d.pipeline.BlendFunction;
-import com.mojang.blaze3d.pipeline.ColorTargetState;
-import com.mojang.blaze3d.pipeline.DepthStencilState;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
-import com.mojang.blaze3d.platform.CompareOp;
-import com.mojang.blaze3d.shaders.UniformType;
-import com.mojang.blaze3d.systems.CommandEncoder;
-import com.mojang.blaze3d.systems.GpuDevice;
-import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.FilterMode;
-import com.mojang.blaze3d.textures.GpuTexture;
-import com.mojang.blaze3d.textures.GpuTextureView;
+import com.mojang.renderpearl.api.GpuFormat;
+import com.mojang.renderpearl.api.buffers.GpuBuffer;
+import com.mojang.renderpearl.api.commands.CommandEncoder;
+import com.mojang.renderpearl.api.commands.RenderPass;
+import com.mojang.renderpearl.api.device.GpuDevice;
+import com.mojang.renderpearl.api.pipeline.BindGroupLayout;
+import com.mojang.renderpearl.api.pipeline.BlendFunction;
+import com.mojang.renderpearl.api.pipeline.ColorTargetState;
+import com.mojang.renderpearl.api.pipeline.CompareOp;
+import com.mojang.renderpearl.api.pipeline.DepthStencilState;
+import com.mojang.renderpearl.api.pipeline.IndexType;
+import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
+import com.mojang.renderpearl.api.pipeline.UniformType;
+import com.mojang.renderpearl.api.textures.FilterMode;
+import com.mojang.renderpearl.api.textures.GpuTexture;
+import com.mojang.renderpearl.api.textures.GpuTextureView;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
@@ -32,6 +32,7 @@ import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.function.IntFunction;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
+import me.cxiy.cxvisuals.mc.compat.Gpu;
 import me.cxiy.cxvisuals.mc.gui.ModelPreviews;
 import me.cxiy.cxvisuals.modules.avatar.anim.Animator;
 import me.cxiy.cxvisuals.modules.avatar.bake.BakedAvatar;
@@ -81,7 +82,7 @@ final class PreviewRenderer implements ModelPreviews {
         RenderPipeline.builder()
             .withBindGroupLayout(
                 BindGroupLayout.builder()
-                    .withSampler(ALBEDO)
+                    .withUniform(ALBEDO, UniformType.COMBINED_IMAGE_SAMPLER)
                     .withUniform(UNIFORMS, UniformType.UNIFORM_BUFFER)
                     .build())
             .withLocation(
@@ -94,11 +95,12 @@ final class PreviewRenderer implements ModelPreviews {
             .withPrimitiveTopology(PrimitiveTopology.TRIANGLES)
             .withDepthStencilState(new DepthStencilState(CompareOp.GREATER_THAN_OR_EQUAL, true))
             .withCull(cull);
-    if (blend) {
-      builder.withColorTargetState(
-          new ColorTargetState(BlendFunction.TRANSLUCENT_PREMULTIPLIED_ALPHA));
-    }
-    return builder.build();
+    return builder
+        .withColorTargetState(
+            blend
+                ? new ColorTargetState(BlendFunction.TRANSLUCENT_PREMULTIPLIED_ALPHA)
+                : ColorTargetState.DEFAULT)
+        .build();
   }
 
   private static final class Target {
@@ -257,12 +259,10 @@ final class PreviewRenderer implements ModelPreviews {
   }
 
   private boolean compile() {
-    if (!compiled) {
+    if (!compiled && Gpu.ready()) {
       compiled = true;
       GpuDevice device = RenderSystem.getDevice();
-      if (!device.precompilePipeline(CULLED).isValid()
-          || !device.precompilePipeline(DOUBLE_SIDED).isValid()
-          || !device.precompilePipeline(TRANSLUCENT).isValid()) {
+      if (!Gpu.usable(CULLED) || !Gpu.usable(DOUBLE_SIDED) || !Gpu.usable(TRANSLUCENT)) {
         broken = true;
         CxVisualsClient.LOG.warn(
             "Avatar preview shader failed to compile, the gallery shows no previews");
@@ -341,8 +341,8 @@ final class PreviewRenderer implements ModelPreviews {
       if (mesh.indexCount[p] == 0 || part.blend != blend) {
         continue;
       }
-      pass.setPipeline(blend ? TRANSLUCENT : part.doubleSided ? DOUBLE_SIDED : CULLED);
-      pass.bindTexture(ALBEDO, mesh.views[p], mesh.samplers[p]);
+      Gpu.use(pass, blend ? TRANSLUCENT : part.doubleSided ? DOUBLE_SIDED : CULLED);
+      Gpu.bind(pass, ALBEDO, mesh.views[p], mesh.samplers[p]);
       pass.drawIndexed(mesh.indexCount[p], 1, mesh.firstIndex[p], mesh.baseVertex[p], 0);
     }
   }

@@ -1,7 +1,7 @@
 package me.cxiy.cxvisuals.mc.gui;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.FilterMode;
+import com.mojang.renderpearl.api.textures.FilterMode;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;

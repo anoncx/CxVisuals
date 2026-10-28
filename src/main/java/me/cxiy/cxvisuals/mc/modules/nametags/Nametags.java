@@ -1,15 +1,15 @@
 package me.cxiy.cxvisuals.mc.modules.nametags;
 
-import com.mojang.blaze3d.buffers.GpuBuffer;
-import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.mojang.blaze3d.systems.CommandEncoder;
-import com.mojang.blaze3d.systems.GpuDevice;
-import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.FilterMode;
-import com.mojang.blaze3d.textures.GpuTextureView;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.renderpearl.api.buffers.GpuBuffer;
+import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
+import com.mojang.renderpearl.api.commands.CommandEncoder;
+import com.mojang.renderpearl.api.commands.RenderPass;
+import com.mojang.renderpearl.api.device.GpuDevice;
+import com.mojang.renderpearl.api.textures.FilterMode;
+import com.mojang.renderpearl.api.textures.GpuTextureView;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.HashMap;
@@ -23,6 +23,7 @@ import me.cxiy.cxvisuals.gui.text.GlyphAtlas;
 import me.cxiy.cxvisuals.gui.text.TextRun;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
 import me.cxiy.cxvisuals.mc.McKeyBinder;
+import me.cxiy.cxvisuals.mc.compat.Gpu;
 import me.cxiy.cxvisuals.mc.compat.IrisCompat;
 import me.cxiy.cxvisuals.mc.gui.McCanvas;
 import me.cxiy.cxvisuals.mc.modules.environment.WorldTextPipeline;
@@ -298,7 +299,7 @@ public final class Nametags {
     }
     poseStack.pushPose();
     poseStack.translate(attachment.x, attachment.y + 0.5, attachment.z);
-    poseStack.mulPose(camera.orientation);
+    poseStack.rotate(camera.orientation);
     poseStack.scale(0.025F, -0.025F, 0.025F);
     POSES[count].set(poseStack.last().pose());
     poseStack.popPose();
@@ -400,14 +401,15 @@ public final class Nametags {
       pass.setUniform("DynamicTransforms", transforms);
       pass.setVertexBuffer(0, vertices.slice());
       for (int stage = 0; stage < 2; stage++) {
-        pass.setPipeline(stage == 0 ? WorldTextPipeline.flat : WorldTextPipeline.depth);
+        Gpu.use(pass, stage == 0 ? WorldTextPipeline.flat : WorldTextPipeline.depth);
         for (int layer = 0; layer < 2; layer++) {
           int[] first = layer == 0 ? FIRST : TEXT_FIRST;
           int[] amount = layer == 0 ? COUNT : TEXT_COUNT;
           for (int page = 0; page < pages; page++) {
             int slot = stage * MAX_PAGES + page;
             if (amount[slot] > 0) {
-              pass.bindTexture(
+              Gpu.bind(
+                  pass,
                   "Sampler0",
                   McCanvas.fontView(page),
                   RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR));

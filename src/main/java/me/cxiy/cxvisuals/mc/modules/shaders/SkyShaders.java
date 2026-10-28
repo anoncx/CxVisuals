@@ -1,23 +1,24 @@
 package me.cxiy.cxvisuals.mc.modules.shaders;
 
-import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.Std140Builder;
 import com.mojang.blaze3d.buffers.Std140SizeCalculator;
-import com.mojang.blaze3d.pipeline.BindGroupLayout;
-import com.mojang.blaze3d.pipeline.BlendFunction;
-import com.mojang.blaze3d.pipeline.ColorTargetState;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.mojang.blaze3d.shaders.UniformType;
-import com.mojang.blaze3d.systems.CommandEncoder;
-import com.mojang.blaze3d.systems.GpuDevice;
-import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.FilterMode;
+import com.mojang.renderpearl.api.buffers.GpuBuffer;
+import com.mojang.renderpearl.api.commands.CommandEncoder;
+import com.mojang.renderpearl.api.commands.RenderPass;
+import com.mojang.renderpearl.api.device.GpuDevice;
+import com.mojang.renderpearl.api.pipeline.BindGroupLayout;
+import com.mojang.renderpearl.api.pipeline.BlendFunction;
+import com.mojang.renderpearl.api.pipeline.ColorTargetState;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
+import com.mojang.renderpearl.api.pipeline.UniformType;
+import com.mojang.renderpearl.api.textures.FilterMode;
 import java.nio.ByteBuffer;
 import java.util.Optional;
 import me.cxiy.cxvisuals.core.settings.Palette;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
+import me.cxiy.cxvisuals.mc.compat.Gpu;
 import me.cxiy.cxvisuals.mc.compat.IrisCompat;
 import me.cxiy.cxvisuals.modules.shaders.ShadersModule;
 import me.cxiy.cxvisuals.modules.shaders.Sky;
@@ -77,7 +78,7 @@ public final class SkyShaders {
               SKIES[i].shader(),
               blend,
               BindGroupLayout.builder()
-                  .withSampler(DEPTH)
+                  .withUniform(DEPTH, UniformType.COMBINED_IMAGE_SAMPLER)
                   .withUniform(BLOCK, UniformType.UNIFORM_BUFFER)
                   .build());
     }
@@ -130,11 +131,11 @@ public final class SkyShaders {
     }
   }
 
-  private static boolean ready(GpuDevice device, Sky sky) {
+  private static boolean ready(Sky sky) {
     int index = sky.ordinal();
-    if (!COMPILED[index]) {
+    if (!COMPILED[index] && Gpu.ready()) {
       COMPILED[index] = true;
-      if (!device.precompilePipeline(PIPELINES[index]).isValid()) {
+      if (!Gpu.usable(PIPELINES[index])) {
         BROKEN[index] = true;
         CxVisualsClient.LOG.warn("Sky shader {} failed to compile and does nothing", sky.shader());
       }
@@ -154,7 +155,7 @@ public final class SkyShaders {
     }
     GpuDevice device = RenderSystem.getDevice();
     Sky sky = module.scene.get();
-    if (!ready(device, sky)) {
+    if (!ready(sky)) {
       return;
     }
     if (uniforms == null) {
@@ -187,9 +188,10 @@ public final class SkyShaders {
     try (RenderPass pass =
         encoder.createRenderPass(
             () -> "CxVisuals sky shader", main.getColorTextureView(), Optional.empty())) {
-      pass.setPipeline(PIPELINES[sky.ordinal()]);
+      Gpu.use(pass, PIPELINES[sky.ordinal()]);
       pass.setUniform(BLOCK, uniforms);
-      pass.bindTexture(
+      Gpu.bind(
+          pass,
           DEPTH,
           main.getDepthTextureView(),
           RenderSystem.getSamplerCache().getClampToEdge(FilterMode.NEAREST));

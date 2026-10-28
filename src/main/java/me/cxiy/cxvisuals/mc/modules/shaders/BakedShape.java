@@ -49,6 +49,11 @@ final class BakedShape implements VertexConsumer, SubmitNodeCollector.CustomGeom
   }
 
   @Override
+  public VertexConsumer setUv3(float u, float v) {
+    return this;
+  }
+
+  @Override
   public VertexConsumer setUv1(int u, int v) {
     return this;
   }

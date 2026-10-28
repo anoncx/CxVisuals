@@ -3,7 +3,7 @@ uniform sampler2D MaskDepthSampler;
 uniform sampler2D SceneDepthSampler;
 uniform sampler2D FieldSampler;
 
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
 
 struct Surface {
     float edge;

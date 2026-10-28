@@ -1,4 +1,5 @@
 #version 330
+#extension GL_ARB_separate_shader_objects : require
 
 layout(std140) uniform Swing {
     mat4 ViewProj;
@@ -7,15 +8,15 @@ layout(std140) uniform Swing {
     vec4 Look;
 };
 
-in float across;
-in float arc;
-in float along;
-in float alpha;
-in float ends;
-in float tipEnds;
-flat in float seed;
+layout(location = 0) in float across;
+layout(location = 1) in float arc;
+layout(location = 2) in float along;
+layout(location = 3) in float alpha;
+layout(location = 4) in float ends;
+layout(location = 5) in float tipEnds;
+layout(location = 6) flat in float seed;
 
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
 
 const int GLOW = 0;
 const int COMET = 1;

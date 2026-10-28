@@ -1,10 +1,11 @@
 #version 330
+#extension GL_ARB_separate_shader_objects : require
 
-#moj_import <cxvisuals:entity_block.glsl>
+#include <cxvisuals:entity_block.glsl>
 
 uniform sampler2D FieldSampler;
 
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
 
 void main() {
     vec2 size = vec2(textureSize(FieldSampler, 0));

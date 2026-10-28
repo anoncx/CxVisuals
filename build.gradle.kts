@@ -1,11 +1,22 @@
+import java.util.Properties
+
 plugins {
     id("net.fabricmc.fabric-loom") version "1.17-SNAPSHOT"
 }
 
-fun prop(name: String) = providers.gradleProperty(name).get()
+val mc = providers.gradleProperty("mc").orElse(providers.gradleProperty("minecraft_version")).get()
+
+val versionProps = Properties().apply {
+    val file = layout.projectDirectory.file("versions/$mc.properties").asFile
+    require(file.isFile) { "Unsupported Minecraft version $mc, missing ${file.name}" }
+    file.inputStream().use { load(it) }
+}
+
+fun prop(name: String): String =
+    providers.gradleProperty(name).orNull ?: versionProps.getProperty(name) ?: providers.gradleProperty(name).get()
 
 group = prop("maven_group")
-version = "${prop("mod_version")}+${prop("minecraft_version")}"
+version = "${prop("mod_version")}+$mc"
 
 base {
     archivesName = prop("archives_base_name")
@@ -13,6 +24,26 @@ base {
 
 val lib: SourceSet = sourceSets.create("lib") {
     java.srcDir("src/lib/java")
+}
+
+val portDir = layout.projectDirectory.dir("versions/$mc")
+
+if (portDir.file("imports.txt").asFile.isFile) {
+    val port = { kind: String, name: String ->
+        tasks.register<PortSources>("port$name") {
+            source.set(layout.projectDirectory.dir("src/main/$kind"))
+            layout.projectDirectory.dir("src/mc/$mc/$kind").takeIf { it.asFile.isDirectory }?.let { overlay.set(it) }
+            rules.set(portDir)
+            this.kind.set(if (kind == "java") "java" else "shader")
+            output.set(layout.buildDirectory.dir("ported/$mc/$kind"))
+        }
+    }
+    val portJava = port("java", "Java")
+    val portResources = port("resources", "Resources")
+    sourceSets.main {
+        java.setSrcDirs(listOf(portJava.flatMap { it.output }))
+        resources.setSrcDirs(listOf(portResources.flatMap { it.output }))
+    }
 }
 
 repositories {
@@ -24,13 +55,13 @@ repositories {
 }
 
 dependencies {
-    minecraft("com.mojang:minecraft:${prop("minecraft_version")}")
+    minecraft("com.mojang:minecraft:$mc")
     implementation("net.fabricmc:fabric-loader:${prop("loader_version")}")
     implementation("net.fabricmc.fabric-api:fabric-api:${prop("fabric_api_version")}")
 
     "libCompileOnly"("com.google.code.gson:gson:2.13.1")
     "libCompileOnly"("org.joml:joml:1.10.8")
-    compileOnly("maven.modrinth:sodium:mc26.2-0.9.2-fabric")
+    compileOnly("maven.modrinth:sodium:${prop("sodium_version")}")
     implementation(lib.output)
 }
 
@@ -54,7 +85,8 @@ tasks {
         val props = mapOf(
             "version" to project.version,
             "jdk_version" to prop("jdk_version"),
-            "loader_version" to prop("loader_version")
+            "loader_version" to prop("loader_version"),
+            "minecraft_range" to prop("minecraft_range")
         )
         inputs.properties(props)
         filesMatching("fabric.mod.json") {

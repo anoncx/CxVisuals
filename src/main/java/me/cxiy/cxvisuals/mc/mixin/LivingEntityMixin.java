@@ -4,6 +4,7 @@ import me.cxiy.cxvisuals.mc.modules.deaths.DeathEffects;
 import me.cxiy.cxvisuals.mc.modules.hands.Hands;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.item.component.SwingAnimation;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -19,8 +20,8 @@ public abstract class LivingEntityMixin {
     }
   }
 
-  @Inject(method = "getCurrentSwingDuration", at = @At("RETURN"), cancellable = true)
-  private void cxvisuals$swingSpeed(CallbackInfoReturnable<Integer> cir) {
+  @Inject(method = "getModifiedSwingDuration", at = @At("RETURN"), cancellable = true)
+  private void cxvisuals$swingSpeed(SwingAnimation animation, CallbackInfoReturnable<Integer> cir) {
     if ((Object) this == Minecraft.getInstance().player) {
       int vanilla = cir.getReturnValueI();
       int adjusted = Hands.swingDuration(vanilla);

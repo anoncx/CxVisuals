@@ -1,6 +1,6 @@
 # CxVisuals
 
-Client-side Fabric mod for Minecraft 26.2: a set of visual modules behind one settings window.
+Client-side Fabric mod for Minecraft 26.2 and 26.3: a set of visual modules behind one settings window.
 
 It only changes what you see. Your player's position and rotation are never touched and nothing extra is sent to the server.
 
@@ -110,10 +110,19 @@ Settings are stored in `config/cxvisuals.json`. A `caridle.json` from the earlie
 Requires JDK 25.
 
 ```
-./gradlew build
+./gradlew assemble
 ```
 
-The jar is written to `build/libs/`.
+The jar for the newest version is written to `build/libs/`. Pick another with `-Pmc=26.2`; `./buildall.sh` builds every supported version.
+
+## Supported versions
+
+| Minecraft | Fabric Loader | Fabric API | Sodium |
+|---|---|---|---|
+| 26.3 | 0.20.1 | 0.165.0+26.3 | mc26.3-0.9.2 |
+| 26.2 | 0.19.3 | 0.154.2+26.2 | mc26.2-0.9.2 |
+
+`versions/<mc>.properties` holds the pins of each version. `src/main` is written against the newest version. Older versions are produced at build time from `versions/<mc>/`: `imports.txt` renames moved classes, `java.rules` and `shader.rules` are regex rewrites, and `src/mc/<mc>/` replaces the files that cannot be expressed as rules. Differences that cross many files live in `me.cxiy.cxvisuals.mc.compat`. To add a version, copy a `versions/*.properties`, build, and fix what fails.
 
 ```
 ./gradlew runClient
