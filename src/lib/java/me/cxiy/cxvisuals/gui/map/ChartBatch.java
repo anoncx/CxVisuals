@@ -4,7 +4,8 @@ import me.cxiy.cxvisuals.modules.map.MapAtlas;
 import me.cxiy.cxvisuals.modules.map.TileKey;
 
 public final class ChartBatch {
-  public static final int MAX_QUADS = 512;
+  public static final int MAX_QUADS = 1024;
+  private static final int TILE_LIMIT = MAX_QUADS / 2;
   public static final float CLOUD_CELLS = 2.0F;
   public static final int CLOUD_PERIOD = 256;
 
@@ -61,7 +62,6 @@ public final class ChartBatch {
     width = w;
     height = h;
     int level = Math.min(TileKey.MAX_LEVEL, view.level() + coarser);
-    int span = TileKey.span(level);
     double minX = Double.MAX_VALUE;
     double minZ = Double.MAX_VALUE;
     double maxX = -Double.MAX_VALUE;
@@ -76,10 +76,23 @@ public final class ChartBatch {
       minZ = Math.min(minZ, wz);
       maxZ = Math.max(maxZ, wz);
     }
-    int fromX = (int) Math.floor(minX / span);
-    int toX = (int) Math.floor(maxX / span);
-    int fromZ = (int) Math.floor(minZ / span);
-    int toZ = (int) Math.floor(maxZ / span);
+    int span;
+    int fromX;
+    int toX;
+    int fromZ;
+    int toZ;
+    while (true) {
+      span = TileKey.span(level);
+      fromX = (int) Math.floor(minX / span);
+      toX = (int) Math.floor(maxX / span);
+      fromZ = (int) Math.floor(minZ / span);
+      toZ = (int) Math.floor(maxZ / span);
+      if (level >= TileKey.MAX_LEVEL
+          || (long) (toX - fromX + 1) * (toZ - fromZ + 1) <= TILE_LIMIT) {
+        break;
+      }
+      level++;
+    }
     int tiles = gather(view, level, span, x + w * 0.5F, y + h * 0.5F, fromX, toX, fromZ, toZ);
     for (int n = 0; n < tiles && count < MAX_QUADS; n++) {
       int tx = gatherX[(int) (order[n] & ORDER_MASK)];
@@ -136,6 +149,28 @@ public final class ChartBatch {
         }
       }
       quad(view, wx0, wz0, span, slot, su, sv, size, cloudX, cloudY, CLOUD_CELLS);
+    }
+  }
+
+  public static void warm(MapAtlas source, Viewport view, int layer) {
+    if (view.level() <= TileKey.REGION_LEVEL || source.busy()) {
+      return;
+    }
+    int regionSpan = TileKey.span(TileKey.REGION_LEVEL);
+    int regionX = (int) Math.floor(view.centreX / regionSpan);
+    int regionZ = (int) Math.floor(view.centreZ / regionSpan);
+    for (int dz = -1; dz <= 1; dz++) {
+      for (int dx = -1; dx <= 1; dx++) {
+        source.warm(TileKey.of(layer, TileKey.REGION_LEVEL, regionX + dx, regionZ + dz));
+      }
+    }
+    int fineSpan = TileKey.span(TileKey.REGION_LEVEL - 1);
+    int fineX = (int) Math.floor(view.centreX / fineSpan);
+    int fineZ = (int) Math.floor(view.centreZ / fineSpan);
+    for (int dz = -2; dz <= 1; dz++) {
+      for (int dx = -2; dx <= 1; dx++) {
+        source.warm(TileKey.of(layer, TileKey.REGION_LEVEL - 1, fineX + dx, fineZ + dz));
+      }
     }
   }
 

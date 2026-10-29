@@ -1,5 +1,6 @@
 package me.cxiy.cxvisuals.gui.map;
 
+import java.util.Arrays;
 import me.cxiy.cxvisuals.modules.map.MapAtlas;
 import me.cxiy.cxvisuals.modules.map.TileKey;
 import org.joml.FrustumIntersection;
@@ -8,6 +9,9 @@ public final class TerrainFrame {
   public static final int MAX_TILES = 192;
   public static final int DETAIL_LEVELS = TileKey.REGION_LEVEL + 1;
 
+  private static final int CANDIDATES = 1024;
+  private static final int ORDER_BITS = 12;
+  private static final long ORDER_MASK = (1L << ORDER_BITS) - 1L;
   private static final float NEAR_REACH = 1.1F;
   private static final float LEVEL_GROWTH = 3.0F;
   private static final float MIN_NEAR = 96.0F;
@@ -42,6 +46,9 @@ public final class TerrainFrame {
   public float time;
 
   private final FrustumIntersection frustum = new FrustumIntersection();
+  private final int[] candidateX = new int[CANDIDATES];
+  private final int[] candidateZ = new int[CANDIDATES];
+  private final long[] order = new long[CANDIDATES];
 
   public void build(MapAtlas source, int layer, float x, float y, float w, float h) {
     atlas = source;
@@ -59,10 +66,23 @@ public final class TerrainFrame {
     int toX = (int) Math.floor((camera.targetX + reach) / span);
     int fromZ = (int) Math.floor((camera.targetZ - reach) / span);
     int toZ = (int) Math.floor((camera.targetZ + reach) / span);
+    double centreX = camera.targetX / span - 0.5;
+    double centreZ = camera.targetZ / span - 0.5;
+    int found = 0;
     for (int tz = fromZ; tz <= toZ; tz++) {
-      for (int tx = fromX; tx <= toX; tx++) {
-        visit(layer, coarse, tx, tz, near);
+      for (int tx = fromX; tx <= toX && found < CANDIDATES; tx++) {
+        double dx = tx - centreX;
+        double dz = tz - centreZ;
+        candidateX[found] = tx;
+        candidateZ[found] = tz;
+        order[found] = ((long) ((dx * dx + dz * dz) * 256.0) << ORDER_BITS) | found;
+        found++;
       }
+    }
+    Arrays.sort(order, 0, found);
+    for (int n = 0; n < found; n++) {
+      int at = (int) (order[n] & ORDER_MASK);
+      visit(layer, coarse, candidateX[at], candidateZ[at], near);
     }
   }
 

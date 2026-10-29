@@ -21,9 +21,13 @@ import net.minecraft.client.renderer.texture.TextureAtlas;
 import org.lwjgl.system.MemoryUtil;
 
 final class MapTextures {
-  private static final int UPLOADS_PER_FRAME = 4;
+  private static final int UPLOADS_PER_FRAME = 6;
+  private static final int BULK_UPLOADS = 16;
+  private static final int BACKLOG_UPLOADS = 12;
 
   private static final class Slot {
+    final boolean[] detailed = new boolean[MapAtlas.SLOTS];
+    final boolean[] grounded = new boolean[MapAtlas.SLOTS];
     final DynamicTexture colors;
     final DynamicTexture ids;
     final DynamicTexture grounds;
@@ -99,13 +103,20 @@ final class MapTextures {
       GpuTexture colors = slot.colors.getTexture();
       GpuTexture ids = slot.ids.getTexture();
       GpuTexture grounds = slot.grounds.getTexture();
+      Slot target = slot;
       atlas.drain(
           (index, pixels, details, under) -> {
             write(encoder, colors, index, pixels);
-            write(encoder, ids, index, details);
-            write(encoder, grounds, index, under);
+            if (details != null || target.detailed[index]) {
+              write(encoder, ids, index, details);
+              target.detailed[index] = details != null;
+            }
+            if (under != null || target.grounded[index]) {
+              write(encoder, grounds, index, under);
+              target.grounded[index] = under != null;
+            }
           },
-          UPLOADS_PER_FRAME);
+          atlas.pending() > BACKLOG_UPLOADS ? BULK_UPLOADS : UPLOADS_PER_FRAME);
     }
     return slot.setup;
   }

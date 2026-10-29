@@ -99,6 +99,12 @@ public final class MapAtlas {
     return index;
   }
 
+  public void warm(long key) {
+    if (!slots.containsKey(key)) {
+      request(key);
+    }
+  }
+
   public int peek(long key) {
     Integer slot = slots.get(key);
     if (slot == null) {
@@ -143,6 +149,14 @@ public final class MapAtlas {
   public int[] buffer() {
     int[] reused = pool.poll();
     return reused != null ? reused : new int[TileBaker.PIXELS];
+  }
+
+  public void release(int[] pixels) {
+    recycle(pixels);
+  }
+
+  public int pending() {
+    return done.size();
   }
 
   public void finish(long key, int forGeneration, int[] pixels, int[] ids, int[] grounds) {

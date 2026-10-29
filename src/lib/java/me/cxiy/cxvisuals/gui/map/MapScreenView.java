@@ -351,6 +351,7 @@ public final class MapScreenView {
       }
     }
     if (solid <= 0.0F) {
+      ChartBatch.warm(source.atlas(), view, TileKey.SURFACE);
       grid(c, t, scale);
       selection(c, t);
     }

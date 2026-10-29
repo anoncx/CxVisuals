@@ -19,6 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import me.cxiy.cxvisuals.modules.map.Relief.Terrain;
 
@@ -28,13 +29,30 @@ public final class MapWorld implements TileBaker.Source {
   private static final int KEEP_REGIONS = 24;
   private static final int KEEP_THUMBS = 768;
   private static final int KEEP_CAVES = 12;
+  private static final int KEEP_DECODED = 6;
+  private static final int BAKE_THREADS =
+      Math.max(1, Math.min(3, Runtime.getRuntime().availableProcessors() / 4));
+
+  private record Average(int revision, int value) {}
   private static final long SEARCH_PUBLISH = 70_000_000L;
   private static final long SAVE_NANOS = 20_000_000_000L;
 
   private final MapAtlas atlas;
   private final BlockPalette palette = new BlockPalette();
-  private final TileBaker tiles = new TileBaker(this);
-  private final TileBaker thumbnails = new TileBaker(this);
+  private final ThreadLocal<TileBaker> tiles = ThreadLocal.withInitial(() -> new TileBaker(this));
+  private final ThreadLocal<TileBaker> thumbnails =
+      ThreadLocal.withInitial(() -> new TileBaker(this));
+  private final ExecutorService bakers;
+  private final Map<Long, Region> decoded =
+      new LinkedHashMap<>(16, 0.75F, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<Long, Region> eldest) {
+          return size() > KEEP_DECODED;
+        }
+      };
+  private final Map<Long, Average> averages = new ConcurrentHashMap<>();
+  private volatile Set<Long> covered = Set.of();
+  private volatile int coveredFor = -1;
   private final ExecutorService searcher =
       Executors.newSingleThreadExecutor(
           run -> {
@@ -73,6 +91,16 @@ public final class MapWorld implements TileBaker.Source {
         Executors.newSingleThreadExecutor(
             run -> {
               Thread thread = new Thread(run, "CxVisuals Map");
+              thread.setDaemon(true);
+              thread.setPriority(Thread.MIN_PRIORITY + 1);
+              return thread;
+            });
+    AtomicInteger named = new AtomicInteger();
+    this.bakers =
+        Executors.newFixedThreadPool(
+            BAKE_THREADS,
+            run -> {
+              Thread thread = new Thread(run, "CxVisuals Map Bake " + named.incrementAndGet());
               thread.setDaemon(true);
               thread.setPriority(Thread.MIN_PRIORITY + 1);
               return thread;
@@ -132,6 +160,7 @@ public final class MapWorld implements TileBaker.Source {
     if (next != terrain) {
       terrain = next;
       thumbs.clear();
+      averages.clear();
       atlas.clear();
     }
   }
@@ -166,6 +195,12 @@ public final class MapWorld implements TileBaker.Source {
     loading.clear();
     touched.clear();
     thumbs.clear();
+    averages.clear();
+    synchronized (decoded) {
+      decoded.clear();
+    }
+    covered = Set.of();
+    coveredFor = -1;
     bytes = 0L;
     scope = "";
     dimension = "";
@@ -200,6 +235,9 @@ public final class MapWorld implements TileBaker.Source {
         if (region != null && !region.dirty() && region.flushed() && key != nearRegion) {
           surface.remove(key);
           touched.remove(key);
+          synchronized (decoded) {
+            decoded.remove(key);
+          }
         }
       }
     }
@@ -328,6 +366,10 @@ public final class MapWorld implements TileBaker.Source {
       long key = Region.key(chunk.x() >> 5, chunk.z() >> 5);
       known.add(key);
       thumbs.remove(key);
+      averages.remove(key);
+      synchronized (decoded) {
+        decoded.remove(key);
+      }
       int[] thumb = fresh.get(key);
       if (thumb != null) {
         thumbs.put(key, ThumbCache.DISK, thumb);
@@ -646,6 +688,7 @@ public final class MapWorld implements TileBaker.Source {
   public void shutdown() {
     saveAll();
     searcher.shutdownNow();
+    bakers.shutdownNow();
     worker.shutdown();
   }
 
@@ -660,7 +703,58 @@ public final class MapWorld implements TileBaker.Source {
       return region;
     }
     Path from = folder;
-    return from == null ? null : arrive(key, read(from, regionX, regionZ, palette), from);
+    if (from == null) {
+      return null;
+    }
+    synchronized (decoded) {
+      Region cached = decoded.get(key);
+      if (cached != null) {
+        return cached;
+      }
+      Region read = read(from, regionX, regionZ, palette);
+      if (read != null) {
+        decoded.put(key, read);
+      }
+      return arrive(key, read, from);
+    }
+  }
+
+  @Override
+  public int average(int regionX, int regionZ) {
+    long key = Region.key(regionX, regionZ);
+    if (!known.contains(key)) {
+      return 0;
+    }
+    Region region = surface.get(key);
+    int revision = region != null && !region.empty() ? region.revision() : ThumbCache.DISK;
+    Average have = averages.get(key);
+    if (have != null && have.revision() == revision) {
+      return have.value();
+    }
+    int[] thumb = thumbnail(regionX, regionZ);
+    int value = thumb == null ? 0 : TileBaker.average(thumb);
+    averages.put(key, new Average(revision, value));
+    return value;
+  }
+
+  @Override
+  public boolean occupied(int level, int x, int z) {
+    int size = known.size();
+    Set<Long> have = covered;
+    if (size != coveredFor) {
+      have = new HashSet<>(size * 8);
+      for (long key : known) {
+        int rx = Region.keyX(key);
+        int rz = Region.keyZ(key);
+        for (int up = TileKey.REGION_LEVEL + 1; up <= TileKey.MAX_LEVEL; up++) {
+          int shift = up - TileKey.REGION_LEVEL;
+          have.add(TileKey.of(TileKey.SURFACE, up, rx >> shift, rz >> shift));
+        }
+      }
+      covered = have;
+      coveredFor = size;
+    }
+    return have.contains(TileKey.of(TileKey.SURFACE, level, x, z));
   }
 
   @Override
@@ -677,7 +771,7 @@ public final class MapWorld implements TileBaker.Source {
         return cached;
       }
       int[] made = new int[TileBaker.PIXELS];
-      if (thumbnails.thumbnail(region, terrain, made)) {
+      if (thumbnails.get().thumbnail(region, terrain, made)) {
         TileBaker.bleed(made);
       }
       thumbs.put(key, revision, made);
@@ -701,25 +795,33 @@ public final class MapWorld implements TileBaker.Source {
   }
 
   private void bake(long key, int generation) {
-    worker.execute(
+    bakers.execute(
         () -> {
           if (generation != atlas.generation()) {
             return;
           }
+          TileBaker baker = tiles.get();
           int[] pixels = atlas.buffer();
           int[] ids = null;
           int[] grounds = null;
           boolean any;
           try {
-            any = tiles.bake(key, terrain, pixels);
+            any = baker.bake(key, terrain, pixels);
             if (any && TileKey.level(key) <= TileKey.REGION_LEVEL) {
               ids = atlas.buffer();
               grounds = atlas.buffer();
-              tiles.details(key, ids, grounds);
+              baker.details(key, ids, grounds);
             }
           } catch (RuntimeException e) {
             warn.accept("Couldn't draw a map tile: " + e.getMessage());
             any = false;
+          }
+          if (!any) {
+            atlas.release(pixels);
+            atlas.release(ids);
+            atlas.release(grounds);
+            ids = null;
+            grounds = null;
           }
           atlas.finish(key, generation, any ? pixels : null, ids, grounds);
         });
@@ -743,6 +845,9 @@ public final class MapWorld implements TileBaker.Source {
             return;
           }
           loading.remove(key);
+          synchronized (decoded) {
+            decoded.remove(key);
+          }
           if (region == null) {
             known.remove(key);
           } else if (!surface.containsKey(key)) {
