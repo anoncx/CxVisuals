@@ -27,13 +27,15 @@ public final class MapWorld implements TileBaker.Source {
   public static final String EXTENSION = ".cxm";
 
   private static final int KEEP_REGIONS = 24;
-  private static final int KEEP_THUMBS = 768;
+  private static final int KEEP_THUMBS = 192;
   private static final int KEEP_CAVES = 12;
   private static final int KEEP_DECODED = 6;
   private static final int BAKE_THREADS =
       Math.max(1, Math.min(3, Runtime.getRuntime().availableProcessors() / 4));
 
   private record Average(int revision, int value) {}
+
+  private record Mini(int revision, int[] pixels) {}
   private static final long SEARCH_PUBLISH = 70_000_000L;
   private static final long SAVE_NANOS = 20_000_000_000L;
 
@@ -51,6 +53,7 @@ public final class MapWorld implements TileBaker.Source {
         }
       };
   private final Map<Long, Average> averages = new ConcurrentHashMap<>();
+  private final Map<Long, Mini> minis = new ConcurrentHashMap<>();
   private volatile Set<Long> covered = Set.of();
   private volatile int coveredFor = -1;
   private final ExecutorService searcher =
@@ -161,6 +164,7 @@ public final class MapWorld implements TileBaker.Source {
       terrain = next;
       thumbs.clear();
       averages.clear();
+      minis.clear();
       atlas.clear();
     }
   }
@@ -196,6 +200,7 @@ public final class MapWorld implements TileBaker.Source {
     touched.clear();
     thumbs.clear();
     averages.clear();
+    minis.clear();
     synchronized (decoded) {
       decoded.clear();
     }
@@ -367,6 +372,7 @@ public final class MapWorld implements TileBaker.Source {
       known.add(key);
       thumbs.remove(key);
       averages.remove(key);
+      minis.remove(key);
       synchronized (decoded) {
         decoded.remove(key);
       }
@@ -731,14 +737,40 @@ public final class MapWorld implements TileBaker.Source {
     if (have != null && have.revision() == revision) {
       return have.value();
     }
-    int[] thumb = thumbnail(regionX, regionZ);
-    int value = thumb == null ? 0 : TileBaker.average(thumb);
+    int[] mini = mini(regionX, regionZ);
+    int value = mini == null ? 0 : TileBaker.average(mini);
     averages.put(key, new Average(revision, value));
     return value;
   }
 
   @Override
+  public int[] mini(int regionX, int regionZ) {
+    long key = Region.key(regionX, regionZ);
+    if (!known.contains(key)) {
+      return null;
+    }
+    Region region = surface.get(key);
+    int revision = region != null && !region.empty() ? region.revision() : ThumbCache.DISK;
+    Mini have = minis.get(key);
+    if (have != null && have.revision() == revision) {
+      return have.pixels();
+    }
+    int[] thumb = thumbnail(regionX, regionZ);
+    int[] made = thumb == null ? null : TileBaker.shrink(thumb);
+    minis.put(key, new Mini(revision, made));
+    return made;
+  }
+
+  @Override
   public boolean occupied(int level, int x, int z) {
+    Set<Long> have = covered;
+    if (known.size() != coveredFor) {
+      have = cover();
+    }
+    return have.contains(TileKey.of(TileKey.SURFACE, level, x, z));
+  }
+
+  private synchronized Set<Long> cover() {
     int size = known.size();
     Set<Long> have = covered;
     if (size != coveredFor) {
@@ -754,7 +786,7 @@ public final class MapWorld implements TileBaker.Source {
       covered = have;
       coveredFor = size;
     }
-    return have.contains(TileKey.of(TileKey.SURFACE, level, x, z));
+    return have;
   }
 
   @Override

@@ -14,6 +14,11 @@ public final class TileBaker {
       return thumb == null ? 0 : TileBaker.average(thumb);
     }
 
+    default int[] mini(int regionX, int regionZ) {
+      int[] thumb = thumbnail(regionX, regionZ);
+      return thumb == null ? null : TileBaker.shrink(thumb);
+    }
+
     default boolean occupied(int level, int x, int z) {
       return true;
     }
@@ -21,6 +26,10 @@ public final class TileBaker {
 
   public static final int PIXELS = TileKey.EDGE * TileKey.EDGE;
   public static final int WIDE_LEVEL = Region.SHIFT;
+
+  public static final int MINI = 16;
+  public static final int MINI_SHIFT = 4;
+  public static final int MINI_LEVEL = 5;
 
   private static final int SAMPLES = 4;
 
@@ -160,6 +169,15 @@ public final class TileBaker {
     }
     if (level > WIDE_LEVEL) {
       return (source.average(wx >> Region.SHIFT, wz >> Region.SHIFT) >>> 24) / 255.0F;
+    }
+    if (level >= MINI_LEVEL) {
+      int[] mini = source.mini(wx >> Region.SHIFT, wz >> Region.SHIFT);
+      if (mini == null) {
+        return 0.0F;
+      }
+      int mx = (wx & Region.MASK) >> (Region.SHIFT - MINI_SHIFT);
+      int mz = (wz & Region.MASK) >> (Region.SHIFT - MINI_SHIFT);
+      return (mini[(mz << MINI_SHIFT) | mx] >>> 24) / 255.0F;
     }
     int[] thumb = source.thumbnail(wx >> Region.SHIFT, wz >> Region.SHIFT);
     if (thumb == null) {
@@ -310,6 +328,35 @@ public final class TileBaker {
     return cached;
   }
 
+  public static int[] shrink(int[] thumb) {
+    int box = TileKey.EDGE / MINI;
+    int[] out = new int[MINI * MINI];
+    for (int pz = 0; pz < MINI; pz++) {
+      for (int px = 0; px < MINI; px++) {
+        int a = 0;
+        int r = 0;
+        int g = 0;
+        int b = 0;
+        for (int dz = 0; dz < box; dz++) {
+          int row = (pz * box + dz) << TileKey.EDGE_SHIFT;
+          for (int dx = 0; dx < box; dx++) {
+            int p = thumb[row | (px * box + dx)];
+            int alpha = p >>> 24;
+            a += alpha;
+            r += (p & 0xFF) * alpha;
+            g += ((p >> 8) & 0xFF) * alpha;
+            b += ((p >> 16) & 0xFF) * alpha;
+          }
+        }
+        if (a != 0) {
+          out[(pz << MINI_SHIFT) | px] =
+              ((a / (box * box)) << 24) | ((b / a) << 16) | ((g / a) << 8) | (r / a);
+        }
+      }
+    }
+    return out;
+  }
+
   public static int average(int[] thumb) {
     long a = 0L;
     long r = 0L;
@@ -381,7 +428,8 @@ public final class TileBaker {
     }
     int regions = 1 << (level - TileKey.REGION_LEVEL);
     int share = TileKey.EDGE / regions;
-    int box = regions;
+    int side = level >= MINI_LEVEL ? MINI : TileKey.EDGE;
+    int box = side / share;
     int taken = Math.min(box, SAMPLES);
     int stride = box / taken;
     int offset = stride >> 1;
@@ -391,7 +439,10 @@ public final class TileBaker {
     boolean any = false;
     for (int rz = 0; rz < regions; rz++) {
       for (int rx = 0; rx < regions; rx++) {
-        int[] thumb = source.thumbnail(firstX + rx, firstZ + rz);
+        int[] thumb =
+            level >= MINI_LEVEL
+                ? source.mini(firstX + rx, firstZ + rz)
+                : source.thumbnail(firstX + rx, firstZ + rz);
         int offsetX = rx * share;
         int offsetZ = rz * share;
         for (int pz = 0; pz < share; pz++) {
@@ -406,9 +457,9 @@ public final class TileBaker {
             int g = 0;
             int b = 0;
             for (int dz = 0; dz < taken; dz++) {
-              int row = (pz * box + dz * stride + offset) << TileKey.EDGE_SHIFT;
+              int row = (pz * box + dz * stride + offset) * side;
               for (int dx = 0; dx < taken; dx++) {
-                int p = thumb[row | (px * box + dx * stride + offset)];
+                int p = thumb[row + px * box + dx * stride + offset];
                 int alpha = p >>> 24;
                 a += alpha;
                 r += (p & 0xFF) * alpha;

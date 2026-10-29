@@ -22,7 +22,8 @@ import org.lwjgl.system.MemoryUtil;
 
 final class MapTextures {
   private static final int UPLOADS_PER_FRAME = 6;
-  private static final int BULK_UPLOADS = 16;
+  private static final int BULK_UPLOADS = 10;
+  private static final long UPLOAD_NANOS = 1_500_000L;
   private static final int BACKLOG_UPLOADS = 12;
 
   private static final class Slot {
@@ -116,7 +117,8 @@ final class MapTextures {
               target.grounded[index] = under != null;
             }
           },
-          atlas.pending() > BACKLOG_UPLOADS ? BULK_UPLOADS : UPLOADS_PER_FRAME);
+          atlas.pending() > BACKLOG_UPLOADS ? BULK_UPLOADS : UPLOADS_PER_FRAME,
+          UPLOAD_NANOS);
     }
     return slot.setup;
   }

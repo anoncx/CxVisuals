@@ -164,9 +164,16 @@ public final class MapAtlas {
   }
 
   public int drain(Uploader uploader, int max) {
+    return drain(uploader, max, Long.MAX_VALUE);
+  }
+
+  public int drain(Uploader uploader, int max, long budgetNanos) {
     int uploaded = 0;
+    long start = System.nanoTime();
     Done next;
-    while (uploaded < max && (next = done.poll()) != null) {
+    while (uploaded < max
+        && (uploaded == 0 || System.nanoTime() - start < budgetNanos)
+        && (next = done.poll()) != null) {
       if (next.generation != generation) {
         recycle(next.pixels);
         recycle(next.ids);
