@@ -48,6 +48,7 @@ public final class DonutRegions {
   };
 
   private static final int[][] GROUPS = groups();
+  private static final double[][] BOUNDS = bounds();
 
   private DonutRegions() {}
 
@@ -86,6 +87,47 @@ public final class DonutRegions {
       found.add(java.util.Arrays.copyOf(members, count));
     }
     return found.toArray(new int[0][]);
+  }
+
+  private static double[][] bounds() {
+    double[][] out = new double[GROUPS.length][6];
+    for (int g = 0; g < GROUPS.length; g++) {
+      double minX = Double.MAX_VALUE;
+      double minZ = Double.MAX_VALUE;
+      double maxX = -Double.MAX_VALUE;
+      double maxZ = -Double.MAX_VALUE;
+      double sumX = 0.0;
+      double sumZ = 0.0;
+      for (int cell : GROUPS[g]) {
+        minX = Math.min(minX, minX(cell));
+        minZ = Math.min(minZ, minZ(cell));
+        maxX = Math.max(maxX, minX(cell) + CELL);
+        maxZ = Math.max(maxZ, minZ(cell) + CELL);
+        sumX += minX(cell) + CELL / 2.0;
+        sumZ += minZ(cell) + CELL / 2.0;
+      }
+      double meanX = sumX / GROUPS[g].length;
+      double meanZ = sumZ / GROUPS[g].length;
+      double best = Double.MAX_VALUE;
+      for (int cell : GROUPS[g]) {
+        double dx = minX(cell) + CELL / 2.0 - meanX;
+        double dz = minZ(cell) + CELL / 2.0 - meanZ;
+        if (dx * dx + dz * dz < best) {
+          best = dx * dx + dz * dz;
+          out[g][4] = minX(cell) + CELL / 2.0;
+          out[g][5] = minZ(cell) + CELL / 2.0;
+        }
+      }
+      out[g][0] = minX;
+      out[g][1] = minZ;
+      out[g][2] = maxX;
+      out[g][3] = maxZ;
+    }
+    return out;
+  }
+
+  public static double[] groupBounds(int group) {
+    return BOUNDS[group];
   }
 
   public static int groupCount() {

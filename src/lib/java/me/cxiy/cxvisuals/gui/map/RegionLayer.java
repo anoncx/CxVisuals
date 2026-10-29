@@ -22,6 +22,7 @@ final class RegionLayer {
   private final float[] xs = new float[2];
   private final float[] ys = new float[2];
   private final float[] projected = new float[3];
+  private final float[] corners = new float[8];
 
   boolean active() {
     return fade.get() > 0.003F || fade.target() > 0.5F;
@@ -67,7 +68,7 @@ final class RegionLayer {
       }
     }
     float size = (float) (DonutRegions.CELL * view.scale);
-    if (size >= NUMBER_SIZE) {
+    if (size >= NUMBER_SIZE * 3.0F) {
       for (int row = firstRow; row <= lastRow; row++) {
         for (int column = firstColumn; column <= lastColumn; column++) {
           number(c, t, view, row * DonutRegions.GRID + column + 1, x, y, w, h, size);
@@ -308,15 +309,19 @@ final class RegionLayer {
       Canvas c, Theme t, Viewport view, int cell, float x, float y, float w, float h, float size) {
     float x0 = view.screenX(DonutRegions.minX(cell), DonutRegions.minZ(cell));
     float y0 = view.screenY(DonutRegions.minX(cell), DonutRegions.minZ(cell));
-    if (x0 < x || y0 < y || x0 + size > x + w || y0 + size > y + h) {
+    if (x0 < x || y0 < y || x0 + 40.0F > x + w || y0 + 24.0F > y + h) {
+      return;
+    }
+    float fade = smooth((size - NUMBER_SIZE * 3.0F) / (NUMBER_SIZE * 2.0F));
+    if (fade <= 0.0F) {
       return;
     }
     c.text(
         FontStyle.CAPTION,
         Integer.toString(cell),
-        x0 + 10.0F,
-        y0 + 8.0F,
-        Theme.withAlpha(t.ink() | 0xFF000000, 0.38F));
+        Math.round(x0 + 10.0F),
+        Math.round(y0 + 8.0F),
+        Theme.withAlpha(t.ink() | 0xFF000000, 0.38F * fade));
   }
 
   private void label(
@@ -331,34 +336,58 @@ final class RegionLayer {
       float size,
       float hoverX,
       float hoverY) {
-    if (size < GROUP_SIZE) {
+    float grow = smooth((size - GROUP_SIZE * 0.6F) / (GROUP_SIZE * 0.4F));
+    if (grow <= 0.0F) {
       return;
     }
-    int[] cells = DonutRegions.groupCells(group);
-    float best = 0.0F;
-    float bestX = 0.0F;
-    float bestY = 0.0F;
-    for (int cell : cells) {
-      float x0 = view.screenX(DonutRegions.minX(cell), DonutRegions.minZ(cell));
-      float y0 = view.screenY(DonutRegions.minX(cell), DonutRegions.minZ(cell));
-      float left = Math.max(x, x0);
-      float top = Math.max(y, y0);
-      float right = Math.min(x + w, x0 + size);
-      float bottom = Math.min(y + h, y0 + size);
-      float area = Math.min(right - left, bottom - top);
-      if (area > best) {
-        best = area;
-        bestX = (left + right) * 0.5F;
-        bestY = (top + bottom) * 0.5F;
-      }
+    double[] box = DonutRegions.groupBounds(group);
+    for (int i = 0; i < 4; i++) {
+      double cornerX = box[(i & 1) == 0 ? 0 : 2];
+      double cornerZ = box[(i & 2) == 0 ? 1 : 3];
+      corners[i] = view.screenX(cornerX, cornerZ);
+      corners[i + 4] = view.screenY(cornerX, cornerZ);
     }
-    if (best < 48.0F) {
+    float left = Math.max(x, low(corners, 0));
+    float right = Math.min(x + w, high(corners, 0));
+    float top = Math.max(y, low(corners, 4));
+    float bottom = Math.min(y + h, high(corners, 4));
+    float visible = Math.min(right - left, bottom - top);
+    float show = grow * smooth((visible - 24.0F) / 40.0F);
+    if (show <= 0.0F) {
       return;
     }
-    DonutRegions.Region region = DonutRegions.region(cells[0]);
-    float reach = c.textWidth(FontStyle.CAPTION, region.label()) * 0.5F + 20.0F;
-    boolean near = Math.abs(hoverX - bestX) < reach && Math.abs(hoverY - bestY) < 20.0F;
-    chip(c, t, region.label(), bestX, bestY, region.color(), near ? 0.12F : 1.0F);
+    DonutRegions.Region region = DonutRegions.region(DonutRegions.groupCells(group)[0]);
+    float halfWidth = (c.textWidth(FontStyle.CAPTION, region.label()) + 20.0F) * 0.5F;
+    float halfHeight = (c.lineHeight(FontStyle.CAPTION) + 8.0F) * 0.5F;
+    float cx =
+        Math.round(settle(view.screenX(box[4], box[5]), left + halfWidth, right - halfWidth));
+    float cy =
+        Math.round(settle(view.screenY(box[4], box[5]), top + halfHeight, bottom - halfHeight));
+    float away =
+        Math.max(
+            Math.abs(hoverX - cx) / (halfWidth + 6.0F),
+            Math.abs(hoverY - cy) / (halfHeight + 6.0F));
+    float clear = 0.12F + 0.88F * smooth((away - 0.9F) / 0.5F);
+    chip(c, t, region.label(), cx, cy, region.color(), show * clear);
+  }
+
+  private static float low(float[] values, int from) {
+    return Math.min(
+        Math.min(values[from], values[from + 1]), Math.min(values[from + 2], values[from + 3]));
+  }
+
+  private static float high(float[] values, int from) {
+    return Math.max(
+        Math.max(values[from], values[from + 1]), Math.max(values[from + 2], values[from + 3]));
+  }
+
+  private static float settle(float value, float low, float high) {
+    return low > high ? (low + high) * 0.5F : Math.max(low, Math.min(high, value));
+  }
+
+  private static float smooth(float v) {
+    float k = Math.max(0.0F, Math.min(1.0F, v));
+    return k * k * (3.0F - 2.0F * k);
   }
 
   private void chip(
