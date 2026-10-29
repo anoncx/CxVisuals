@@ -8,10 +8,11 @@ import me.cxiy.cxvisuals.gui.Theme;
 import me.cxiy.cxvisuals.modules.map.regions.DonutRegions;
 
 final class RegionLayer {
-  private static final float TINT = 0.2F;
-  private static final float EDGE = 2.4F;
+  private static final float TINT = 0.13F;
+  private static final float EDGE = 2.0F;
   private static final float HAIR = 1.0F;
-  private static final float NAME_SIZE = 150.0F;
+  private static final float GLOW = 14.0F;
+  private static final float GROUP_SIZE = 12.0F;
   private static final float NUMBER_SIZE = 34.0F;
   private static final float LEGEND_WIDTH = 158.0F;
   private static final float LEGEND_ROW = 24.0F;
@@ -65,10 +66,27 @@ final class RegionLayer {
         edges(c, view, row * DonutRegions.GRID + column + 1, x, y, w, h, hover);
       }
     }
-    for (int row = firstRow; row <= lastRow; row++) {
-      for (int column = firstColumn; column <= lastColumn; column++) {
-        label(c, t, view, row * DonutRegions.GRID + column + 1, x, y, w, h, hover);
+    float size = (float) (DonutRegions.CELL * view.scale);
+    if (size >= NUMBER_SIZE) {
+      for (int row = firstRow; row <= lastRow; row++) {
+        for (int column = firstColumn; column <= lastColumn; column++) {
+          number(c, t, view, row * DonutRegions.GRID + column + 1, x, y, w, h, size);
+        }
       }
+    }
+    for (int group = 0; group < DonutRegions.groupCount(); group++) {
+      label(c, t, view, group, x, y, w, h, size, hoverX, hoverY);
+    }
+    if (hover > 0 && size >= NUMBER_SIZE) {
+      DonutRegions.Region region = DonutRegions.region(hover);
+      chip(
+          c,
+          t,
+          region.label() + " · " + Lang.format("Region {0}", hover),
+          hoverX,
+          hoverY - 26.0F,
+          region.color(),
+          1.0F);
     }
     c.popAlpha();
   }
@@ -97,20 +115,24 @@ final class RegionLayer {
       if (DonutRegions.row(cell) == 0) {
         line(c, camera, plane, x0, z0, x1, z0, edgeColor(cell, EDGE));
       }
-      if (camera.pixelsPerBlock() * DonutRegions.CELL >= NUMBER_SIZE
-          && camera.project(
-              x0 + DonutRegions.CELL / 2.0, plane, z0 + DonutRegions.CELL / 2.0, projected)
-          && projected[0] > 0.0F
-          && projected[0] < w
-          && projected[1] > 0.0F
-          && projected[1] < h) {
-        chip(
-            c,
-            t,
-            DonutRegions.region(cell).label(),
-            projected[0],
-            projected[1],
-            DonutRegions.region(cell).color());
+    }
+    if (camera.pixelsPerBlock() * DonutRegions.CELL >= GROUP_SIZE) {
+      for (int group = 0; group < DonutRegions.groupCount(); group++) {
+        int[] cells = DonutRegions.groupCells(group);
+        double sumX = 0.0;
+        double sumZ = 0.0;
+        for (int cell : cells) {
+          sumX += DonutRegions.minX(cell) + DonutRegions.CELL / 2.0;
+          sumZ += DonutRegions.minZ(cell) + DonutRegions.CELL / 2.0;
+        }
+        if (camera.project(sumX / cells.length, plane, sumZ / cells.length, projected)
+            && projected[0] > 0.0F
+            && projected[0] < w
+            && projected[1] > 0.0F
+            && projected[1] < h) {
+          DonutRegions.Region region = DonutRegions.region(cells[0]);
+          chip(c, t, region.label(), projected[0], projected[1], region.color(), 1.0F);
+        }
       }
     }
     c.popAlpha();
@@ -195,6 +217,17 @@ final class RegionLayer {
     DonutRegions.Region region = DonutRegions.region(cell);
     boolean east = DonutRegions.borderEast(cell);
     boolean south = DonutRegions.borderSouth(cell);
+    boolean west = DonutRegions.column(cell) == 0;
+    boolean north = DonutRegions.row(cell) == 0;
+    int color = region.color();
+    if (south) {
+      rule(c, view, x0, z1, x1, z1, GLOW, color, 0.1F, x, y, w, h);
+      rule(c, view, x0, z1, x1, z1, GLOW * 0.4F, color, 0.16F, x, y, w, h);
+    }
+    if (east) {
+      rule(c, view, x1, z0, x1, z1, GLOW, color, 0.1F, x, y, w, h);
+      rule(c, view, x1, z0, x1, z1, GLOW * 0.4F, color, 0.16F, x, y, w, h);
+    }
     rule(
         c,
         view,
@@ -203,8 +236,8 @@ final class RegionLayer {
         x1,
         z1,
         south ? EDGE : HAIR,
-        south ? region.color() : WHITE,
-        south ? 0.95F : 0.14F,
+        south ? color : WHITE,
+        south ? 0.85F : 0.08F,
         x,
         y,
         w,
@@ -217,17 +250,17 @@ final class RegionLayer {
         x1,
         z1,
         east ? EDGE : HAIR,
-        east ? region.color() : WHITE,
-        east ? 0.95F : 0.14F,
+        east ? color : WHITE,
+        east ? 0.85F : 0.08F,
         x,
         y,
         w,
         h);
-    if (DonutRegions.column(cell) == 0) {
-      rule(c, view, x0, z0, x0, z1, EDGE, region.color(), 0.95F, x, y, w, h);
+    if (west) {
+      rule(c, view, x0, z0, x0, z1, EDGE, color, 0.85F, x, y, w, h);
     }
-    if (DonutRegions.row(cell) == 0) {
-      rule(c, view, x0, z0, x1, z0, EDGE, region.color(), 0.95F, x, y, w, h);
+    if (north) {
+      rule(c, view, x0, z0, x1, z0, EDGE, color, 0.85F, x, y, w, h);
     }
     if (cell == hover) {
       rule(c, view, x0, z0, x1, z0, EDGE, WHITE, 0.9F, x, y, w, h);
@@ -271,52 +304,91 @@ final class RegionLayer {
     }
   }
 
-  private void label(
-      Canvas c, Theme t, Viewport view, int cell, float x, float y, float w, float h, int hover) {
-    float size = (float) (DonutRegions.CELL * view.scale);
-    boolean named = size >= NAME_SIZE;
-    boolean numbered = size >= NUMBER_SIZE;
-    if (!numbered && cell != hover) {
-      return;
-    }
+  private void number(
+      Canvas c, Theme t, Viewport view, int cell, float x, float y, float w, float h, float size) {
     float x0 = view.screenX(DonutRegions.minX(cell), DonutRegions.minZ(cell));
     float y0 = view.screenY(DonutRegions.minX(cell), DonutRegions.minZ(cell));
-    float left = Math.max(x, x0);
-    float top = Math.max(y, y0);
-    float right = Math.min(x + w, x0 + size);
-    float bottom = Math.min(y + h, y0 + size);
-    if (right - left < 30.0F || bottom - top < 24.0F) {
+    if (x0 < x || y0 < y || x0 + size > x + w || y0 + size > y + h) {
       return;
     }
-    DonutRegions.Region region = DonutRegions.region(cell);
-    String text =
-        named || cell == hover
-            ? region.label() + " · " + Lang.format("Region {0}", cell)
-            : Integer.toString(cell);
-    chip(c, t, text, (left + right) * 0.5F, (top + bottom) * 0.5F, region.color());
+    c.text(
+        FontStyle.CAPTION,
+        Integer.toString(cell),
+        x0 + 10.0F,
+        y0 + 8.0F,
+        Theme.withAlpha(t.ink() | 0xFF000000, 0.38F));
   }
 
-  private void chip(Canvas c, Theme t, String text, float cx, float cy, int color) {
-    float width = c.textWidth(FontStyle.CAPTION, text) + 22.0F;
-    float height = c.lineHeight(FontStyle.CAPTION) + 10.0F;
+  private void label(
+      Canvas c,
+      Theme t,
+      Viewport view,
+      int group,
+      float x,
+      float y,
+      float w,
+      float h,
+      float size,
+      float hoverX,
+      float hoverY) {
+    if (size < GROUP_SIZE) {
+      return;
+    }
+    int[] cells = DonutRegions.groupCells(group);
+    float best = 0.0F;
+    float bestX = 0.0F;
+    float bestY = 0.0F;
+    for (int cell : cells) {
+      float x0 = view.screenX(DonutRegions.minX(cell), DonutRegions.minZ(cell));
+      float y0 = view.screenY(DonutRegions.minX(cell), DonutRegions.minZ(cell));
+      float left = Math.max(x, x0);
+      float top = Math.max(y, y0);
+      float right = Math.min(x + w, x0 + size);
+      float bottom = Math.min(y + h, y0 + size);
+      float area = Math.min(right - left, bottom - top);
+      if (area > best) {
+        best = area;
+        bestX = (left + right) * 0.5F;
+        bestY = (top + bottom) * 0.5F;
+      }
+    }
+    if (best < 48.0F) {
+      return;
+    }
+    DonutRegions.Region region = DonutRegions.region(cells[0]);
+    float reach = c.textWidth(FontStyle.CAPTION, region.label()) * 0.5F + 20.0F;
+    boolean near = Math.abs(hoverX - bestX) < reach && Math.abs(hoverY - bestY) < 20.0F;
+    chip(c, t, region.label(), bestX, bestY, region.color(), near ? 0.12F : 1.0F);
+  }
+
+  private void chip(
+      Canvas c, Theme t, String text, float cx, float cy, int color, float strength) {
+    float width = c.textWidth(FontStyle.CAPTION, text) + 20.0F;
+    float height = c.lineHeight(FontStyle.CAPTION) + 8.0F;
+    float left = cx - width * 0.5F;
+    float top = cy - height * 0.5F;
+    c.pushAlpha(strength);
     c.roundRect(
-        cx - width * 0.5F,
-        cy - height * 0.5F,
-        width,
-        height,
-        height * 0.5F,
-        Theme.withAlpha(t.paper() | 0xFF000000, 0.78F));
-    c.roundRect(cx - width * 0.5F + 7.0F, cy - 3.0F, 6.0F, 6.0F, 3.0F, color);
+        left - 1.0F,
+        top - 1.0F,
+        width + 2.0F,
+        height + 2.0F,
+        height * 0.5F + 1.0F,
+        Theme.withAlpha(color | 0xFF000000, 0.35F));
+    c.roundRect(
+        left, top, width, height, height * 0.5F, Theme.withAlpha(t.paper() | 0xFF000000, 0.86F));
+    c.roundRect(left + 8.0F, cy - 2.5F, 5.0F, 5.0F, 2.5F, color);
     c.text(
         FontStyle.CAPTION,
         text,
-        cx - width * 0.5F + 17.0F,
+        left + 17.0F,
         cy - c.lineHeight(FontStyle.CAPTION) * 0.5F,
         t.ink());
+    c.popAlpha();
   }
 
   private int edgeColor(int cell, float width) {
-    return Theme.withAlpha(DonutRegions.region(cell).color() | 0xFF000000, 0.95F);
+    return Theme.withAlpha(DonutRegions.region(cell).color() | 0xFF000000, 0.85F);
   }
 
   private void line(

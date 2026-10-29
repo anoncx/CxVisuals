@@ -47,7 +47,54 @@ public final class DonutRegions {
     "CWWWWWWCC"
   };
 
+  private static final int[][] GROUPS = groups();
+
   private DonutRegions() {}
+
+  private static int[][] groups() {
+    int[] seen = new int[CELLS + 1];
+    java.util.List<int[]> found = new java.util.ArrayList<>();
+    int[] stack = new int[CELLS];
+    int[] members = new int[CELLS];
+    for (int first = 1; first <= CELLS; first++) {
+      if (seen[first] != 0) {
+        continue;
+      }
+      Region kind = region(first);
+      int depth = 0;
+      int count = 0;
+      stack[depth++] = first;
+      seen[first] = 1;
+      while (depth > 0) {
+        int cell = stack[--depth];
+        members[count++] = cell;
+        int column = column(cell);
+        int row = row(cell);
+        int[] next = {
+          column > 0 ? cell - 1 : 0,
+          column < GRID - 1 ? cell + 1 : 0,
+          row > 0 ? cell - GRID : 0,
+          row < GRID - 1 ? cell + GRID : 0
+        };
+        for (int other : next) {
+          if (other != 0 && seen[other] == 0 && region(other) == kind) {
+            seen[other] = 1;
+            stack[depth++] = other;
+          }
+        }
+      }
+      found.add(java.util.Arrays.copyOf(members, count));
+    }
+    return found.toArray(new int[0][]);
+  }
+
+  public static int groupCount() {
+    return GROUPS.length;
+  }
+
+  public static int[] groupCells(int group) {
+    return GROUPS[group];
+  }
 
   public static boolean matches(String scope) {
     if (scope == null || !scope.startsWith(SCOPE)) {
