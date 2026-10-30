@@ -48,6 +48,8 @@ jobs:
         run: |
           cd build/libs
           sha256sum cxvisuals-*.jar > SHA256SUMS.txt
+      - name: Write client manifests
+        run: python3 .github/scripts/client-manifest.py build/libs .
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -62,7 +64,7 @@ jobs:
           {
             echo "Builds for Minecraft $(ls build/libs/cxvisuals-*.jar | sed -E 's/.*\+(.*)\.jar/\1/' | sort -r | paste -sd' ' - | sed 's/ / and /g')."
             echo
-            echo "Pick the jar that matches your Minecraft version. SHA-256 sums are in SHA256SUMS.txt."
+            echo "Pick the jar that matches your Minecraft version. SHA-256 sums are in SHA256SUMS.txt. The manifest-*.json files are what the CxVisuals cloud reads to update installs automatically."
             echo
             echo "Changes"
             git log --no-merges --format='- %s' "$range" | sed -E 's/^- \[[^]]*\] /- /; s/ - [A-Za-z ]+$//'
@@ -70,4 +72,4 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release delete "$TAG" --cleanup-tag --yes
           fi
-          gh release create "$TAG" build/libs/cxvisuals-*.jar build/libs/SHA256SUMS.txt --target "$sha" --title "CxVisuals ${TAG#v}" --notes-file notes.md
+          gh release create "$TAG" build/libs/cxvisuals-*.jar build/libs/SHA256SUMS.txt build/libs/manifest-*.json --target "$sha" --title "CxVisuals ${TAG#v}" --notes-file notes.md
