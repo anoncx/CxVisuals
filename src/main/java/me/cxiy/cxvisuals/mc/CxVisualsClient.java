@@ -27,6 +27,7 @@ import me.cxiy.cxvisuals.gui.Themes;
 import me.cxiy.cxvisuals.gui.TrailStage;
 import me.cxiy.cxvisuals.gui.WaypointPanel;
 import me.cxiy.cxvisuals.mc.gui.McCanvas;
+import me.cxiy.cxvisuals.mc.compat.TextInput;
 import me.cxiy.cxvisuals.mc.gui.ModulesScreen;
 import me.cxiy.cxvisuals.mc.gui.UiSounds;
 import me.cxiy.cxvisuals.mc.menu.MenuStage;
@@ -74,11 +75,13 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public final class CxVisualsClient implements ClientModInitializer {
   public static final String MOD_ID = "cxvisuals";
+  private static final String PACKAGE = "me.cxiy.cxvisuals.";
   public static final Logger LOG = LoggerFactory.getLogger("CxVisuals");
 
   private static final long SAVE_DELAY_NANOS = 1_000_000_000L;
@@ -340,7 +343,18 @@ public final class CxVisualsClient implements ClientModInitializer {
         && !key.equals("client.language_picked");
   }
 
+  private static boolean wantsText(Screen screen) {
+    if (screen == null) {
+      return false;
+    }
+    if (screen instanceof AbstractContainerScreen<?> container) {
+      return Inventory.active(container);
+    }
+    return MenuStage.owns(screen) || screen.getClass().getName().startsWith(PACKAGE);
+  }
+
   private void tick(Minecraft mc) {
+    TextInput.sync(mc, wantsText(mc.gui.screen()));
     while (openKey.consumeClick()) {
       if (mc.gui.screen() == null) {
         mc.gui.setScreen(new ModulesScreen(fresh()));
