@@ -47,6 +47,7 @@ const int NONE = -1000;
 const int MAX_GAP = 28;
 const int CUT = 24;
 const int WALL = 40;
+const int WATER_WALL = 3;
 
 struct Column {
     int block;
@@ -207,6 +208,10 @@ void main() {
         } else {
             low = !next.known ? h - SKIRT
                 : next.depth > 0 ? (next.ground != 0 ? next.floor : h - SKIRT) : next.h;
+        }
+        if (layer == 0 && water == 1 && h - low > WATER_WALL) {
+            low = h - WATER_WALL;
+            skirt = 1.0;
         }
         if (h - low > WALL) {
             low = h - WALL;
