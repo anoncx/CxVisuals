@@ -2,6 +2,7 @@ name: Release
 
 on:
   push:
+    branches: [main]
     tags: ["v*"]
   workflow_dispatch:
     inputs:
@@ -12,28 +13,35 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
-    env:
-      TAG: ${{ github.event.inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ env.TAG }}
+          ref: ${{ github.event.inputs.tag || github.sha }}
           fetch-depth: 0
+      - name: Resolve the release tag
+        run: |
+          version="$(grep -m1 '^mod_version=' gradle.properties | cut -d= -f2-)"
+          requested="${{ github.event.inputs.tag }}"
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            requested="${{ github.ref_name }}"
+          fi
+          if [ -n "$requested" ] && [ "$requested" != "v$version" ]; then
+            echo "Tag $requested does not match mod_version $version" >&2
+            exit 1
+          fi
+          echo "TAG=v$version" >> "$GITHUB_ENV"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 25
       - uses: gradle/actions/setup-gradle@v4
-      - name: Check the tag matches the mod version
-        run: |
-          version="$(grep -m1 '^mod_version=' gradle.properties | cut -d= -f2-)"
-          if [ "$TAG" != "v$version" ]; then
-            echo "Tag $TAG does not match mod_version $version" >&2
-            exit 1
-          fi
       - name: Build every supported version
         run: ./buildall.sh
       - name: Write checksums
@@ -44,11 +52,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          previous="$(git describe --tags --abbrev=0 "$TAG^" 2>/dev/null || true)"
+          sha="$(git rev-parse HEAD)"
+          previous="$(git describe --tags --abbrev=0 --exclude="$TAG" "$sha" 2>/dev/null || true)"
           if [ -n "$previous" ]; then
-            range="$previous..$TAG"
+            range="$previous..$sha"
           else
-            range="$TAG"
+            range="$sha"
           fi
           {
             echo "Builds for Minecraft $(ls build/libs/cxvisuals-*.jar | sed -E 's/.*\+(.*)\.jar/\1/' | sort -r | paste -sd' ' - | sed 's/ / and /g')."
@@ -59,7 +68,6 @@ jobs:
             git log --no-merges --format='- %s' "$range" | sed -E 's/^- \[[^]]*\] /- /; s/ - [A-Za-z ]+$//'
           } > notes.md
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" build/libs/cxvisuals-*.jar build/libs/SHA256SUMS.txt --clobber
-          else
-            gh release create "$TAG" build/libs/cxvisuals-*.jar build/libs/SHA256SUMS.txt --title "CxVisuals ${TAG#v}" --notes-file notes.md
+            gh release delete "$TAG" --cleanup-tag --yes
           fi
+          gh release create "$TAG" build/libs/cxvisuals-*.jar build/libs/SHA256SUMS.txt --target "$sha" --title "CxVisuals ${TAG#v}" --notes-file notes.md
