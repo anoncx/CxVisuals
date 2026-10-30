@@ -87,6 +87,7 @@ Positions are stored relative to the nearest screen edge or centre, so a layout 
 ### World Map
 A minimap and a full map with relief shading, a cave view, clouds and a 3D mode with overhangs.
 
+- Loads in the background: a few seconds after you join a world the map builds its atlas and bakes the tiles around you, so opening it does not stall. Tiles that are still baking show a soft pulsing dot pattern until they land
 - Block textures fade in as you zoom close, up to 40 px per block
 - 3D mode: the terrain is a clean slab. Cave floors under the edge are hidden, and tall side walls and the underground fade into the cloud sea below the map
 - Search for blocks, place waypoints, see player heads and cards
