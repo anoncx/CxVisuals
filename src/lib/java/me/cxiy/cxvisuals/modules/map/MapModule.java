@@ -65,7 +65,7 @@ public final class MapModule extends Module {
     Group predicted = page.group("Forecast");
     forecast =
         predicted
-            .bool("forecast", "Predict unexplored areas", true)
+            .bool("forecast", "Predict unexplored areas", false)
             .describe(
                 "With a world seed set, places you haven't explored are drawn from the seed in"
                     + " muted colours and replaced by the real thing as you explore them.");

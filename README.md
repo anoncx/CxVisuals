@@ -98,12 +98,12 @@ A minimap and a full map with relief shading, a cave view, clouds and a 3D mode 
 - A button on DonutSMP shows the server regions
 
 ### Seed forecast
-Give the map a world seed and it draws the places you have not explored yet from the seed, in all three dimensions. Explored areas stay crisp and replace the prediction as you explore, so player builds and changes always show once you have seen them.
+Off by default. Switch on Predict unexplored areas, give the map a world seed, and it draws the places you have not explored yet from the seed, in all three dimensions. Explored areas stay crisp and replace the prediction as you explore, so player builds and changes always show once you have seen them.
 
-- Set it under Map → Forecast → World seed, or just run `/seed` in chat: the map picks up the reply. The seed is saved for each world and server on your PC only.
+- Set it under Map → Forecast → World seed, or just run `/seed` in chat: the map picks up the reply. The seed is saved for each world and server on your PC only, and nothing is predicted until Predict unexplored areas is on.
 - Numbers and words both work, as when creating a world.
 - The prediction uses the game's own terrain generation, so it matches vanilla servers of the same Minecraft version. It shows biomes and terrain height, not trees, structures, caves or builds, and it does not match servers with custom world generation.
-- It is drawn muted, with relief shading and the drifting mist, and the title card says Forecast from seed while it is on. Predict unexplored areas switches it off.
+- It is drawn muted, with relief shading and the drifting mist, and the title card says Forecast from seed while it is on. Predict unexplored areas turns it on and off.
 - It runs on background threads in the same tile pipeline as the explored map, about 3 ms per tile up close and 15 ms zoomed far out, and adds no frame hitches in the stress test.
 
 ### Waypoints
