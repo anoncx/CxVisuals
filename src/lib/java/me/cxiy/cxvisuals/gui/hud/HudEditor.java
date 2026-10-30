@@ -467,7 +467,7 @@ public final class HudEditor {
   }
 
   private boolean inBar(float mx, float my) {
-    return mx >= barX && mx < barX + barW && my >= barY && my < barY + BAR_HEIGHT;
+    return !inTray(mx, my) && mx >= barX && mx < barX + barW && my >= barY && my < barY + BAR_HEIGHT;
   }
 
   public void draw(Canvas c, float mx, float my, float dt) {
@@ -663,9 +663,11 @@ public final class HudEditor {
     trayButton.place(barX + 16.0F + wordmarkWidth + 14.0F, buttonY);
     helpButton.place(trayButton.x + trayWidth + BAR_PAD, buttonY);
     doneButton.place(helpButton.x + helpWidth + BAR_PAD, buttonY);
-    trayButton.draw(c, t, mx, my, dt);
-    helpButton.draw(c, t, mx, my, dt);
-    doneButton.draw(c, t, mx, my, dt);
+    float barMx = inTray(mx, my) ? -1.0F : mx;
+    float barMy = inTray(mx, my) ? -1.0F : my;
+    trayButton.draw(c, t, barMx, barMy, dt);
+    helpButton.draw(c, t, barMx, barMy, dt);
+    doneButton.draw(c, t, barMx, barMy, dt);
     if (tourStep == TOUR_TITLES.length - 1) {
       c.roundRectBorder(
           trayButton.x - 2.0F,
@@ -856,12 +858,12 @@ public final class HudEditor {
     c.pushAlpha(fade);
     chrome(c, t, trayX, trayY - rise, TRAY_WIDTH, trayH, PANEL_RADIUS);
     float captionLine = c.lineHeight(FontStyle.CAPTION);
-    int drawn = -1;
+    boolean[] labeled = new boolean[SECTIONS.length];
     for (int i = 0; i < chips.size(); i++) {
       Chip chip = chips.get(i);
       int section = chip.element.category().ordinal();
-      if (section != drawn) {
-        drawn = section;
+      if (!labeled[section]) {
+        labeled[section] = true;
         c.text(
             FontStyle.CAPTION,
             Lang.tr(SECTIONS[section]),
