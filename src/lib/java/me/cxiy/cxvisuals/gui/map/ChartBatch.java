@@ -5,7 +5,7 @@ import me.cxiy.cxvisuals.modules.map.TileKey;
 
 public final class ChartBatch {
   public static final int MAX_QUADS = 1024;
-  private static final int TILE_LIMIT = MAX_QUADS / 2;
+  private static final int TILE_LIMIT = 200;
   public static final float CLOUD_CELLS = 2.0F;
   public static final int CLOUD_PERIOD = 256;
 

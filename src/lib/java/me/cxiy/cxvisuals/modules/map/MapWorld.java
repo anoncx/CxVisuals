@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -38,6 +39,7 @@ public final class MapWorld implements TileBaker.Source {
   private record Mini(int revision, int[] pixels) {}
   private static final long SEARCH_PUBLISH = 70_000_000L;
   private static final long SAVE_NANOS = 20_000_000_000L;
+  private static final long EVICT_NANOS = 250_000_000L;
 
   private final MapAtlas atlas;
   private final BlockPalette palette = new BlockPalette();
@@ -54,6 +56,8 @@ public final class MapWorld implements TileBaker.Source {
       };
   private final Map<Long, Average> averages = new ConcurrentHashMap<>();
   private final Map<Long, Mini> minis = new ConcurrentHashMap<>();
+  private final Set<Long> covers = ConcurrentHashMap.newKeySet();
+  private final Set<Long> counted = new HashSet<>();
   private volatile Set<Long> covered = Set.of();
   private volatile int coveredFor = -1;
   private final ExecutorService searcher =
@@ -83,6 +87,7 @@ public final class MapWorld implements TileBaker.Source {
   private volatile String dimension = "";
   private volatile Path root;
   private long lastSave = System.nanoTime();
+  private long lastEvict;
   private int place;
   private boolean indexed;
   private volatile long bytes;
@@ -204,8 +209,12 @@ public final class MapWorld implements TileBaker.Source {
     synchronized (decoded) {
       decoded.clear();
     }
-    covered = Set.of();
-    coveredFor = -1;
+    synchronized (this) {
+      covers.clear();
+      counted.clear();
+      covered = Set.of();
+      coveredFor = -1;
+    }
     bytes = 0L;
     scope = "";
     dimension = "";
@@ -232,14 +241,15 @@ public final class MapWorld implements TileBaker.Source {
     if (next != null) {
       save(next);
     }
-    if (surface.size() > KEEP_REGIONS) {
-      List<Long> order = new ArrayList<>(touched.keySet());
-      for (int i = 0; i < order.size() && surface.size() > KEEP_REGIONS; i++) {
-        long key = order.get(i);
+    if (surface.size() > KEEP_REGIONS && nanos - lastEvict > EVICT_NANOS) {
+      lastEvict = nanos;
+      Iterator<Long> order = touched.keySet().iterator();
+      while (order.hasNext() && surface.size() > KEEP_REGIONS) {
+        long key = order.next();
         Region region = surface.get(key);
         if (region != null && !region.dirty() && region.flushed() && key != nearRegion) {
           surface.remove(key);
-          touched.remove(key);
+          order.remove();
           synchronized (decoded) {
             decoded.remove(key);
           }
@@ -772,21 +782,22 @@ public final class MapWorld implements TileBaker.Source {
 
   private synchronized Set<Long> cover() {
     int size = known.size();
-    Set<Long> have = covered;
     if (size != coveredFor) {
-      have = new HashSet<>(size * 8);
       for (long key : known) {
+        if (!counted.add(key)) {
+          continue;
+        }
         int rx = Region.keyX(key);
         int rz = Region.keyZ(key);
         for (int up = TileKey.REGION_LEVEL + 1; up <= TileKey.MAX_LEVEL; up++) {
           int shift = up - TileKey.REGION_LEVEL;
-          have.add(TileKey.of(TileKey.SURFACE, up, rx >> shift, rz >> shift));
+          covers.add(TileKey.of(TileKey.SURFACE, up, rx >> shift, rz >> shift));
         }
       }
-      covered = have;
+      covered = covers;
       coveredFor = size;
     }
-    return have;
+    return covers;
   }
 
   @Override
