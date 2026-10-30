@@ -197,7 +197,11 @@ public final class CxVisualsClient implements ClientModInitializer {
     Lang.onChange(this::relabel);
 
     ClientTickEvents.END_CLIENT_TICK.register(this::tick);
-    ClientLifecycleEvents.CLIENT_STARTED.register(client -> McCanvas.prewarm());
+    ClientLifecycleEvents.CLIENT_STARTED.register(
+        client -> {
+          keys.repair();
+          McCanvas.prewarm();
+        });
     ClientLifecycleEvents.CLIENT_STOPPING.register(
         client -> {
           MenuStage.savePlaytime();
