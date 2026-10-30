@@ -65,11 +65,17 @@ public final class Keys {
   }
 
   public static int lib(int vanilla) {
+    if (vanilla == InputConstants.UNKNOWN.getValue()) {
+      return -1;
+    }
     int lib = TO_LIB.get(vanilla);
     return lib < 0 ? vanilla : lib;
   }
 
   public static int vanilla(int lib) {
+    if (lib < 0) {
+      return InputConstants.UNKNOWN.getValue();
+    }
     int vanilla = TO_VANILLA.get(lib);
     return vanilla < 0 ? lib : vanilla;
   }
