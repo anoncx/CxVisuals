@@ -203,7 +203,11 @@ starts a dev client.
 
 ## Releases
 
-Pushing a tag that matches `mod_version`, for example `v0.1.1`, runs the Release workflow. It builds every supported version, writes `SHA256SUMS.txt` and publishes a GitHub release with one jar per Minecraft version and notes taken from the commits since the previous tag. The Build workflow compiles both versions on every push and pull request.
+Every push to `main` runs the Release workflow. It builds every supported version and publishes the GitHub release for the current `mod_version` (for example `v0.1.1`), replacing the previous build of that version. The release holds one jar per Minecraft version, `SHA256SUMS.txt`, one `manifest-<minecraft>.json` per jar and notes taken from the commits since the previous tag. Pushing a tag that matches `mod_version` or starting the workflow by hand builds the same release.
+
+Nothing is uploaded to the servers by hand. The CxVisuals cloud checks the newest release every five minutes, downloads any jar whose manifest changed, verifies its size, SHA-1 and SHA-256 against the manifest and only then serves it, so installs update from the release without a separate deploy. `systemctl kill -s USR1 cxcloud` on the server makes it check right away.
+
+The Build workflow compiles both versions on every push and pull request.
 
 ## Layout
 
