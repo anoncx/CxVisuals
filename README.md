@@ -68,7 +68,7 @@ Edit layout (the button in the HUD header, or its key) opens the editor over the
 - drag an element to move it; red lines show when it lines up with an edge, the centre or another element
 - scroll over it or pull its corner knob to resize
 - right-click it for its options
-- Elements opens the tray: click a chip to show or hide an element, or drag it out to place it
+- Elements opens the tray: click a chip to show or hide an element, or drag it out to place it. The tray sits above the top bar and takes its clicks, so Help and Done behind it cannot be pressed by accident
 - while you drag, small labels show the distance to the nearest neighbour or screen edge on each side
 - Help replays the three-step tour that runs the first time the editor opens
 - drag across empty space, or Shift-click, to select several; they then move as one, and a plain click picks a single one again
@@ -88,12 +88,24 @@ Positions are stored relative to the nearest screen edge or centre, so a layout 
 A minimap and a full map with relief shading, a cave view, clouds and a 3D mode with overhangs.
 
 - Block textures fade in as you zoom close, up to 40 px per block
+- 3D mode: the terrain is a clean slab. Cave floors under the edge are hidden, and tall side walls and the underground fade into the cloud sea below the map
 - Search for blocks, place waypoints, see player heads and cards
 - Zoom out without a limit, with chunk previews
 - Shared live maps: friends fill one end-to-end encrypted map together, with an optional backfill of what you already explored
 - Live location per friend, off by default, for a duration you choose
 - Explore: publish a map to a public page or browse maps others published
 - A button on DonutSMP shows the server regions
+
+### Waypoints
+Named spots per world and dimension, shown in the world, on the minimap and on the full map. Add one from the Waypoints tab or with its key.
+
+- **Icons.** Every waypoint can carry one of 12 pictograms: home, base, mine, farm, village, portal, chest, sword, tree, boat, star and skull. The icon replaces the colour dot on the in-world label, the map, the minimap and the places list. Click a waypoint's icon in the Waypoints tab to change it, or pick the plain dot to go back. Deaths use the skull.
+- **Suggestions from the name.** The icon is chosen from words in the name ("Diamond mine" gets the pickaxe), in English, German and Russian. In the icon picker the suggested icon is listed first.
+- **Suggestions from where you stand.** Adding a waypoint without a name looks around you and names it for you: Portal near a nether or end portal, Dungeon near a spawner, Village with two or more villagers close by, Farm over farmland, Home near beds, crafting tables or furnaces, Storage near chests or barrels, Ocean in water, Mine underground without sky. Repeats are numbered. When nothing fits it is called Waypoint with a number.
+- **In-world label.** The label is a compact pill with the name. When you look at it, it eases open to show the distance and fades back as you look away.
+
+### Main menu
+The custom main menu shows the title screen's buttons as channels next to your worlds, servers and latest screenshot. Buttons added by other mods appear there too, so Mod Menu gets its own Mods channel without any setup, and other mods' buttons (including icon-only ones) become channels as well. Mod buttons use a mods icon; vanilla Language and Accessibility stay where they are. Channels can be rearranged and widgets placed in empty slots.
 
 ### World Download
 Records the chunks you load and the containers you open into `saves/<name>`, so the world opens in singleplayer. Only the Overworld is written as void; the Nether and End use vanilla generators. Maps you explored earlier cannot become a world because they store no blocks.
