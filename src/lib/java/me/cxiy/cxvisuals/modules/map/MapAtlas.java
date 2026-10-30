@@ -217,6 +217,14 @@ public final class MapAtlas {
     return uploaded;
   }
 
+  public boolean loading(long key) {
+    return flight.contains(key);
+  }
+
+  public int flying() {
+    return flight.size();
+  }
+
   public boolean busy() {
     return !flight.isEmpty() || !done.isEmpty();
   }

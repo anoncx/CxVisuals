@@ -11,6 +11,7 @@ import me.cxiy.cxvisuals.gui.Themes;
 import me.cxiy.cxvisuals.gui.map.MapPlayer;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
 import me.cxiy.cxvisuals.mc.McKeyBinder;
+import me.cxiy.cxvisuals.mc.gui.McCanvas;
 import me.cxiy.cxvisuals.mc.modules.hud.Hud;
 import me.cxiy.cxvisuals.mc.modules.inventory.Stacks;
 import me.cxiy.cxvisuals.mc.modules.social.FriendsLink;
@@ -55,6 +56,13 @@ public final class Maps {
   private static long lastFrame;
   private static final long MAX_FRAME_NANOS = 100_000_000L;
   private static final int BUSY_BACKLOG = 24;
+  private static final int WARM_DELAY = 60;
+  private static final int WARM_BATCH = 6;
+  private static final int WARM_FLIGHT = 24;
+  private static final int[] WARM_RADIUS = {3, 2, 1, 1};
+  private static long[] warmQueue;
+  private static int warmNext;
+  private static int warmWait;
   private static String notice = "";
   private static Themes themes;
   private static final MapSource SOURCE =
@@ -244,6 +252,9 @@ public final class Maps {
     world.terrain(module.terrain.get());
     if (!key.equals(placed)) {
       placed = key;
+      warmQueue = null;
+      warmNext = 0;
+      warmWait = 0;
       cartographer.reset();
       world.place(root, scope, dimension);
       cartographer.everything(mc.level, mc.player, mc.options.getEffectiveRenderDistance());
@@ -256,10 +267,61 @@ public final class Maps {
     }
     cartographer.solid(solid);
     cartographer.tick(mc.level, mc.player, module.caves.get() == MapModule.Caves.AUTO);
+    warm(mc);
     world.tick(
         System.nanoTime(),
         Region.key(mc.player.getBlockX() >> Region.SHIFT, mc.player.getBlockZ() >> Region.SHIFT));
     RoomLink.tick(mc);
+  }
+
+  private static void warm(Minecraft mc) {
+    if (warmQueue != null && warmNext >= warmQueue.length && !module.atlas.busy()) {
+      return;
+    }
+    if (warmWait++ < WARM_DELAY) {
+      return;
+    }
+    McCanvas.prepareMap(module.atlas);
+    if (warmQueue == null) {
+      warmQueue = warmTiles(mc.player.getBlockX(), mc.player.getBlockZ());
+    }
+    int sent = 0;
+    while (warmNext < warmQueue.length
+        && sent < WARM_BATCH
+        && module.atlas.flying() < WARM_FLIGHT) {
+      module.atlas.warm(warmQueue[warmNext++]);
+      sent++;
+    }
+  }
+
+  private static long[] warmTiles(int blockX, int blockZ) {
+    int most = 0;
+    for (int radius : WARM_RADIUS) {
+      most = Math.max(most, radius);
+    }
+    List<Long> keys = new ArrayList<>(128);
+    for (int ring = 0; ring <= most; ring++) {
+      for (int level = 0; level < WARM_RADIUS.length; level++) {
+        if (ring > WARM_RADIUS[level]) {
+          continue;
+        }
+        int shift = TileKey.EDGE_SHIFT + level;
+        int centreX = blockX >> shift;
+        int centreZ = blockZ >> shift;
+        for (int dz = -ring; dz <= ring; dz++) {
+          for (int dx = -ring; dx <= ring; dx++) {
+            if (Math.max(Math.abs(dx), Math.abs(dz)) == ring) {
+              keys.add(TileKey.of(TileKey.SURFACE, level, centreX + dx, centreZ + dz));
+            }
+          }
+        }
+      }
+    }
+    long[] out = new long[keys.size()];
+    for (int i = 0; i < out.length; i++) {
+      out[i] = keys.get(i);
+    }
+    return out;
   }
 
   public static String notice() {

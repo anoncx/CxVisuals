@@ -19,6 +19,7 @@ import me.cxiy.cxvisuals.mc.CxVisualsClient;
 import me.cxiy.cxvisuals.mc.mixin.GuiGraphicsExtractorAccessor;
 import me.cxiy.cxvisuals.mc.modules.inventory.Stacks;
 import me.cxiy.cxvisuals.modules.hud.mirror.FrameStore;
+import me.cxiy.cxvisuals.modules.map.MapAtlas;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.User;
 import net.minecraft.client.gui.ActiveTextCollector;
@@ -846,6 +847,12 @@ public final class McCanvas implements Canvas {
         ChartRenderState.of(
             matrix, batch, color, MapPipeline.MAP, setup, scissor, bounds, depth()));
     return true;
+  }
+
+  public static void prepareMap(MapAtlas atlas) {
+    if (MapPipeline.usable()) {
+      MAPS.setup(atlas);
+    }
   }
 
   public static void flushTerrain() {

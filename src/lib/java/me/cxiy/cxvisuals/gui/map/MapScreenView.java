@@ -99,6 +99,8 @@ public final class MapScreenView {
   private static final float ORBIT_YAW = 0.006F;
   private static final float ORBIT_PITCH = 0.005F;
   private static final float FADE_UNTIL = 0.35F;
+  private static final int LOAD_TILES = 40;
+  private static final float LOAD_BIG = 160.0F;
   private static final double HOP_JUMP = 12.0;
   private static final float HOP_SECONDS = 0.6F;
   private static final float HOP_DIP = 0.3F;
@@ -120,6 +122,7 @@ public final class MapScreenView {
   private float yawGoal;
   private float pitchGoal = DEFAULT_PITCH;
   private final GroundAnchor anchor3d = new GroundAnchor();
+  private float loadClock;
   private double groundY = Double.NaN;
   private boolean orbiting;
   private boolean orbitDrag;
@@ -348,6 +351,8 @@ public final class MapScreenView {
       batch.alpha = solidDrawn ? 1.0F - solid / FADE_UNTIL : 1.0F;
       if (!c.chart(batch) && !solidDrawn) {
         c.roundRect(0.0F, 0.0F, screenW, screenH, 0.0F, t.paper() | 0xFF000000);
+      } else if (!solidDrawn) {
+        loading(c, t, dt);
       }
     }
     if (solid <= 0.0F) {
@@ -517,6 +522,47 @@ public final class MapScreenView {
       anchorSY = sy;
       anchorWX = view.worldX(sx, sy);
       anchorWZ = view.worldZ(sx, sy);
+    }
+  }
+
+  private void loading(Canvas c, Theme t, float dt) {
+    loadClock += dt;
+    int plates = Math.min(batch.waiting, LOAD_TILES);
+    for (int i = 0; i < plates; i++) {
+      float x0 = batch.waitLeft[i];
+      float y0 = batch.waitTop[i];
+      float w = batch.waitRight[i] - x0;
+      float h = batch.waitBottom[i] - y0;
+      float seed = (batch.waitSeed[i] & 0xFF) / 255.0F;
+      float breathe = 0.5F + 0.5F * (float) Math.sin(loadClock * 2.4F + seed * 6.2832F);
+      float inset = Math.min(6.0F, Math.min(w, h) * 0.06F);
+      c.roundRect(
+          x0 + inset,
+          y0 + inset,
+          w - inset * 2.0F,
+          h - inset * 2.0F,
+          12.0F,
+          Theme.withAlpha(t.ink(), 0.025F + 0.035F * breathe));
+      int columns = Math.min(w, h) >= LOAD_BIG ? 5 : 3;
+      float stepX = w / (columns + 1);
+      float stepY = h / (columns + 1);
+      float dot = Math.max(1.5F, Math.min(3.2F, Math.min(stepX, stepY) * 0.07F));
+      for (int gy = 0; gy < columns; gy++) {
+        for (int gx = 0; gx < columns; gx++) {
+          float wave =
+              0.5F
+                  + 0.5F
+                      * (float) Math.sin(loadClock * 3.0F - (gx + gy) * 0.8F + seed * 6.2832F);
+          wave *= wave;
+          c.roundRect(
+              x0 + stepX * (gx + 1) - dot,
+              y0 + stepY * (gy + 1) - dot,
+              dot * 2.0F,
+              dot * 2.0F,
+              dot,
+              Theme.withAlpha(t.ink(), 0.07F + 0.33F * wave));
+        }
+      }
     }
   }
 

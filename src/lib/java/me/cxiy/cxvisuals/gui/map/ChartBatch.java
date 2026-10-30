@@ -6,6 +6,7 @@ import me.cxiy.cxvisuals.modules.map.TileKey;
 public final class ChartBatch {
   public static final int MAX_QUADS = 1024;
   private static final int TILE_LIMIT = 200;
+  public static final int MAX_WAIT = 96;
   public static final float CLOUD_CELLS = 2.0F;
   public static final int CLOUD_PERIOD = 256;
 
@@ -23,6 +24,13 @@ public final class ChartBatch {
   public final float[] v0 = new float[MAX_QUADS];
   public final float[] u1 = new float[MAX_QUADS];
   public final float[] v1 = new float[MAX_QUADS];
+
+  public final float[] waitLeft = new float[MAX_WAIT];
+  public final float[] waitTop = new float[MAX_WAIT];
+  public final float[] waitRight = new float[MAX_WAIT];
+  public final float[] waitBottom = new float[MAX_WAIT];
+  public final int[] waitSeed = new int[MAX_WAIT];
+  public int waiting;
 
   private final int[] gatherX = new int[MAX_QUADS];
   private final int[] gatherZ = new int[MAX_QUADS];
@@ -57,6 +65,7 @@ public final class ChartBatch {
       int coarser) {
     atlas = source;
     count = 0;
+    waiting = 0;
     left = x;
     top = y;
     width = w;
@@ -99,6 +108,9 @@ public final class ChartBatch {
       int tz = gatherZ[(int) (order[n] & ORDER_MASK)];
       long key = TileKey.of(layer, level, tx, tz);
       int slot = source.slot(key);
+      if (slot == MapAtlas.MISSING && waiting < MAX_WAIT) {
+        pend(view, (double) tx * span, (double) tz * span, span, tx * 73856093 ^ tz * 19349663);
+      }
       float cloudX = Math.floorMod(tx * (int) CLOUD_CELLS, CLOUD_PERIOD);
       float cloudY = Math.floorMod(tz * (int) CLOUD_CELLS, CLOUD_PERIOD);
       double wx0 = (double) tx * span;
@@ -200,6 +212,36 @@ public final class ChartBatch {
     }
     java.util.Arrays.sort(order, 0, tiles);
     return tiles;
+  }
+
+  private void pend(Viewport view, double wx0, double wz0, double span, int seed) {
+    float minX = Float.MAX_VALUE;
+    float minY = Float.MAX_VALUE;
+    float maxX = -Float.MAX_VALUE;
+    float maxY = -Float.MAX_VALUE;
+    for (int i = 0; i < 4; i++) {
+      double wx = wx0 + ((i & 1) == 0 ? 0.0 : span);
+      double wz = wz0 + ((i & 2) == 0 ? 0.0 : span);
+      float sx = view.screenX(wx, wz);
+      float sy = view.screenY(wx, wz);
+      minX = Math.min(minX, sx);
+      maxX = Math.max(maxX, sx);
+      minY = Math.min(minY, sy);
+      maxY = Math.max(maxY, sy);
+    }
+    minX = Math.max(minX, left);
+    minY = Math.max(minY, top);
+    maxX = Math.min(maxX, left + width);
+    maxY = Math.min(maxY, top + height);
+    if (maxX - minX < 8.0F || maxY - minY < 8.0F) {
+      return;
+    }
+    waitLeft[waiting] = minX;
+    waitTop[waiting] = minY;
+    waitRight[waiting] = maxX;
+    waitBottom[waiting] = maxY;
+    waitSeed[waiting] = seed;
+    waiting++;
   }
 
   private static boolean anyChild(MapAtlas source, int layer, int level, int tx, int tz) {
