@@ -134,7 +134,8 @@ Switch between Microsoft, offline and token accounts without restarting. The lis
 - **Atmosphere:** fireflies, petals, snow, butterflies, lanterns, meteors, fireworks
 - **Entity glow:** plasma, aura, frost, outline, hologram, glitch and signal on players, mobs and your hand
 - **Jump circles** and **entity trails**
-- **Death effects:** ritual, beam, dissolve, glitch, matrix, void
+- **Death effects:** ritual, beam, dissolve, glitch, matrix, void. Under Iris shader packs the Ritual, Ascend and Glitch effects still move the real body, which the pack then shades like any entity
+- Entity effects, death effects, jump circles and trails show through tinted glass and water, because they are tested against the depth of the world before translucent blocks are drawn (on 26.2, and through Iris's own pre-translucent depth under shader packs)
 - **Block outline:** animated edges, corners or scan
 - **Fullbright:** luminance, gamma or night vision with an optional tint
 - **Swing trails:** smooth ribbons behind weapons, in the world and in first person
