@@ -59,7 +59,7 @@ public abstract class LevelRendererMixin {
       SubmitNodeCollector output,
       CallbackInfo ci) {
     EntityShaders.capture(levelRenderState, entityRenderDispatcher, poseStack);
-    DeathEffects.submit(levelRenderState, entityRenderDispatcher, poseStack);
+    DeathEffects.submit(levelRenderState, entityRenderDispatcher, poseStack, output);
     BlockPopEffects.submit(poseStack, output, levelRenderState);
   }
 

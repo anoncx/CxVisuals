@@ -20,6 +20,13 @@ public final class IrisCompat {
   private static final MethodHandle IN_SHADOW;
   private static final MethodHandle SHADOW_STATE;
 
+  private static boolean cleanBroken;
+  private static java.lang.reflect.Method cleanManager;
+  private static java.lang.reflect.Method cleanPipeline;
+  private static java.lang.reflect.Method cleanDepth;
+  private static java.lang.reflect.Field cleanTargets;
+  private static Class<?> cleanPipelineClass;
+
   static {
     Object instance = null;
     MethodHandle inUse = null;
@@ -81,6 +88,42 @@ public final class IrisCompat {
       return (boolean) IN_USE.invokeExact(INSTANCE);
     } catch (Throwable e) {
       return false;
+    }
+  }
+
+  public static Object cleanDepth() {
+    if (cleanBroken || INSTANCE == null || !handInScene()) {
+      return null;
+    }
+    try {
+      if (cleanTargets == null) {
+        ClassLoader loader = INSTANCE.getClass().getClassLoader();
+        Class<?> iris = Class.forName("net.irisshaders.iris.Iris", true, loader);
+        Class<?> manager = Class.forName("net.irisshaders.iris.pipeline.PipelineManager", true, loader);
+        cleanPipelineClass =
+            Class.forName("net.irisshaders.iris.pipeline.IrisRenderingPipeline", true, loader);
+        Class<?> targets = Class.forName("net.irisshaders.iris.targets.RenderTargets", true, loader);
+        cleanManager = iris.getMethod("getPipelineManager");
+        cleanPipeline = manager.getMethod("getPipelineNullable");
+        cleanTargets = cleanPipelineClass.getDeclaredField("renderTargets");
+        cleanTargets.setAccessible(true);
+        cleanDepth = targets.getMethod("getDepthTextureNoTranslucents");
+      }
+      Object pipeline = cleanPipeline.invoke(cleanManager.invoke(null));
+      if (!cleanPipelineClass.isInstance(pipeline)) {
+        return null;
+      }
+      Object targets = cleanTargets.get(pipeline);
+      return targets == null ? null : cleanDepth.invoke(targets);
+    } catch (ReflectiveOperationException | LinkageError e) {
+      cleanBroken = true;
+      CxVisualsClient.LOG.warn(
+          "Iris depth without translucents could not be reached, effects hide behind glass and"
+              + " water under shader packs",
+          e);
+      return null;
+    } catch (RuntimeException e) {
+      return null;
     }
   }
 

@@ -14,6 +14,7 @@ import me.cxiy.cxvisuals.mc.modules.idlecamera.IdleCamera;
 import me.cxiy.cxvisuals.mc.modules.motionblur.MotionBlur;
 import me.cxiy.cxvisuals.mc.modules.nametags.Nametags;
 import me.cxiy.cxvisuals.mc.modules.shaders.EntityShaders;
+import me.cxiy.cxvisuals.mc.modules.shaders.SceneDepth;
 import me.cxiy.cxvisuals.mc.modules.shaders.EntityTrails;
 import me.cxiy.cxvisuals.mc.modules.shaders.JumpCircles;
 import me.cxiy.cxvisuals.mc.modules.shaders.OutlineShaders;
@@ -91,6 +92,7 @@ public abstract class GameRendererMixin {
               ordinal = 0))
   private void cxvisuals$levelLens(CallbackInfo ci, @Local Matrix4f projectionMatrix) {
     EntityShaders.projection(projectionMatrix);
+    SceneDepth.arm();
   }
 
   @Inject(

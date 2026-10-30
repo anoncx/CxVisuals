@@ -137,7 +137,7 @@ public final class EntityTrails {
   private static void draw(
       RenderTarget main, CameraRenderState camera, ShadersModule module, long now) {
     GpuTextureView color = main.getColorTextureView();
-    GpuTextureView depth = main.getDepthTextureView();
+    GpuTextureView depth = SceneDepth.attachment(main);
     if (color == null || depth == null || camera.isPanoramicMode) {
       return;
     }

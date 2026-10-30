@@ -29,6 +29,10 @@ public enum Fate {
   private static final float HORIZON_SHUT_FROM = 0.86F;
   private static final float HORIZON_SHUT_TO = 0.93F;
 
+  public boolean moves() {
+    return this == RITUAL || this == ASCEND || this == GLITCH;
+  }
+
   public Fate resolve(int seed) {
     return this == RANDOM ? values()[Math.floorMod(seed * 0x9E3779B1, CHOICES)] : this;
   }

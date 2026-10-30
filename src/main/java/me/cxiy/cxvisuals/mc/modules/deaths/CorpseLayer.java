@@ -23,6 +23,7 @@ import java.util.Optional;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
 import me.cxiy.cxvisuals.mc.compat.Features;
 import me.cxiy.cxvisuals.mc.compat.Gpu;
+import me.cxiy.cxvisuals.mc.modules.shaders.SceneDepth;
 import me.cxiy.cxvisuals.mc.compat.Targets;
 import me.cxiy.cxvisuals.modules.shaders.ScreenBounds;
 import net.minecraft.client.renderer.GameRenderer;
@@ -177,7 +178,7 @@ final class CorpseLayer {
       pass.setUniform(BLOCK, uniforms);
       Gpu.bind(pass, CORPSE, body.getColorTextureView(), nearest);
       Gpu.bind(pass, CORPSE_DEPTH, body.getDepthTextureView(), nearest);
-      Gpu.bind(pass, SCENE_DEPTH, main.getDepthTextureView(), nearest);
+      Gpu.bind(pass, SCENE_DEPTH, SceneDepth.view(main), nearest);
       pass.draw(3, 1, 0, 0);
     }
   }

@@ -269,7 +269,7 @@ public final class OutlineShaders {
       Gpu.bind(
           pass,
           DEPTH,
-          main.getDepthTextureView(),
+          SceneDepth.view(main),
           RenderSystem.getSamplerCache().getClampToEdge(FilterMode.NEAREST));
       pass.draw(3, 1, 0, 0);
     }

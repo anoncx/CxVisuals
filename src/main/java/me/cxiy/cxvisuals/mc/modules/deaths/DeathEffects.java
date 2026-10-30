@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.Set;
+import me.cxiy.cxvisuals.mc.modules.shaders.SceneDepth;
 import me.cxiy.cxvisuals.core.settings.Palette;
 import me.cxiy.cxvisuals.mc.CxVisualsClient;
 import me.cxiy.cxvisuals.mc.McKeyBinder;
@@ -28,6 +29,7 @@ import me.cxiy.cxvisuals.modules.environment.View;
 import me.cxiy.cxvisuals.modules.shaders.ScreenBounds;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.client.renderer.entity.state.EntityRenderState;
 import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
@@ -156,7 +158,7 @@ public final class DeathEffects {
     corpse.z = state.z;
     corpse.width = state.boundingBoxWidth;
     corpse.height = state.boundingBoxHeight;
-    if (!IrisCompat.handInScene()) {
+    if (!IrisCompat.handInScene() || corpse.fate.moves()) {
       CLAIMED.add(state);
     }
   }
@@ -184,14 +186,15 @@ public final class DeathEffects {
   }
 
   public static void submit(
-      LevelRenderState level, EntityRenderDispatcher dispatcher, PoseStack poseStack) {
+      LevelRenderState level,
+      EntityRenderDispatcher dispatcher,
+      PoseStack poseStack,
+      SubmitNodeCollector output) {
     staged = 0;
-    if (!live()
-        || IrisCompat.isRenderingShadowPass()
-        || IrisCompat.handInScene()
-        || CORPSES.empty()) {
+    if (!live() || IrisCompat.isRenderingShadowPass() || CORPSES.empty()) {
       return;
     }
+    boolean pack = IrisCompat.handInScene();
     long now = System.nanoTime();
     float seconds = module.seconds();
     CameraRenderState camera = level.cameraRenderState;
@@ -203,6 +206,9 @@ public final class DeathEffects {
       Corpses.Corpse corpse = CORPSES.get(i);
       STAGED[i] = false;
       if (!(corpse.body instanceof LivingEntityRenderState body)) {
+        continue;
+      }
+      if (pack && !corpse.fate.moves()) {
         continue;
       }
       float x = (float) (corpse.x - eye.x);
@@ -221,6 +227,17 @@ public final class DeathEffects {
       float py = y + POSTURE.rise;
       float pz = z + POSTURE.jitterZ;
       float pivot = py + corpse.height * POSTURE.pivot;
+      if (pack) {
+        poseStack.pushPose();
+        if (!POSTURE.still()) {
+          poseStack.translate(px, pivot, pz);
+          poseStack.scale(POSTURE.scale, POSTURE.scale * POSTURE.squash, POSTURE.scale);
+          poseStack.translate(-px, -pivot, -pz);
+        }
+        dispatcher.submit(body, camera, px, py, pz, poseStack, output);
+        poseStack.popPose();
+        continue;
+      }
       CorpseStorage storage = STORAGES[i];
       storage.wipe();
       poseStack.pushPose();
@@ -343,7 +360,7 @@ public final class DeathEffects {
               () -> "CxVisuals death effects",
               main.getColorTextureView(),
               Optional.empty(),
-              main.getDepthTextureView(),
+              SceneDepth.attachment(main),
               OptionalDouble.empty())) {
         BATCH.draw(pass);
       }

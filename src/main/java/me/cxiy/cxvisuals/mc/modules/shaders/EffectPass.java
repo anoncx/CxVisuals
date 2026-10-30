@@ -122,7 +122,7 @@ final class EffectPass {
       pass.setUniform(FieldPasses.BLOCK, uniforms);
       Gpu.bind(pass, FieldPasses.MASK, mask.getColorTextureView(), sampler);
       Gpu.bind(pass, FieldPasses.MASK_DEPTH, mask.getDepthTextureView(), sampler);
-      Gpu.bind(pass, SCENE_DEPTH, main.getDepthTextureView(), sampler);
+      Gpu.bind(pass, SCENE_DEPTH, SceneDepth.view(main), sampler);
       Gpu.bind(
           pass, FIELD, field, RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR));
       if (reshade) {

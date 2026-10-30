@@ -12,6 +12,7 @@
     "ChatScreenMixin",
     "EntityRendererMixin",
     "FeatureRenderDispatcherMixin",
+    "PreparedFrameMixin",
     "ClientLevelRainMixin",
     "ClientPacketListenerMixin",
     "ConnectScreenAccessor",
