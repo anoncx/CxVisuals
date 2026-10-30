@@ -27,6 +27,7 @@ layout(location = 7) flat in int layer;
 layout(location = 8) flat in float sideHeight;
 layout(location = 9) flat in int water;
 layout(location = 10) flat in int groundWet;
+layout(location = 11) flat in float skirt;
 
 layout(location = 0) out vec4 fragColor;
 
@@ -104,6 +105,10 @@ void main() {
         light *= SHELTER;
     }
     color *= light;
+    if (skirt > 0.5) {
+        float down = smoothstep(0.0, sideHeight, sideHeight - local.y);
+        color = mix(color, FogColor.rgb, down * down * 0.92);
+    }
     float fog = smoothstep(FogColor.w, Eye.w, fogDistance);
     color = mix(color, FogColor.rgb, fog);
     fragColor = vec4(color, 1.0);

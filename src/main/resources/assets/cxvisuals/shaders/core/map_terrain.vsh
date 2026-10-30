@@ -37,11 +37,15 @@ layout(location = 7) flat out int layer;
 layout(location = 8) flat out float sideHeight;
 layout(location = 9) flat out int water;
 layout(location = 10) flat out int groundWet;
+layout(location = 11) flat out float skirt;
 
 const int EDGE = 128;
 const int GRID = 16;
-const int SKIRT = 6;
+const int SKIRT = 14;
 const int NONE = -1000;
+const int MAX_GAP = 28;
+const int CUT = 24;
+const int WALL = 40;
 
 struct Column {
     int block;
@@ -147,8 +151,18 @@ void main() {
     face = kind - layer * 3;
     water = here.water;
     groundWet = here.wet;
+    skirt = 0.0;
     topBlock = here.block;
     if (here.block == 0 || (layer == 1 && (here.depth == 0 || here.ground == 0))) {
+        hide();
+        return;
+    }
+    if (layer == 1
+        && (here.h - here.depth - here.floor > MAX_GAP
+            || !fetchColumn(col + ivec2(stride, 0)).known
+            || !fetchColumn(col + ivec2(-stride, 0)).known
+            || !fetchColumn(col + ivec2(0, stride)).known
+            || !fetchColumn(col + ivec2(0, -stride)).known)) {
         hide();
         return;
     }
@@ -176,8 +190,15 @@ void main() {
         int low;
         if (layer == 0) {
             low = next.known ? next.h : h - SKIRT;
-            if (underside != NONE) {
-                low = max(low, underside - 1);
+            if (next.known && underside != NONE) {
+                int cut = max(underside - 1, h - CUT);
+                if (cut > low) {
+                    low = cut;
+                    skirt = 1.0;
+                }
+            }
+            if (!next.known) {
+                skirt = 1.0;
             }
             if (water == 1 && next.known && next.water == 1) {
                 low = h;
@@ -185,6 +206,10 @@ void main() {
         } else {
             low = !next.known ? h - SKIRT
                 : next.depth > 0 ? (next.ground != 0 ? next.floor : h - SKIRT) : next.h;
+        }
+        if (h - low > WALL) {
+            low = h - WALL;
+            skirt = 1.0;
         }
         if (low >= h) {
             hide();
