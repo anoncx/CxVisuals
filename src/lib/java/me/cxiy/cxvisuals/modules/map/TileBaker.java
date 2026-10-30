@@ -22,6 +22,10 @@ public final class TileBaker {
     default boolean occupied(int level, int x, int z) {
       return true;
     }
+
+    default Forecast forecast() {
+      return null;
+    }
   }
 
   public static final int PIXELS = TileKey.EDGE * TileKey.EDGE;
@@ -32,6 +36,10 @@ public final class TileBaker {
   public static final int MINI_LEVEL = 5;
 
   private static final int SAMPLES = 4;
+  private static final int FORECAST_ALPHA = 217;
+  private static final float MUTE_COLOR = 0.62F;
+  private static final float MUTE_LIGHT = 1.0F;
+  private static final int MUTE_COOL = 4;
 
   private static final int MARGIN = 8;
   private static final int WIDE = TileKey.EDGE + MARGIN * 2;
@@ -41,6 +49,9 @@ public final class TileBaker {
   private final float[] cover = new float[WIDE * WIDE];
   private final float[] blur = new float[WIDE * WIDE];
   private Region cached;
+  private int[] forecastRgb;
+  private short[] forecastHeight;
+  private byte[] forecastWater;
   private int cachedLayer = -1;
   private int cachedX = Integer.MIN_VALUE;
   private int cachedZ = Integer.MIN_VALUE;
@@ -121,7 +132,79 @@ public final class TileBaker {
       bleed(out);
       soften(key, out);
     }
+    Forecast forecast = TileKey.layer(key) == TileKey.SURFACE ? source.forecast() : null;
+    return forecast == null ? any : paintForecast(forecast, key, terrain, out, any);
+  }
+
+  private boolean paintForecast(
+      Forecast forecast, long key, Terrain terrain, int[] out, boolean explored) {
+    if (explored) {
+      boolean open = false;
+      for (int at = 0; at < PIXELS && !open; at++) {
+        open = (out[at] >>> 24) != 255;
+      }
+      if (!open) {
+        return true;
+      }
+    } else {
+      Arrays.fill(out, 0);
+    }
+    if (forecastRgb == null) {
+      forecastRgb = new int[Forecast.GRID * Forecast.GRID];
+      forecastHeight = new short[Forecast.GRID * Forecast.GRID];
+      forecastWater = new byte[Forecast.GRID * Forecast.GRID];
+    }
+    int level = TileKey.level(key);
+    int span = TileKey.span(level);
+    if (!forecast.grid(
+        TileKey.x(key) * span, TileKey.z(key) * span, 1 << level, forecastRgb, forecastHeight, forecastWater)) {
+      return explored;
+    }
+    int grid = Forecast.GRID;
+    boolean any = explored;
+    for (int pz = 0; pz < TileKey.EDGE; pz++) {
+      for (int px = 0; px < TileKey.EDGE; px++) {
+        int at = (pz << TileKey.EDGE_SHIFT) | px;
+        int old = out[at];
+        int alpha = old >>> 24;
+        if (alpha == 255) {
+          continue;
+        }
+        int g = (pz + 1) * grid + px + 1;
+        int rgb = forecastRgb[g];
+        if (rgb < 0) {
+          continue;
+        }
+        int water = forecastWater[g] & 0xFF;
+        int shore = Math.min(water, Math.min(forecastWater[g - 1] & 0xFF, forecastWater[g - grid] & 0xFF));
+        float light =
+            Relief.light(
+                terrain, forecastHeight[g], forecastHeight[g - 1], forecastHeight[g - grid], water, shore);
+        int muted = mute(Relief.rgb(rgb, light));
+        if (alpha == 0) {
+          out[at] = Relief.pixel(muted, FORECAST_ALPHA);
+        } else {
+          float known = alpha / 255.0F;
+          int r = Math.round(((muted >> 16) & 0xFF) * (1.0F - known) + (old & 0xFF) * known);
+          int green = Math.round(((muted >> 8) & 0xFF) * (1.0F - known) + ((old >> 8) & 0xFF) * known);
+          int b = Math.round((muted & 0xFF) * (1.0F - known) + ((old >> 16) & 0xFF) * known);
+          out[at] = Relief.pixel((r << 16) | (green << 8) | b, Math.max(alpha, FORECAST_ALPHA));
+        }
+        any = true;
+      }
+    }
     return any;
+  }
+
+  private static int mute(int rgb) {
+    int r = (rgb >> 16) & 0xFF;
+    int g = (rgb >> 8) & 0xFF;
+    int b = rgb & 0xFF;
+    float grey = r * 0.299F + g * 0.587F + b * 0.114F;
+    int mr = Math.min(255, Math.round((grey + (r - grey) * MUTE_COLOR) * MUTE_LIGHT));
+    int mg = Math.min(255, Math.round((grey + (g - grey) * MUTE_COLOR) * MUTE_LIGHT));
+    int mb = Math.min(255, Math.round((grey + (b - grey) * MUTE_COLOR) * MUTE_LIGHT) + MUTE_COOL);
+    return (mr << 16) | (mg << 8) | mb;
   }
 
   private void soften(long key, int[] out) {

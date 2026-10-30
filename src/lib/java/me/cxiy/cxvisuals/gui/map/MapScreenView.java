@@ -100,6 +100,7 @@ public final class MapScreenView {
   private static final float ORBIT_PITCH = 0.005F;
   private static final float FADE_UNTIL = 0.35F;
   private static final int LOAD_TILES = 40;
+  private static final String FORECAST_NOTE = Lang.key("Forecast from seed");
   private static final float LOAD_BIG = 160.0F;
   private static final double HOP_JUMP = 12.0;
   private static final float HOP_SECONDS = 0.6F;
@@ -793,11 +794,13 @@ public final class MapScreenView {
     String title = host.title();
     String dimension = Note.dimensionName(host.dimension());
     boolean cave = host.source().layer() == TileKey.CAVE;
-    String note = cave ? "·  " + Lang.tr("Cave view on minimap") : "";
+    boolean forecast = !cave && host.forecasting();
+    String note =
+        cave ? "·  " + Lang.tr("Cave view on minimap") : forecast ? "·  " + Lang.tr(FORECAST_NOTE) : "";
     float line =
         13.0F
             + c.textWidth(FontStyle.CAPTION, dimension)
-            + (cave ? 10.0F + c.textWidth(FontStyle.CAPTION, note) : 0.0F);
+            + (cave || forecast ? 10.0F + c.textWidth(FontStyle.CAPTION, note) : 0.0F);
     float width = Math.max(c.textWidth(FontStyle.ROW, title), line) + 32.0F;
     width = Math.max(150.0F, Math.min(width, screenW - panelW() - MARGIN * 5.0F - 120.0F));
     float x = MARGIN;
@@ -808,7 +811,7 @@ public final class MapScreenView {
     float chipY = y + 33.0F;
     c.roundRect(x + 16.0F, chipY + 4.0F, 7.0F, 7.0F, 3.5F, Note.dimensionColor(host.dimension()));
     c.text(FontStyle.CAPTION, dimension, x + 29.0F, chipY + 1.0F, t.ink2());
-    if (cave) {
+    if (cave || forecast) {
       float cx = x + 29.0F + c.textWidth(FontStyle.CAPTION, dimension) + 10.0F;
       float room = x + width - 16.0F - cx;
       c.text(FontStyle.CAPTION, c.fit(FontStyle.CAPTION, note, room), cx, chipY + 1.0F, t.grey());

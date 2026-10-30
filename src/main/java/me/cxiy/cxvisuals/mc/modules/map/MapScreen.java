@@ -17,6 +17,7 @@ import me.cxiy.cxvisuals.mc.gui.McCanvas;
 import me.cxiy.cxvisuals.mc.gui.ShapePipeline;
 import me.cxiy.cxvisuals.mc.modules.download.Downloads;
 import me.cxiy.cxvisuals.mc.modules.hud.Hud;
+import me.cxiy.cxvisuals.mc.modules.map.forecast.Forecasts;
 import me.cxiy.cxvisuals.mc.modules.social.ExploreLink;
 import me.cxiy.cxvisuals.mc.modules.social.FriendsLink;
 import me.cxiy.cxvisuals.mc.modules.social.RoomShare;
@@ -115,6 +116,11 @@ public final class MapScreen extends Screen {
           Minecraft mc = Minecraft.getInstance();
           return (FORCE_REGIONS || DonutRegions.matches(Markers.scope(mc)))
               && "minecraft:overworld".equals(Markers.dimension(mc));
+        }
+
+        @Override
+        public boolean forecasting() {
+          return Forecasts.showing();
         }
 
         @Override

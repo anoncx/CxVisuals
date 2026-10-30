@@ -19,6 +19,10 @@ public interface MapHost {
 
   String dimension();
 
+  default boolean forecasting() {
+    return false;
+  }
+
   int height(int x, int z);
 
   List<Waypoints.Target> friends();

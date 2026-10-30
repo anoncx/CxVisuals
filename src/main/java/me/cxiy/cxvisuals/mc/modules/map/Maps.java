@@ -13,6 +13,7 @@ import me.cxiy.cxvisuals.mc.CxVisualsClient;
 import me.cxiy.cxvisuals.mc.McKeyBinder;
 import me.cxiy.cxvisuals.mc.gui.McCanvas;
 import me.cxiy.cxvisuals.mc.modules.hud.Hud;
+import me.cxiy.cxvisuals.mc.modules.map.forecast.Forecasts;
 import me.cxiy.cxvisuals.mc.modules.inventory.Stacks;
 import me.cxiy.cxvisuals.mc.modules.social.FriendsLink;
 import me.cxiy.cxvisuals.mc.modules.social.RoomLink;
@@ -165,6 +166,7 @@ public final class Maps {
     cartographer = new Cartographer(world);
     root =
         FabricLoader.getInstance().getConfigDir().resolve(CxVisualsClient.MOD_ID).resolve(FOLDER);
+    Forecasts.init(module, world, root.getParent());
     openKey = keys.mapping(MapModule.OPEN_KEY);
     zoomInKey = keys.mapping(MapModule.ZOOM_IN_KEY);
     zoomOutKey = keys.mapping(MapModule.ZOOM_OUT_KEY);
@@ -239,6 +241,7 @@ public final class Maps {
     if (!module.live() || mc.level == null || mc.player == null) {
       if (world.active()) {
         world.leave();
+        Forecasts.reset();
         cartographer.reset();
       }
       placed = "";
@@ -250,6 +253,7 @@ public final class Maps {
     String dimension = Markers.dimension(mc);
     String key = scope + "|" + dimension;
     world.terrain(module.terrain.get());
+    Forecasts.tick(scope, dimension);
     if (!key.equals(placed)) {
       placed = key;
       warmQueue = null;

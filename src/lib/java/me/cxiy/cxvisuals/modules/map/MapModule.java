@@ -8,6 +8,7 @@ import me.cxiy.cxvisuals.core.settings.EnumSetting;
 import me.cxiy.cxvisuals.core.settings.Group;
 import me.cxiy.cxvisuals.core.settings.Page;
 import me.cxiy.cxvisuals.core.settings.PanelSetting;
+import me.cxiy.cxvisuals.core.settings.TextSetting;
 import me.cxiy.cxvisuals.modules.map.Relief.Terrain;
 
 public final class MapModule extends Module {
@@ -29,6 +30,8 @@ public final class MapModule extends Module {
 
   public final MapAtlas atlas = new MapAtlas();
   public final EnumSetting<Terrain> terrain;
+  public final BoolSetting forecast;
+  public final TextSetting seed;
   public final BoolSetting clouds;
   public final BoolSetting solid;
   public final EnumSetting<Caves> caves;
@@ -59,6 +62,19 @@ public final class MapModule extends Module {
     caves =
         look.enumOf("caves", "Cave view", Caves.AUTO, "Automatic", "Off")
             .describe("Underground, the minimap shows the cave around you instead of the surface.");
+    Group predicted = page.group("Forecast");
+    forecast =
+        predicted
+            .bool("forecast", "Predict unexplored areas", true)
+            .describe(
+                "With a world seed set, places you haven't explored are drawn from the seed in"
+                    + " muted colours and replaced by the real thing as you explore them.");
+    seed =
+        predicted
+            .text("seed", "World seed", "")
+            .describe(
+                "Saved for each world and server. Works for vanilla world generation of the same"
+                    + " Minecraft version. Numbers and words both work.");
     Group marks = page.group("On the map");
     waypoints = marks.bool("waypoints", "Waypoints", true);
     regions =

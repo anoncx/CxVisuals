@@ -47,6 +47,7 @@ public final class MapWorld implements TileBaker.Source {
   private final ThreadLocal<TileBaker> thumbnails =
       ThreadLocal.withInitial(() -> new TileBaker(this));
   private final ExecutorService bakers;
+  private volatile Forecast forecast;
   private final Map<Long, Object> gates = new ConcurrentHashMap<>();
   private final Map<Long, Region> decoded =
       new LinkedHashMap<>(16, 0.75F, true) {
@@ -192,6 +193,18 @@ public final class MapWorld implements TileBaker.Source {
     folder = next;
     int ticket = ++place;
     worker.execute(() -> index(next, ticket));
+  }
+
+  public void forecast(Forecast next) {
+    if (next != forecast) {
+      forecast = next;
+      atlas.clear();
+    }
+  }
+
+  @Override
+  public Forecast forecast() {
+    return forecast;
   }
 
   public void leave() {
