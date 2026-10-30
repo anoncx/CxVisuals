@@ -23,6 +23,7 @@ final class ControlView {
   private static final int KNOB_COLOR = 0xFFFFFFFF;
   private static final float OFF = 0.38F;
   private static final String NEXT = "›";
+  private static final String WIDEST = "100%";
 
   final Control control;
   final Field field;
@@ -37,6 +38,7 @@ final class ControlView {
   private final Anim position;
   private final Anim tint;
   private float trackX;
+  private float readoutWidth;
   private boolean pressed;
   private boolean dragging;
   private String pushed;
@@ -141,7 +143,11 @@ final class ControlView {
       }
       case SLIDER -> {
         String value = control.value();
-        float readout = c.textWidth(FontStyle.MONO, value);
+        float shownWidth = c.textWidth(FontStyle.MONO, value);
+        readoutWidth =
+            Math.max(
+                readoutWidth, Math.max(shownWidth, c.textWidth(FontStyle.MONO, WIDEST)));
+        float readout = readoutWidth;
         trackX = right - readout - READOUT_GAP - TRACK;
         float fraction = Math.max(0.0F, Math.min(1.0F, control.fraction()));
         float centre = trackX + KNOB * 0.5F + (TRACK - KNOB) * fraction;
@@ -149,7 +155,6 @@ final class ControlView {
         c.roundRect(trackX, middle - BAR * 0.5F, TRACK, BAR, BAR * 0.5F, t.surface2());
         c.roundRect(
             trackX, middle - BAR * 0.5F, Math.max(BAR, centre - trackX), BAR, BAR * 0.5F, t.ink());
-        c.pushTransform(1.0F + 0.14F * press.get(), centre, middle);
         c.shadow(
             centre - KNOB * 0.5F,
             middle - KNOB * 0.5F,
@@ -161,11 +166,10 @@ final class ControlView {
             KNOB_SHADOW);
         Depth.knob(
             c, centre - KNOB * 0.5F, middle - KNOB * 0.5F, KNOB, KNOB, KNOB * 0.5F, KNOB_COLOR);
-        c.popTransform();
         c.text(
             FontStyle.MONO,
             value,
-            right - readout,
+            right - shownWidth,
             middle - c.lineHeight(FontStyle.MONO) * 0.5F,
             Theme.mix(t.grey(), t.ink(), press.get()));
       }
