@@ -38,6 +38,7 @@ layout(location = 8) flat out float sideHeight;
 layout(location = 9) flat out int water;
 layout(location = 10) flat out int groundWet;
 layout(location = 11) flat out float skirt;
+layout(location = 12) out float relY;
 
 const int EDGE = 128;
 const int GRID = 16;
@@ -239,6 +240,7 @@ void main() {
         color = unlight(color, light);
     }
     raw = clamp(color, 0.0, 1.0);
+    relY = pos.y;
     fogDistance = length(pos - Eye.xyz);
     gl_Position = ViewProj * vec4(pos, 1.0);
 }

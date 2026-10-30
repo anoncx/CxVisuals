@@ -28,6 +28,7 @@ layout(location = 8) flat in float sideHeight;
 layout(location = 9) flat in int water;
 layout(location = 10) flat in int groundWet;
 layout(location = 11) flat in float skirt;
+layout(location = 12) in float relY;
 
 layout(location = 0) out vec4 fragColor;
 
@@ -36,6 +37,8 @@ const ivec2 TOPS = ivec2(1920, 1920);
 const ivec2 SIDES = ivec2(1792, 1920);
 const ivec2 OVERLAYS = ivec2(1280, 1920);
 const float SHELTER = 0.62;
+const float FADE_TOP = -4.0;
+const float FADE_BOTTOM = -26.0;
 const vec3 WATER_TINT = vec3(0.247, 0.463, 0.894);
 
 uint word(vec4 texel, bool high) {
@@ -108,6 +111,12 @@ void main() {
     if (skirt > 0.5) {
         float down = smoothstep(0.0, sideHeight, sideHeight - local.y);
         color = mix(color, FogColor.rgb, down * down * 0.92);
+    }
+    if (face != 0 || layer == 1) {
+        float reach = layer == 1 ? 1.0 : smoothstep(3.0, 9.0, sideHeight);
+        float sink = clamp((FADE_TOP - relY) / (FADE_TOP - FADE_BOTTOM), 0.0, 1.0);
+        vec3 cloud = mix(CloudBase.rgb, CloudTop.rgb, 0.5) * 0.88;
+        color = mix(color, cloud, sink * sink * (3.0 - 2.0 * sink) * reach);
     }
     float fog = smoothstep(FogColor.w, Eye.w, fogDistance);
     color = mix(color, FogColor.rgb, fog);
