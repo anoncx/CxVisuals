@@ -47,6 +47,7 @@ public final class MapWorld implements TileBaker.Source {
   private final ThreadLocal<TileBaker> thumbnails =
       ThreadLocal.withInitial(() -> new TileBaker(this));
   private final ExecutorService bakers;
+  private final Map<Long, Object> gates = new ConcurrentHashMap<>();
   private final Map<Long, Region> decoded =
       new LinkedHashMap<>(16, 0.75F, true) {
         @Override
@@ -722,16 +723,31 @@ public final class MapWorld implements TileBaker.Source {
     if (from == null) {
       return null;
     }
-    synchronized (decoded) {
-      Region cached = decoded.get(key);
+    Region cached = decodedGet(key);
+    if (cached != null) {
+      return cached;
+    }
+    Region read;
+    Object gate = gates.computeIfAbsent(key, ignored -> new Object());
+    synchronized (gate) {
+      cached = decodedGet(key);
       if (cached != null) {
         return cached;
       }
-      Region read = read(from, regionX, regionZ, palette);
+      read = read(from, regionX, regionZ, palette);
       if (read != null) {
-        decoded.put(key, read);
+        synchronized (decoded) {
+          decoded.put(key, read);
+        }
       }
-      return arrive(key, read, from);
+    }
+    gates.remove(key, gate);
+    return arrive(key, read, from);
+  }
+
+  private Region decodedGet(long key) {
+    synchronized (decoded) {
+      return decoded.get(key);
     }
   }
 
