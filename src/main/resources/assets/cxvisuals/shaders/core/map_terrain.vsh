@@ -45,6 +45,8 @@ const int GRID = 16;
 const int SKIRT = 14;
 const int NONE = -1000;
 const int MAX_GAP = 28;
+const int ROOF = 8;
+const int SKIRT_MAX = 140;
 const int CUT = 24;
 const int WALL = 40;
 
@@ -159,7 +161,7 @@ void main() {
         return;
     }
     if (layer == 1
-        && (here.h - here.depth - here.floor > MAX_GAP
+        && ((here.depth > ROOF && here.h - here.depth - here.floor > MAX_GAP)
             || !fetchColumn(col + ivec2(stride, 0)).known
             || !fetchColumn(col + ivec2(-stride, 0)).known
             || !fetchColumn(col + ivec2(0, stride)).known
@@ -190,7 +192,7 @@ void main() {
         Column next = fetchColumn(col + offset);
         int low;
         if (layer == 0) {
-            low = next.known ? next.h : h - SKIRT;
+            low = next.known ? next.h : h - clamp(h - int(Extra.x) + 6, SKIRT, SKIRT_MAX);
             if (next.known && underside != NONE) {
                 int cut = max(underside - 1, h - CUT);
                 if (cut > low) {
@@ -205,7 +207,7 @@ void main() {
             low = !next.known ? h - SKIRT
                 : next.depth > 0 ? (next.ground != 0 ? next.floor : h - SKIRT) : next.h;
         }
-        if (!(layer == 0 && water == 1) && h - low > WALL) {
+        if (next.known && !(layer == 0 && water == 1) && h - low > WALL) {
             low = h - WALL;
             skirt = 1.0;
         }

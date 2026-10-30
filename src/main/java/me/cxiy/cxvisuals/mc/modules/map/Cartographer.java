@@ -390,6 +390,11 @@ final class Cartographer {
       return;
     }
     for (; y > minY; y--) {
+      int section = (y - minY) >> 4;
+      if (section >= 0 && section < sectionAir.length && chunk.getSection(section).hasOnlyAir()) {
+        y = (section << 4) + minY;
+        continue;
+      }
       BlockState state = chunk.getBlockState(cursor.set(x, y, z));
       if (!open(state)) {
         BlockState below = chunk.getBlockState(cursor.set(x, y - 1, z));

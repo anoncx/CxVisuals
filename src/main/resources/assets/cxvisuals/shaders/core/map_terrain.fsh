@@ -112,8 +112,8 @@ void main() {
         float down = smoothstep(0.0, sideHeight, sideHeight - local.y);
         color = mix(color, FogColor.rgb, down * down * 0.92);
     }
-    if (face != 0 || layer == 1) {
-        float reach = layer == 1 ? 1.0 : smoothstep(3.0, 9.0, sideHeight);
+    if (face != 0) {
+        float reach = smoothstep(3.0, 9.0, sideHeight);
         float sink = clamp((FADE_TOP - relY) / (FADE_TOP - FADE_BOTTOM), 0.0, 1.0);
         vec3 cloud = mix(CloudBase.rgb, CloudTop.rgb, 0.5) * 0.88;
         color = mix(color, cloud, sink * sink * (3.0 - 2.0 * sink) * reach);
