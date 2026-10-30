@@ -22,7 +22,8 @@ public final class Glyph {
   public static final int PLAYTIME = 18;
   public static final int SWITCHES = 19;
   public static final int ACCOUNTS = 20;
-  public static final int LAST = ACCOUNTS;
+  public static final int MODS = 21;
+  public static final int LAST = MODS;
 
   private Glyph() {}
 }

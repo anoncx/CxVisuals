@@ -11,8 +11,8 @@ import me.cxiy.cxvisuals.menu.model.Glyph;
 import me.cxiy.cxvisuals.menu.model.TitleSource;
 import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.AbstractButton;
 import net.minecraft.client.gui.components.AbstractWidget;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.PlainTextButton;
 import net.minecraft.client.gui.components.SpriteIconButton;
 import net.minecraft.client.gui.components.events.GuiEventListener;
@@ -46,6 +46,29 @@ public final class TitleBridge implements TitleSource {
     return hash;
   }
 
+  private static boolean vanillaIcon(String label) {
+    return label.equals(Component.translatable("narrator.button.language").getString())
+        || label.equals(Component.translatable("narrator.button.accessibility").getString());
+  }
+
+  private static boolean foreign(AbstractWidget widget) {
+    String name = widget.getClass().getName();
+    return !name.startsWith("net.minecraft.") && !name.startsWith("me.cxiy.cxvisuals.");
+  }
+
+  private static boolean modMenu(AbstractWidget widget, String label) {
+    return widget.getClass().getName().contains("modmenu")
+        || label.equals("Mods")
+        || label.startsWith("Mods (");
+  }
+
+  private static int glyph(AbstractWidget widget, String label) {
+    if (modMenu(widget, label) || foreign(widget)) {
+      return Glyph.MODS;
+    }
+    return glyph(label);
+  }
+
   private static int glyph(String label) {
     if (label.equals(Component.translatable("menu.singleplayer").getString())) {
       return Glyph.SINGLE;
@@ -71,11 +94,12 @@ public final class TitleBridge implements TitleSource {
     String quitLabel = Component.translatable("menu.quit").getString();
     List<AbstractWidget> buttons = new ArrayList<>();
     for (GuiEventListener child : screen.children()) {
-      if (child instanceof Button button
+      if (child instanceof AbstractButton button
           && button.visible
           && !(button instanceof PlainTextButton)
-          && !(button instanceof SpriteIconButton)
-          && !button.getMessage().getString().isBlank()) {
+          && !button.getMessage().getString().isBlank()
+          && (!(button instanceof SpriteIconButton)
+              || (foreign(button) && !vanillaIcon(button.getMessage().getString())))) {
         buttons.add(button);
       }
     }
@@ -90,7 +114,7 @@ public final class TitleBridge implements TitleSource {
       } else if (label.equals(quitLabel)) {
         quit = WidgetControl.of(button, false).icon(Glyph.QUIT);
       } else {
-        nav.add(WidgetControl.of(button, false).icon(glyph(label)));
+        nav.add(WidgetControl.of(button, false).icon(glyph(button, label)));
       }
     }
     if (Accounts.live()) {

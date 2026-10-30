@@ -246,6 +246,18 @@ final class Pictograms {
           ".........",
           "........."
         };
+    ART[Glyph.MODS] =
+        new String[] {
+          ".........",
+          ".XXX.XXX.",
+          ".XXX.XXX.",
+          ".XXX.XXX.",
+          ".........",
+          ".XXX.XXX.",
+          ".XXX.XXX.",
+          ".XXX.XXX.",
+          "........."
+        };
     ART[Glyph.ADD] =
         new String[] {
           ".........",
