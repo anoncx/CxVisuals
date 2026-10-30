@@ -110,8 +110,38 @@ public final class Markers {
       waypoints.notice(Lang.tr("Join a world first."));
       return;
     }
+    String label = name;
+    String icon = null;
+    if (name == null || name.isBlank()) {
+      Surroundings.Guess guess = Surroundings.guess(mc);
+      if (guess != null) {
+        label = unique(guess.name());
+        icon = guess.icon();
+      }
+    }
     waypoints.add(
-        name, mc.player.getBlockX(), mc.player.getBlockY(), mc.player.getBlockZ(), dimension(mc));
+        label,
+        mc.player.getBlockX(),
+        mc.player.getBlockY(),
+        mc.player.getBlockZ(),
+        dimension(mc),
+        icon);
+  }
+
+  private static String unique(String base) {
+    List<Waypoints.Waypoint> list = waypoints.list();
+    String candidate = base;
+    for (int n = 2; n < Waypoints.LIMIT + 2; n++) {
+      boolean taken = false;
+      for (int i = 0; i < list.size(); i++) {
+        taken |= list.get(i).name().equalsIgnoreCase(candidate);
+      }
+      if (!taken) {
+        return candidate;
+      }
+      candidate = base + " " + n;
+    }
+    return candidate;
   }
 
   public static boolean adopt(String name, int x, int y, int z, String dimension) {
@@ -291,7 +321,8 @@ public final class Markers {
               waypoint.z() + 0.5,
               waypoint.color(),
               false,
-              HudData.NONE);
+              HudData.NONE,
+              waypoint.icon());
         }
       }
     }

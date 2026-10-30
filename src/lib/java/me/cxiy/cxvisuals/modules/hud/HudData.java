@@ -51,6 +51,7 @@ public final class HudData {
   public final double[] markZ = new double[MARKS];
   public final int[] markEntity = new int[MARKS];
   public final boolean[] pinOn = new boolean[MARKS];
+  public final float[] pinFocus = new float[MARKS];
   public final float[] pinX = new float[MARKS];
   public final float[] pinY = new float[MARKS];
   public final float[] pinDistance = new float[MARKS];
@@ -61,6 +62,7 @@ public final class HudData {
   public final String[] markLabel = new String[MARKS];
   public final int[] markColor = new int[MARKS];
   public final boolean[] markFriend = new boolean[MARKS];
+  public final String[] markIcon = new String[MARKS];
 
   public boolean mark(
       String label, double x, double y, double z, int color, boolean friend, int entity) {
@@ -76,6 +78,19 @@ public final class HudData {
       int color,
       boolean friend,
       int entity) {
+    return mark(label, note, x, y, z, color, friend, entity, "");
+  }
+
+  public boolean mark(
+      String label,
+      String note,
+      double x,
+      double y,
+      double z,
+      int color,
+      boolean friend,
+      int entity,
+      String icon) {
     if (markCount == MARKS) {
       return false;
     }
@@ -87,6 +102,7 @@ public final class HudData {
     markLabel[markCount] = label;
     markColor[markCount] = color;
     markFriend[markCount] = friend;
+    markIcon[markCount] = icon;
     markCount++;
     return true;
   }

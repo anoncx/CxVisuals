@@ -3,6 +3,7 @@ package me.cxiy.cxvisuals.gui;
 import java.util.List;
 import me.cxiy.cxvisuals.core.i18n.Lang;
 import me.cxiy.cxvisuals.core.math.Easing;
+import me.cxiy.cxvisuals.modules.waypoints.Icons;
 import me.cxiy.cxvisuals.modules.waypoints.Waypoints;
 
 public final class WaypointPanel extends Widget {
@@ -11,9 +12,12 @@ public final class WaypointPanel extends Widget {
   public static final int DELETE = 2;
   public static final int FIELD = 3;
   public static final int FRIEND = 4;
+  public static final int ICON_BUTTON = 5;
+  public static final int ICON_CHOICE = 6;
 
   private static final String EMPTY =
       Lang.key("No waypoints here yet. Name one and press Add here.");
+  private static final String SUGGESTED = Lang.key("Suggested");
   private static final String NOBODY = Lang.key("Connect and add a friend to share waypoints.");
   private static final float LEFT = 8.0F;
   private static final float RIGHT = 6.0F;
@@ -22,6 +26,8 @@ public final class WaypointPanel extends Widget {
   private static final float ROW = 44.0F;
   private static final float PICKER = 46.0F;
   private static final float DOT = 8.0F;
+  private static final float ICON = 14.0F;
+  private static final float CHOICE_ART = 16.0F;
   private static final float GAP = 12.0F;
   private static final float CHIP = 28.0F;
   private static final float CHIP_FACE = 18.0F;
@@ -38,6 +44,7 @@ public final class WaypointPanel extends Widget {
   private final Anim open = Anim.reveal(0.0F);
   private List<Waypoints.Target> targets = List.of();
   private String sharing = "";
+  private String iconing = "";
   private String shown = "";
   private String sentTo = "";
   private boolean delivered;
@@ -87,12 +94,24 @@ public final class WaypointPanel extends Widget {
     return w;
   }
 
+  private void pickIcon(String id) {
+    if (id.equals(iconing)) {
+      iconing = "";
+      return;
+    }
+    iconing = id;
+    sharing = "";
+    shown = id;
+    strip = 0.0F;
+  }
+
   private void pick(String id) {
     if (id.equals(sharing)) {
       sharing = "";
       return;
     }
     sharing = id;
+    iconing = "";
     shown = id;
     targets = waypoints.actions().targets();
     strip = 0.0F;
@@ -109,7 +128,7 @@ public final class WaypointPanel extends Widget {
         sharing = "";
       }
     }
-    open.set(sharing.isEmpty() ? 0.0F : 1.0F);
+    open.set(sharing.isEmpty() && iconing.isEmpty() ? 0.0F : 1.0F);
     open.update(dt);
     measure(c);
     hits.clear();
@@ -151,14 +170,18 @@ public final class WaypointPanel extends Widget {
       c.roundRect(x + LEFT, cursor, w - LEFT, 1.0F, 0.0F, t.hair());
       boolean elsewhere = !waypoint.dimension().equals(here);
       boolean chosen = waypoint.id().equals(sharing);
-      c.roundRect(
-          x + LEFT + 4.0F,
-          cursor + (ROW - DOT) * 0.5F,
-          DOT,
-          DOT,
-          2.0F,
-          Theme.withAlpha(waypoint.color(), elsewhere ? 0.4F : 1.0F));
-      float textX = x + LEFT + 4.0F + DOT + GAP;
+      int tint = Theme.withAlpha(waypoint.color(), elsewhere ? 0.4F : 1.0F);
+      float iconX = x + LEFT + 4.0F + ICON * 0.5F;
+      float iconY = cursor + ROW * 0.5F;
+      if (WaypointArt.has(waypoint.icon())) {
+        WaypointArt.draw(c, iconX, iconY, ICON, waypoint.icon(), tint);
+      } else {
+        c.roundRect(iconX - DOT * 0.5F, iconY - DOT * 0.5F, DOT, DOT, 2.0F, tint);
+      }
+      if (!waypoint.death()) {
+        hits.add(ICON_BUTTON, waypoint.id(), iconX - ICON, iconY - ICON, ICON * 2.0F, ICON * 2.0F);
+      }
+      float textX = x + LEFT + 4.0F + ICON + GAP;
       float textTop = cursor + (ROW - rowLine - monoLine - 1.0F) * 0.5F;
       float edge =
           hits.pill(
@@ -208,10 +231,96 @@ public final class WaypointPanel extends Widget {
       c.popClip();
       cursor += ROW;
       if (extra > 0.5F && waypoint.id().equals(shown)) {
-        picker(c, t, cursor, extra, mouseX, mouseY);
+        if (!iconing.isEmpty()) {
+          iconPicker(c, t, waypoint, cursor, extra, mouseX, mouseY);
+        } else {
+          picker(c, t, cursor, extra, mouseX, mouseY);
+        }
         cursor += extra;
       }
     }
+  }
+
+  private void iconPicker(
+      Canvas c,
+      Theme t,
+      Waypoints.Waypoint waypoint,
+      float top,
+      float tall,
+      float mouseX,
+      float mouseY) {
+    pickerTop = top;
+    boolean inside = mouseY >= top && mouseY < top + tall;
+    float mx = inside ? mouseX : OFFSCREEN;
+    float left = x + LEFT + 4.0F;
+    float room = w - LEFT - RIGHT - 4.0F;
+    float middle = top + PICKER * 0.5F - 3.0F;
+    String suggestion = Icons.suggest(waypoint.name());
+    c.pushClip(left, top, room, tall);
+    c.pushAlpha(Math.min(1.0F, tall / PICKER));
+    float start = left;
+    if (!suggestion.isEmpty() && !suggestion.equals(waypoint.icon())) {
+      String label = Lang.tr(SUGGESTED);
+      c.text(FontStyle.MONO, label, left, middle - c.lineHeight(FontStyle.MONO) * 0.5F, t.grey());
+      start = left + c.textWidth(FontStyle.MONO, label) + 10.0F;
+    }
+    float cursor = start - strip;
+    c.pushClip(start, top, left + room - start, tall);
+    boolean suggest = !suggestion.isEmpty() && !suggestion.equals(waypoint.icon());
+    int count = Icons.ALL.length + 1;
+    if (suggest) {
+      choice(c, t, suggestion, waypoint, cursor, middle, mx, mouseY, start);
+      cursor += CHIP + CHIP_GAP;
+    }
+    for (int i = 0; i < count; i++) {
+      String icon = i == 0 ? Icons.NONE : Icons.ALL[i - 1];
+      if (suggest && icon.equals(suggestion)) {
+        continue;
+      }
+      choice(c, t, icon, waypoint, cursor, middle, mx, mouseY, start);
+      cursor += CHIP + CHIP_GAP;
+    }
+    c.popClip();
+    stripOverflow = Math.max(0.0F, count * (CHIP + CHIP_GAP) - CHIP_GAP - (left + room - start));
+    strip = Math.max(0.0F, Math.min(stripOverflow, strip));
+    c.popAlpha();
+    c.popClip();
+  }
+
+  private void choice(
+      Canvas c,
+      Theme t,
+      String icon,
+      Waypoints.Waypoint waypoint,
+      float cursor,
+      float middle,
+      float mx,
+      float mouseY,
+      float start) {
+    float chipTop = middle - CHIP * 0.5F;
+    boolean chosen = icon.equals(waypoint.icon());
+    boolean over =
+        mx >= Math.max(start, cursor)
+            && mx < cursor + CHIP
+            && mouseY >= chipTop
+            && mouseY < chipTop + CHIP;
+    boolean down = hits.down(ICON_CHOICE, icon);
+    Depth.raised(
+        c,
+        t,
+        cursor,
+        chipTop,
+        CHIP,
+        CHIP,
+        CHIP * 0.5F,
+        chosen ? t.ink() : Theme.mix(t.surface2(), t.ink(), down ? 0.16F : over ? 0.08F : 0.0F));
+    int ink = chosen ? t.paper() : t.ink();
+    if (icon.isEmpty()) {
+      c.roundRect(cursor + (CHIP - DOT) * 0.5F, middle - DOT * 0.5F, DOT, DOT, 2.0F, ink);
+    } else {
+      WaypointArt.draw(c, cursor + CHIP * 0.5F, middle, CHOICE_ART, icon, ink);
+    }
+    hits.add(ICON_CHOICE, icon, Math.max(start, cursor), chipTop, CHIP, CHIP);
   }
 
   private void picker(Canvas c, Theme t, float top, float tall, float mouseX, float mouseY) {
@@ -322,7 +431,7 @@ public final class WaypointPanel extends Widget {
   @Override
   public boolean scroll(float mx, float my, float amount) {
     if (!contains(mx, my)
-        || sharing.isEmpty()
+        || (sharing.isEmpty() && iconing.isEmpty())
         || stripOverflow <= 0.0F
         || my < pickerTop
         || my >= pickerTop + PICKER) {
@@ -367,9 +476,17 @@ public final class WaypointPanel extends Widget {
         if (id.equals(sharing)) {
           sharing = "";
         }
+        if (id.equals(iconing)) {
+          iconing = "";
+        }
         waypoints.remove(id);
       }
       case SHARE -> pick(id);
+      case ICON_BUTTON -> pickIcon(id);
+      case ICON_CHOICE -> {
+        waypoints.icon(iconing, id);
+        iconing = "";
+      }
       case FRIEND -> {
         Waypoints.Waypoint waypoint = find(sharing);
         if (waypoint != null) {

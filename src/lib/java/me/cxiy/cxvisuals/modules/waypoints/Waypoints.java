@@ -13,7 +13,15 @@ import me.cxiy.cxvisuals.core.i18n.Lang;
 
 public final class Waypoints {
   public record Waypoint(
-      String id, String name, int x, int y, int z, String dimension, int color, long died) {
+      String id,
+      String name,
+      int x,
+      int y,
+      int z,
+      String dimension,
+      int color,
+      long died,
+      String icon) {
     public String place() {
       return x + " " + y + " " + z;
     }
@@ -117,6 +125,10 @@ public final class Waypoints {
   }
 
   public Waypoint add(String name, int x, int y, int z, String where) {
+    return add(name, x, y, z, where, null);
+  }
+
+  public Waypoint add(String name, int x, int y, int z, String where, String icon) {
     if (scope.isEmpty()) {
       notice = Lang.tr("Join a world first.");
       return null;
@@ -138,7 +150,8 @@ public final class Waypoints {
             z,
             where == null ? "" : where,
             PALETTE[current.size() % PALETTE.length],
-            0L);
+            0L,
+            icon != null && Icons.known(icon) ? icon : Icons.suggest(label));
     current.add(waypoint);
     notice = "";
     revision++;
@@ -167,7 +180,8 @@ public final class Waypoints {
             z,
             where == null ? "" : where,
             DEATH_COLOR,
-            Math.max(1L, now));
+            Math.max(1L, now),
+            Icons.SKULL);
     current.add(waypoint);
     revision++;
     return waypoint;
@@ -197,6 +211,31 @@ public final class Waypoints {
       ages.clear();
     }
     return ages.computeIfAbsent(waypoint.id(), ignored -> age(waypoint.died(), now));
+  }
+
+  public void icon(String id, String icon) {
+    String next = icon == null || !Icons.known(icon) ? Icons.NONE : icon;
+    for (int i = 0; i < current.size(); i++) {
+      Waypoint waypoint = current.get(i);
+      if (waypoint.id().equals(id)) {
+        if (!waypoint.icon().equals(next)) {
+          current.set(
+              i,
+              new Waypoint(
+                  waypoint.id(),
+                  waypoint.name(),
+                  waypoint.x(),
+                  waypoint.y(),
+                  waypoint.z(),
+                  waypoint.dimension(),
+                  waypoint.color(),
+                  waypoint.died(),
+                  next));
+          revision++;
+        }
+        return;
+      }
+    }
   }
 
   public void remove(String id) {
@@ -236,6 +275,9 @@ public final class Waypoints {
         if (waypoint.death()) {
           row.addProperty("died", waypoint.died());
         }
+        if (!waypoint.icon().isEmpty()) {
+          row.addProperty("icon", waypoint.icon());
+        }
         rows.add(row);
       }
       root.add(entry.getKey(), rows);
@@ -262,7 +304,10 @@ public final class Waypoints {
                     row.get("z").getAsInt(),
                     row.get("dimension").getAsString(),
                     row.get("color").getAsInt() | 0xFF000000,
-                    row.has("died") ? Math.max(0L, row.get("died").getAsLong()) : 0L));
+                    row.has("died") ? Math.max(0L, row.get("died").getAsLong()) : 0L,
+                    row.has("icon") && Icons.known(row.get("icon").getAsString())
+                        ? row.get("icon").getAsString()
+                        : Icons.suggest(name)));
           }
         }
         scopes.put(entry.getKey(), rows);

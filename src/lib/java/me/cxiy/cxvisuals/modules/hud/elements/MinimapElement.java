@@ -220,7 +220,7 @@ public final class MinimapElement extends HudElement {
       } else if (data.markColor[i] == Waypoints.DEATH_COLOR) {
         MapMarks.death(c, sx, sy, (WAYPOINT + 1.0F) * pop, data.markColor[i], alpha);
       } else {
-        MapMarks.waypoint(c, sx, sy, WAYPOINT * pop, data.markColor[i], alpha);
+        MapMarks.waypoint(c, sx, sy, WAYPOINT * pop, data.markColor[i], data.markIcon[i], alpha);
       }
     }
 

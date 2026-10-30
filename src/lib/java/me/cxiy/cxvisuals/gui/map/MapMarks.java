@@ -3,10 +3,13 @@ package me.cxiy.cxvisuals.gui.map;
 import me.cxiy.cxvisuals.gui.Canvas;
 import me.cxiy.cxvisuals.gui.FontStyle;
 import me.cxiy.cxvisuals.gui.Theme;
+import me.cxiy.cxvisuals.gui.WaypointArt;
 
 public final class MapMarks {
   public static final int SHADOW = 0x59000000;
   public static final int WHITE = 0xFFFFFFFF;
+
+  private static final float ICON_SCALE = 1.7F;
 
   private static final int BEAM_RAYS = 9;
   private static final float BEAM_SPREAD = 0.075F;
@@ -35,6 +38,45 @@ public final class MapMarks {
     c.shadow(x - ring, y - ring, ring * 2.0F, ring * 2.0F, ring, 6.0F, 1.5F, SHADOW);
     c.roundRect(x - ring, y - ring, ring * 2.0F, ring * 2.0F, ring, WHITE);
     c.roundRect(x - dot, y - dot, dot * 2.0F, dot * 2.0F, dot, t.red());
+  }
+
+  public static void waypoint(
+      Canvas c, float x, float y, float size, int color, String icon, float alpha) {
+    if (!WaypointArt.has(icon)) {
+      waypoint(c, x, y, size, color, alpha);
+      return;
+    }
+    float tile = size * ICON_SCALE;
+    float half = tile * 0.5F;
+    float ring = Math.max(1.5F, tile * 0.14F);
+    float outer = half + ring;
+    c.shadow(
+        x - outer,
+        y - outer,
+        outer * 2.0F,
+        outer * 2.0F,
+        outer * 0.4F,
+        5.0F,
+        1.0F,
+        Theme.withAlpha(SHADOW, alpha));
+    c.roundRect(
+        x - outer,
+        y - outer,
+        outer * 2.0F,
+        outer * 2.0F,
+        outer * 0.4F,
+        Theme.withAlpha(WHITE, alpha));
+    c.roundRect(x - half, y - half, tile, tile, half * 0.4F, Theme.withAlpha(color, alpha));
+    WaypointArt.draw(c, x, y, tile * 0.68F, icon, Theme.withAlpha(onColor(color), alpha));
+  }
+
+  private static int onColor(int color) {
+    float luma =
+        (0.299F * ((color >> 16) & 0xFF)
+                + 0.587F * ((color >> 8) & 0xFF)
+                + 0.114F * (color & 0xFF))
+            / 255.0F;
+    return luma > 0.62F ? 0xFF111114 : 0xFFFFFFFF;
   }
 
   public static void waypoint(Canvas c, float x, float y, float size, int color, float alpha) {

@@ -639,7 +639,7 @@ public final class MapScreenView {
       if (data.markColor[i] == Waypoints.DEATH_COLOR) {
         MapMarks.death(c, p[0], p[1], size + 1.0F, data.markColor[i], 1.0F);
       } else {
-        MapMarks.waypoint(c, p[0], p[1], size, data.markColor[i], 1.0F);
+        MapMarks.waypoint(c, p[0], p[1], size, data.markColor[i], data.markIcon[i], 1.0F);
       }
     }
     for (int i = 0; i < data.markCount; i++) {
@@ -1104,7 +1104,14 @@ public final class MapScreenView {
         if (entry.color == Waypoints.DEATH_COLOR) {
           MapMarks.death(c, iconX, iconY, 11.0F, entry.color, 1.0F);
         } else {
-          MapMarks.waypoint(c, iconX, iconY, 10.0F, entry.color, 1.0F);
+          MapMarks.waypoint(
+              c,
+              iconX,
+              iconY,
+              10.0F,
+              entry.color,
+              entry.waypoint == null ? "" : entry.waypoint.icon(),
+              1.0F);
         }
       }
       case FRIEND -> {
@@ -1613,7 +1620,7 @@ public final class MapScreenView {
     float h = 92.0F;
     float[] at = popBox(w, h);
     MapChrome.panel(c, t, frost, at[0], at[1], w, h, 16.0F);
-    MapMarks.waypoint(c, at[0] + 22.0F, at[1] + 24.0F, 10.0F, focused.color(), 1.0F);
+    MapMarks.waypoint(c, at[0] + 22.0F, at[1] + 24.0F, 10.0F, focused.color(), focused.icon(), 1.0F);
     c.text(
         FontStyle.LABEL,
         c.fit(FontStyle.LABEL, focused.name(), w - 60.0F),
